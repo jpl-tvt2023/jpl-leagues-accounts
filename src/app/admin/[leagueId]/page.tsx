@@ -9,6 +9,7 @@ import { TierChip } from "@/components/TierChip";
 import { AppNav } from "@/components/AppNav";
 import { formatCurrency } from "@/lib/format/currency";
 import { FeedbackTab } from "./FeedbackTab";
+import { MembersTab } from "./MembersTab";
 import { DEFAULT_RELEASE_CYCLE_GWS, formatReleaseCycleGws, parseReleaseCycleGws } from "@/lib/formats/auction/cycle";
 
 interface Team {
@@ -126,7 +127,7 @@ interface CacheStats {
   gameweeks: { gameweek: number; entries: number }[];
 }
 
-type TabType = "teams" | "groups" | "captain" | "chips" | "bulkUpload" | "scoring" | "playoffs" | "settings" | "auction" | "finance" | "marketplace" | "feedback";
+type TabType = "teams" | "members" | "groups" | "captain" | "chips" | "bulkUpload" | "scoring" | "playoffs" | "settings" | "auction" | "finance" | "marketplace" | "feedback";
 
 // Auction-specific interfaces
 interface AuctionSessionInfo {
@@ -194,7 +195,7 @@ export default function AdminDashboard() {
 
   const [activeTab, setActiveTab] = useState<TabType>("teams");
   const [teams, setTeams] = useState<Team[]>([]);
-  const [leagueConfig, setLeagueConfig] = useState<{ leagueDbId?: string; teamSize: number; groupCount: number; playoffStartGw: number; enabledChips: string[]; format?: string; clubAuctionEnabled?: boolean; startGameweek: number; releaseCycleGws: number[] }>({
+  const [leagueConfig, setLeagueConfig] = useState<{ leagueDbId?: string; teamSize: number; groupCount: number; playoffStartGw: number; enabledChips: string[]; format?: string; clubAuctionEnabled?: boolean; startGameweek: number; releaseCycleGws: number[]; authMode?: "legacy" | "members" }>({
     teamSize: 32, groupCount: 2, playoffStartGw: 31, enabledChips: ["D", "W", "C"],
     startGameweek: 1, releaseCycleGws: DEFAULT_RELEASE_CYCLE_GWS,
   });
@@ -424,6 +425,7 @@ export default function AdminDashboard() {
             clubAuctionEnabled: Boolean(league.clubAuctionEnabled),
             startGameweek: league.startGameweek ?? 1,
             releaseCycleGws: parseReleaseCycleGws(league.releaseCycleGws),
+            authMode: league.authMode === "members" ? "members" : "legacy",
           });
           setAuctionCfgForm({
             startGameweek: league.startGameweek ?? 1,
@@ -2081,6 +2083,18 @@ export default function AdminDashboard() {
           >
             {isAuctionFormat ? "Manager Management" : "Team Management"}
           </button>
+          {leagueConfig.authMode === "members" && (
+          <button
+            onClick={() => { setActiveTab("members"); setMessage(null); }}
+            className={`px-3 sm:px-4 py-2 rounded-lg font-semibold text-sm sm:text-base whitespace-nowrap transition ${
+              activeTab === "members"
+                ? "bg-yellow-500 text-slate-900"
+                : "bg-white/5 text-gray-300 hover:bg-white/10"
+            }`}
+          >
+            Members
+          </button>
+          )}
           {leagueConfig.format === "tvt" && leagueConfig.groupCount >= 2 && (
           <button
             onClick={() => { setActiveTab("groups"); setMessage(null); }}
@@ -4707,6 +4721,11 @@ export default function AdminDashboard() {
               </div>
             </div>
           </div>
+        )}
+
+        {/* Members Tab (members-mode leagues: invite link, requests, who is on each team) */}
+        {activeTab === "members" && leagueId && (
+          <MembersTab leagueId={leagueId} />
         )}
 
         {/* Feedback Tab */}

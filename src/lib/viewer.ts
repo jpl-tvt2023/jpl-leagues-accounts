@@ -76,7 +76,7 @@ export async function resolveViewerForSession(session: SessionPayload | null): P
  * pages can show "my team" without a round-trip of their own. `isLeagueAdmin` covers
  * superadmins and this league's admins.
  */
-export async function resolveViewerForLeague(session: SessionPayload | null, leagueId: string): Promise<ViewerInfo> {
+export async function resolveViewerForLeague(session: SessionPayload | null, leagueId: string, leagueSlug?: string): Promise<ViewerInfo> {
   const viewer = await resolveViewerForSession(session);
   if (!session || !viewer.authenticated) return viewer;
 
@@ -99,7 +99,13 @@ export async function resolveViewerForLeague(session: SessionPayload | null, lea
       .limit(1);
     isLeagueAdmin = !!row;
   }
-  return { ...viewer, teamId: actor?.teamId, isLeagueAdmin };
+  return {
+    ...viewer,
+    teamId: actor?.teamId,
+    isLeagueAdmin,
+    // A person's dashboard for this league lives under it (they may be on teams in several).
+    ...(actor && leagueSlug ? { dashboardHref: `/${leagueSlug}/dashboard` } : {}),
+  };
 }
 
 async function currentSession(): Promise<SessionPayload | null> {
@@ -114,6 +120,6 @@ export async function resolveViewer(): Promise<ViewerInfo> {
 }
 
 /** The viewer behind the current request, as seen from one league. */
-export async function resolveViewerInLeague(leagueId: string): Promise<ViewerInfo> {
-  return resolveViewerForLeague(await currentSession(), leagueId);
+export async function resolveViewerInLeague(leagueId: string, leagueSlug?: string): Promise<ViewerInfo> {
+  return resolveViewerForLeague(await currentSession(), leagueId, leagueSlug);
 }

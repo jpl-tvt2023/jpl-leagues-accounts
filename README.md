@@ -149,13 +149,19 @@ Ranks 5–8: Eliminated after league stage
 ## Project Structure
 
 ```
-jpl-leagues/
+jpl-leagues-accounts/
 ├── src/
 │   ├── app/                          # Next.js App Router pages and API routes
 │   │   ├── layout.tsx                # Root layout (metadata, fonts)
-│   │   ├── page.tsx                  # Public home — league list
-│   │   ├── signin/page.tsx           # Login page (teams + admins)
-│   │   ├── dashboard/page.tsx        # Team dashboard (captain, chips, GW results)
+│   │   ├── page.tsx                  # Public home — league list (+ "Your leagues" when signed in)
+│   │   ├── signin/                   # Sign in: Google first; team-ID / admin-email form below
+│   │   ├── onboarding/               # First Google sign-in: pick a username
+│   │   ├── account/page.tsx          # Your profile, leagues, devices, delete account
+│   │   ├── join/[token]/             # Invite links land here
+│   │   ├── help/page.tsx             # Public sign-in & account help (no sign-in needed)
+│   │   ├── privacy/page.tsx          # What we store, and why
+│   │   ├── auth/handoff/             # iOS home-screen sign-in handoff (behind a flag)
+│   │   ├── dashboard/                # Team dashboard (TeamDashboard.tsx); /dashboard = legacy logins
 │   │   ├── change-password/page.tsx  # First-login password change
 │   │   ├── standings/page.tsx        # Legacy single-league standings
 │   │   ├── fixtures/page.tsx         # Legacy single-league fixtures
@@ -165,14 +171,20 @@ jpl-leagues/
 │   │   ├── admin/
 │   │   │   ├── page.tsx              # Admin league selector
 │   │   │   └── [leagueId]/page.tsx   # Per-league admin panel (teams, scoring, chips, playoffs)
-│   │   ├── [leagueSlug]/             # Public per-league pages
+│   │   ├── [leagueSlug]/             # Per-league pages
+│   │   │   ├── dashboard/page.tsx    # Your team's dashboard in this league (people)
+│   │   │   ├── setup/page.tsx        # Set up your team in this league (people)
+│   │   │   ├── team/page.tsx         # Your team: members, teammate invite, name
 │   │   │   ├── standings/page.tsx
 │   │   │   ├── fixtures/page.tsx
 │   │   │   └── playoffs/page.tsx
 │   │   └── api/                      # API routes (37 files)
-│   │       ├── auth/                 # signin, signout, me, change-password
+│   │       ├── auth/                 # signin, signout, me, change-password, google, handoff
+│   │       ├── me/                   # the signed-in person: profile, leagues, sessions, delete
+│   │       ├── join/                 # use an invite link
+│   │       ├── test-auth/            # TEST ONLY person sign-in (TEST_AUTH_ENABLED)
 │   │       ├── admin/[leagueId]/     # Admin operations (14 routes)
-│   │       ├── team/                 # captain, chips, dashboard, gw-result
+│   │       ├── team/                 # captain, chips, dashboard, gw-result, setup, invite (resolveTeamActor)
 │   │       ├── cron/                 # Automated score processing
 │   │       ├── fixtures/             # Fixture listing, generation, live scores
 │   │       ├── gameweeks/[gw]/       # GW deadline info
@@ -189,6 +201,12 @@ jpl-leagues/
 │       │   ├── index.ts              # Drizzle client (LibSQL connection)
 │       │   └── schema.ts             # Complete database schema + relations
 │       ├── auth.ts                   # Session create/verify (HMAC-SHA256)
+│       ├── team-actor.ts             # Which team a request acts as (legacy login or membership)
+│       ├── membership.ts             # Invites, joining, teammates, approvals, admin tools
+│       ├── accounts.ts               # People: Google find/link/create, sessions
+│       ├── privilege.ts              # Admin/superadmin re-checked against the database
+│       ├── google-oauth.ts           # Google sign-in (arctic, PKCE)
+│       ├── db/target-guard.ts        # Refuses every database but file: / jpl-leagues-accounts
 │       ├── scoring.ts                # TVT scoring engine, getChipSet()
 │       ├── fixtures.ts               # Round-robin fixture generation
 │       ├── chip-validation.ts        # TVT chip rules validation
@@ -216,11 +234,13 @@ jpl-leagues/
 
 | Table | Purpose |
 |-------|---------|
-| `users` | Admin and superadmin accounts |
+| `users` | One row per person: admins, superadmins and players (Google sign-in, username) |
 | `leagues` | League instances with variant config |
 | `league_admins` | Maps admins to their leagues |
 | `groups` | Groups (A/B) within a league |
-| `teams` | TVT teams (2 players) — also login credentials |
+| `teams` | Teams (TVT: 2 players). A login only in legacy leagues; otherwise people join via `team_members` |
+| `team_members` | Who is on which team (members-mode leagues); one team per person per league |
+| `user_identities` / `league_invites` / `join_requests` / `auth_handoffs` | Google links, invite links, approval requests, iOS sign-in handoffs |
 | `players` | Individual FPL managers within a team |
 | `gameweeks` | GW1–38 with deadlines and phase flags |
 | `fixtures` | Head-to-head matches (league + playoff) |

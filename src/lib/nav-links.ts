@@ -131,6 +131,8 @@ export type NavContext =
       auctionTier: "primary" | "complete" | null;
       isLoggedIn: boolean;
       dashboardHref: string;
+      /** Team settings. Legacy team logins: /settings; people: /[league]/team. */
+      settingsHref?: string;
     }
   | {
       surface: "admin-league";
@@ -197,7 +199,7 @@ function when(cond: boolean, ...items: NavItem[]): NavItem[] {
 }
 
 function buildLeague(ctx: Extract<NavContext, { surface: "league" }>, runtime: NavRuntime): NavModel {
-  const { leagueSlug, format, auctionTier, isLoggedIn, dashboardHref } = ctx;
+  const { leagueSlug, format, auctionTier, isLoggedIn, dashboardHref, settingsHref = "/settings" } = ctx;
   const auctionLive = runtime.auctionLive ?? false;
   const p = (path: string) => `/${leagueSlug}/${path}`;
 
@@ -209,7 +211,7 @@ function buildLeague(ctx: Extract<NavContext, { surface: "league" }>, runtime: N
     icon: isLoggedIn ? "home" : "leagues",
     shortLabel: isLoggedIn ? "Home" : "Leagues",
   };
-  const settings: NavItem[] = when(isLoggedIn, { key: "settings", label: "Settings", href: "/settings" });
+  const settings: NavItem[] = when(isLoggedIn, { key: "settings", label: "Settings", href: settingsHref });
   const feedback: NavItem[] = when(isLoggedIn, { key: "feedback", label: "Feedback", href: p("feedback") });
 
   if (format === "auction") {
@@ -232,7 +234,7 @@ function buildLeague(ctx: Extract<NavContext, { surface: "league" }>, runtime: N
           heading: "Auction",
           items: [
             { key: "auction", label: "Auction", href: p("auction") },
-            ...when(isLoggedIn, { key: "wishlist", label: "Wishlist", href: "/dashboard#wishlist" }),
+            ...when(isLoggedIn, { key: "wishlist", label: "Wishlist", href: `${dashboardHref}#wishlist` }),
           ],
         },
         { id: "my-team", heading: "My Team", items: [{ key: "squad", label: "Squad", href: p("squad") }] },

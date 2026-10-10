@@ -47,6 +47,7 @@ a single Excel workbook.
 | 16 | Superadmin (admin CRUD, PL standings) | [16-superadmin.json](sources/16-superadmin.json) | Superadmin | qa-signed-off |
 | 17 | Public Pages (landing, rules, winners) | [17-public-pages.json](sources/17-public-pages.json) | Public Pages | qa-signed-off |
 | 18 | Feedback (user submissions + admin moderation) | [18-feedback.json](sources/18-feedback.json) | Feedback | qa-signed-off |
+| 19 | Accounts & Membership (Google sign-in, invites, multi-league) | [19-accounts-membership.json](sources/19-accounts-membership.json) | Accounts & Membership | qa-writing (automated: tests/accounts/*) |
 
 ## Generated artifact
 

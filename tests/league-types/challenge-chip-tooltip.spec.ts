@@ -79,6 +79,8 @@ test.describe.serial("Challenge Chip tooltip", () => {
     slug = "cct-" + Date.now().toString(36);
     const res = await request.post("/api/superadmin/leagues", {
       data: {
+        // Team logins: this spec signs teams in with team keys.
+        authMode: "legacy",
         slug, name: "Challenge Chip Tooltip", sport: "fpl", format: "tvt",
         season: "2025-26", teamSize: TEAMS, groupCount: 2, enabledChips: ["D", "W", "C"],
       },

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import {
   AccordionItem,
+  accountFaqs,
   type ActiveTab,
   type FaqEntry,
   HelpTabBar,
@@ -12,8 +13,10 @@ import {
   SectionDivider,
   type UserRole,
 } from "./shared";
+import { useLeague } from "@/lib/league-context";
 
 export function ContinentalChampionshipHelp({ userRole }: { userRole: UserRole }) {
+  const { league } = useLeague();
   const [activeTab, setActiveTab] = useState<ActiveTab>("faqs");
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
@@ -88,20 +91,10 @@ export function ContinentalChampionshipHelp({ userRole }: { userRole: UserRole }
         </div>
       ),
     },
+    ...accountFaqs(league.authMode, { twoPlayer: true }),
   ];
 
   const teamFaqs: FaqEntry[] = [
-    {
-      question: "How do I log in for the first time?",
-      answer: (
-        <ol className="list-decimal list-inside space-y-1.5">
-          <li>Click <strong className="text-white">Sign In</strong> in the navigation bar.</li>
-          <li>Enter the <strong className="text-white">team login ID</strong> and <strong className="text-white">temporary password</strong> provided by your admin.</li>
-          <li>You will be redirected to set a new password.</li>
-          <li>After that you have full access to your team dashboard.</li>
-        </ol>
-      ),
-    },
     {
       question: "How do I submit my captain?",
       answer: (

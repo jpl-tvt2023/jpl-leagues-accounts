@@ -3,6 +3,8 @@
 import { useState } from "react";
 import {
   AccordionItem,
+  accountFaqs,
+  accountScenario,
   type ActiveTab,
   type FaqEntry,
   HelpTabBar,
@@ -12,6 +14,7 @@ import {
   SectionDivider,
   type UserRole,
 } from "./shared";
+import { useLeague } from "@/lib/league-context";
 
 interface Props {
   userRole: UserRole;
@@ -21,6 +24,7 @@ interface Props {
 }
 
 export function TvtHelp({ userRole, teamSize, enabledChips, leagueStageEnd }: Props) {
+  const { league } = useLeague();
   const [activeTab, setActiveTab] = useState<ActiveTab>("faqs");
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
@@ -146,29 +150,10 @@ export function TvtHelp({ userRole, teamSize, enabledChips, leagueStageEnd }: Pr
         </div>
       ),
     },
-    {
-      question: "How can I join a league?",
-      answer: (
-        <p>
-          Contact your league administrator. They will create a team account for you and share your login credentials (a team login ID and a temporary password). Once you receive them, click <strong className="text-white">Sign In</strong> in the navigation bar and log in. You will be prompted to set a new password on your first login. After that you will have full access to your team dashboard and can view all league pages.
-        </p>
-      ),
-    },
+    ...accountFaqs(league.authMode, { twoPlayer: true }),
   ];
 
   const teamFaqs: FaqEntry[] = [
-    {
-      question: "How do I log in for the first time?",
-      answer: (
-        <ol className="list-decimal list-inside space-y-1.5">
-          <li>Click <strong className="text-white">Sign In</strong> in the navigation bar.</li>
-          <li>Enter the <strong className="text-white">team login ID</strong> and <strong className="text-white">temporary password</strong> provided by your admin.</li>
-          <li>You will be automatically redirected to the <strong className="text-white">Change Password</strong> page.</li>
-          <li>Set your own secure password and confirm it.</li>
-          <li>You will be logged in and taken to your team dashboard.</li>
-        </ol>
-      ),
-    },
     {
       question: "How do I read my dashboard?",
       answer: (
@@ -388,17 +373,7 @@ export function TvtHelp({ userRole, teamSize, enabledChips, leagueStageEnd }: Pr
 
   const teamScenarios: ScenarioEntry[] = userRole !== "public"
     ? [
-        {
-          number: 5,
-          title: "Logging in for the first time and changing your password",
-          steps: [
-            `Click "Sign In" in the navigation bar.`,
-            "Enter the team login ID and temporary password provided by your admin.",
-            "You will be automatically redirected to the Change Password page.",
-            "Enter your new password, confirm it, and submit.",
-            "You are now logged in and will be taken to your team dashboard.",
-          ],
-        },
+        accountScenario(league.authMode, 5, { twoPlayer: true }),
         {
           number: 6,
           title: "Submitting your captain before the deadline",

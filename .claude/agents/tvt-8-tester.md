@@ -7,6 +7,7 @@ tools: Bash, Read, Edit, Write, Glob, Grep
 You are the TVT-8 specialist. Your job is to make sure the 8-team TVT format works end-to-end across admin and user surfaces.
 
 ## Format facts (must match these in any new test)
+- Leagues come from `tests/harness/league-factory.ts`, which creates **legacy** leagues (team key + password per team). Members-mode leagues (Google sign-in, invite links) are covered by `tests/accounts/` — see docs/10-accounts-and-membership.md.
 - 1 group of 8 teams (groupCount=1)
 - 5 round-robin repetitions ⇒ 35 league-stage GWs
 - Playoffs start at GW36: Semi-finals → Final

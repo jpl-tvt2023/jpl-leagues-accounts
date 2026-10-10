@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 import { NavIcon } from "./icons/NavIcon";
+import { LeagueSwitcher } from "./LeagueSwitcher";
 import { signOutAccounts, switchAccount, useDeviceAccounts, type DeviceAccount } from "@/lib/accounts-client";
 
 const AVATAR_COLOURS = ["bg-sky-600", "bg-emerald-600", "bg-violet-600", "bg-amber-600", "bg-rose-600", "bg-indigo-600"];
@@ -103,6 +104,14 @@ function AccountActions({
         </span>
         Add another account
       </Link>
+      {active.type !== "team" && (
+        <Link href="/account" onClick={onNavigate} className={ROW}>
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center">
+            <NavIcon name="settings" className="h-5 w-5" />
+          </span>
+          Your account
+        </Link>
+      )}
       {active.type === "team" && (
         <Link href="/settings#accounts" onClick={onNavigate} className={ROW}>
           <span className="flex h-8 w-8 shrink-0 items-center justify-center">
@@ -160,6 +169,11 @@ export function DrawerAccountSection({ onNavigate }: { onNavigate?: () => void }
       {expanded && (
         <div id={listId} className="border-t border-white/10 p-1">
           <AccountActions accounts={accounts} active={active} onNavigate={onNavigate} />
+        </div>
+      )}
+      {active.type !== "team" && (
+        <div className="border-t border-white/10 p-1">
+          <LeagueSwitcher onNavigate={onNavigate} />
         </div>
       )}
     </div>
@@ -222,6 +236,12 @@ export function AccountMenu({ onSignOut, className = "" }: { onSignOut?: () => v
                 <AccountAvatar account={active} />
                 <AccountText account={active} />
               </div>
+              {active.type !== "team" && (
+                <>
+                  <div className="my-1 border-t border-white/10" />
+                  <LeagueSwitcher onNavigate={() => setOpen(false)} />
+                </>
+              )}
               <div className="my-1 border-t border-white/10" />
               <AccountActions accounts={accounts} active={active} onNavigate={() => setOpen(false)} />
             </>

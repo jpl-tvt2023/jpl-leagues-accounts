@@ -69,6 +69,11 @@ export async function PATCH(request: NextRequest) {
 
     const updateData: Record<string, unknown> = {};
 
+    // The team key is a login only for legacy team logins; in members leagues it's internal.
+    if (teamLoginIdProvided && actor.memberRole !== "legacy") {
+      return NextResponse.json({ error: "The team key can't be changed." }, { status: 400 });
+    }
+
     if (teamLoginIdProvided) {
       const trimmedLoginId = teamLoginId.trim();
 

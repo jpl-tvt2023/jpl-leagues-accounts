@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { and, asc, eq, inArray, ne, count } from "drizzle-orm";
-import { db, teamMembers, users, auditLogs } from "@/lib/db";
+import { db, teamMembers, users, auditLogs, userIdentities, joinRequests, leagueAdmins, authHandoffs } from "@/lib/db";
 import { SESSION_COOKIE_NAME, SESSION_COOKIE_OPTIONS } from "@/lib/auth";
 import { ACCOUNTS_COOKIE_NAME, ACCOUNTS_COOKIE_OPTIONS, encodeAccounts, removeAccount } from "@/lib/auth-accounts";
 import { getRequestPerson, sessionTypeForRole } from "@/lib/accounts";
@@ -65,6 +65,12 @@ export async function DELETE(request: NextRequest) {
       description: `Account ${user.username ? "@" + user.username : user.email} deleted by its owner`,
       userId: user.id,
     });
+    // Explicit rather than relying on ON DELETE CASCADE: foreign-key enforcement isn't guaranteed
+    // on every connection (the local libsql client opens fresh connections without the pragma).
+    await tx.delete(userIdentities).where(eq(userIdentities.userId, user.id));
+    await tx.delete(joinRequests).where(eq(joinRequests.userId, user.id));
+    await tx.delete(leagueAdmins).where(eq(leagueAdmins.userId, user.id));
+    await tx.delete(authHandoffs).where(eq(authHandoffs.userId, user.id));
     await tx.delete(users).where(eq(users.id, user.id));
   });
 

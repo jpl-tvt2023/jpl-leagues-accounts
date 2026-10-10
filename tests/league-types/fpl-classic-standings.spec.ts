@@ -74,7 +74,7 @@ test.describe.serial("FPL Classic — public standings", () => {
   test("a TVT league's slug through this route is a 404, not another format's data", async ({ request }) => {
     await apiSignInSuperadmin(request);
     const tvtRes = await request.post("/api/superadmin/leagues", {
-      data: { slug: `zz-${Date.now().toString(36)}`, name: "Not Classic", sport: "fpl", format: "tvt", season: "2025-26", teamSize: 8, groupCount: 1, enabledChips: ["D", "W", "C"] },
+      data: { authMode: "legacy", slug: `zz-${Date.now().toString(36)}`, name: "Not Classic", sport: "fpl", format: "tvt", season: "2025-26", teamSize: 8, groupCount: 1, enabledChips: ["D", "W", "C"] },
     });
     const tvt = await tvtRes.json();
     await apiSignOut(request);

@@ -8,10 +8,10 @@ How people sign in, and how one person plays in many leagues. This replaces the 
 |---|---|---|
 | 1 | Schema (migration 0025), `resolveTeamActor`, league-scoped viewer, route refactor, guard tests, database target guard | **Built** |
 | 2 | Google sign-in, usernames, `/onboarding`, `/account`, in-app-browser handling, iOS handoff (behind a flag), role refresh and revocation, passwordless admins | **Built** |
-| 3 | Members-mode leagues: invites, join, approval, partner invites, admin Members tab, league switcher, dashboard under `/[leagueSlug]` | Planned |
+| 3 | Members-mode leagues: invites, join, approval, partner invites, admin Members tab, league switcher, dashboard under `/[leagueSlug]` | **Built** |
 | 4 | Sunset of legacy team logins after the 2026-27 season | Planned |
 
-Sections below marked *(planned)* describe the agreed design, not code that exists yet.
+Phase 4 (sunset) is the only part not built yet.
 
 ## Two kinds of league
 
@@ -24,7 +24,7 @@ Every league has an `auth_mode`:
 | Who is on a team | Whoever has the password | `team_members` rows |
 | One person, many leagues | One login per team, juggled with the device account switcher | One identity; switching leagues is navigation |
 
-All leagues that existed before migration 0025 are `legacy`, and stay that way until the 2026-27 season ends. New leagues are created as `members` *(planned, Phase 3)*.
+All leagues that existed before migration 0025 are `legacy`, and stay that way until the 2026-27 season ends. New leagues are created as `members` unless the superadmin picks team logins.
 
 FPL Classic leagues are public and have no accounts in either mode.
 
@@ -158,18 +158,50 @@ sequenceDiagram
 | `POST /api/auth/handoff` + `/auth/handoff` | iOS home-screen handoff (only with `NEXT_PUBLIC_IOS_HANDOFF=1`) |
 | `POST /api/test-auth/signin` | Test-only sign-in for the e2e suite and previews (`TEST_AUTH_ENABLED=1`; never production) |
 
-## Members-mode leagues *(planned, Phase 3)*
+## Members-mode leagues
 
-- **League creation.** Placeholder teams are still created (fixtures and groups need a fixed `teamSize`). They get a Team key but no password.
-- **Join** (`/join/{token}`). Claim the first open, non-ghost team in a transaction, becoming its owner, then go to `/{slug}/setup`.
-  - With approval on, the join files a `join_requests` row instead.
-  - Invite defaults: 14 days, `max_uses = teamSize`.
-- **Partners** (TVT / Continental). The owner sends a single-use, 7-day link. The partner joins as `member` in the player-2 slot.
+The logic lives in [`src/lib/membership.ts`](../src/lib/membership.ts). Every multi-row change runs in a transaction, and the unique indexes settle races: two people tapping the same invite can't get the same team.
+
+- **League creation** (`POST /api/superadmin/leagues`, `authMode` default `members`).
+  - Placeholder teams are still created, because fixtures and groups need a fixed `teamSize`. They get a Team key but no password.
+  - The response includes an invite link: 14 days, one use per team.
+  - The superadmin form asks "How teams sign in" and shows the link.
+- **Join** (`/join/{token}` → `POST /api/join`). The page shows the one next step for this visitor:
+  - open in a real browser, sign in, pick a username, join, or wait for approval;
+  - or "already in this league", or a clear message for a broken link.
+  - Joining claims the first open, non-ghost team as its owner, then lands on `/{slug}/setup`.
+  - With approval on, it files a `join_requests` row instead.
+- **Team setup** (`/{slug}/setup`, the same wizard as legacy `/setup`).
+  - No login ID to choose.
+  - Player 1 is prefilled from the person's profile.
+  - On save, each member is linked to an FPL slot: owner = player 1, teammate = player 2.
+- **Teammates** (TVT / Continental). From `/{slug}/team`, the owner creates a single-use, 7-day link (`/api/team/invite`). The partner joins as `member` in the free FPL slot.
   - The team can be complete without the partner ever having an account.
-- **Admin Members tab.** Slot states, invite link (copy / regenerate / revoke / approval), requests, assign by username, remove, replace account, transfer owner, release slot.
-- **Recovery.** A superadmin can move all of a person's memberships and admin rights to a new account in one transaction.
-- **Switching.** A league switcher in the nav; `/` becomes the My Leagues hub. The dashboard and setup move under `/[leagueSlug]`.
-- **Format limits.** Members per team: TVT 2, Continental 2, auction 1.
+- **Dashboard** at `/{slug}/dashboard`. Every team API call carries `?league=`.
+  - `/dashboard` keeps working for legacy logins.
+  - For a person, it redirects to the league used last (`jpl_last_league` cookie, also used by the PWA `/launch`).
+- **Switching.**
+  - `LeagueSwitcher` sits in the drawer (always visible) and in the desktop account menu.
+  - `/` shows "Your leagues" above the public list.
+  - Inside a league, `LeagueNav` points Dashboard and Settings at that league's pages.
+- **Admin Members tab** (`/api/admin/[leagueId]/members` and `/invites`):
+  - slot states (Open / Claimed / Set up);
+  - invite link: copy / new link / turn off / approval toggle;
+  - join requests;
+  - per team: assign by username, remove, replace account, make owner, release.
+- **Recovery.**
+  - A league admin's *Replace account* moves one seat.
+  - The superadmin **Users** tab (`/api/superadmin/users`, `…/[id]/transfer`) moves every membership and admin right at once, then revokes the old account's sessions.
+- **Backups.** Members leagues leave `Password` blank and add a read-only `Members` column. Restore keeps team rows, so memberships survive it (covered by an e2e test).
+- **Format limits** (`MAX_TEAM_MEMBERS`): people per team — TVT 2, Continental 2, auction 1.
+- **Help.** Format help shows sign-in questions by `league.authMode` (`accountFaqs` in `help/shared.tsx`), and admin help gains the invite and members workflows. Public `/help` and `/privacy` need no sign-in.
+
+## Known issues and their handling
+
+- **Local SQLite + concurrent writes.** On a local `file:` database, a transaction that loses a write race gets `SQLITE_BUSY`. The libsql local client then leaves that connection so that the next transaction which writes and rolls back keeps the database locked for every later query (reproduced in isolation). Membership writes are therefore queued one at a time per process (`writeTx` in `src/lib/membership.ts`), with a short retry on `SQLITE_BUSY` for hosted Turso. `tests/unit/membership.test.ts` races two joins for the last team and checks the database stays usable.
+- **Foreign keys per connection.** `src/lib/db/index.ts` turns on `PRAGMA foreign_keys` once, but the local libsql client opens a fresh connection after every transaction, and the pragma doesn't follow. So `ON DELETE CASCADE` isn't guaranteed everywhere. This is an existing, app-wide issue. Code added here doesn't rely on it: account deletion removes identities, memberships, requests, admin rights and handoffs explicitly.
+- **`pl-fixture-card` FPL-lookup test** fails without a test Redis. It fails the same way on the untouched production code (checked against a baseline worktree); see `09-environments.md` on adding one.
+- **`next build --webpack`** rejects `src/app/api/auction/redeem-slot/route.ts` for exporting a helper. This also happens on production's code. The real build (`npm run build`, Turbopack) passes.
 
 ## Legacy coexistence and sunset
 

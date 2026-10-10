@@ -17,6 +17,7 @@ import {
 import { withFplBudget, FplUnavailableError } from "@/lib/fpl/gateway";
 import bcrypt from "bcryptjs";
 import { isReservedLeagueSlug } from "@/lib/reserved-slugs";
+import { createLeagueInvite } from "@/lib/membership";
 
 export async function GET(request: NextRequest) {
   if (!(await isSuperAdmin(request))) {
@@ -99,9 +100,17 @@ export async function POST(request: NextRequest) {
     initialBudget, isSimulated, clubAuctionEnabled, auctionTier, startGameweek, releaseCycleGws,
     // fpl-classic only.
     fplLeagueId, scoringMetric, winnerCutPercent,
+    // "members" (default): people join via invite link. "legacy": a login per team, as before.
+    authMode,
   } = body;
 
   const isFplClassic = format === FPL_CLASSIC_FORMAT;
+
+  if (authMode !== undefined && authMode !== "legacy" && authMode !== "members") {
+    return NextResponse.json({ error: "authMode must be \"members\" or \"legacy\"" }, { status: 400 });
+  }
+  // FPL Classic has no accounts at all; legacy keeps every join path closed for it.
+  const resolvedAuthMode: "legacy" | "members" = isFplClassic ? "legacy" : (authMode ?? "members");
 
   // fpl-classic derives both slug and name from the FPL league itself (see below) — the
   // superadmin supplies only the FPL league id, never a slug or a name to remember.
@@ -296,6 +305,7 @@ export async function POST(request: NextRequest) {
         auctionTier: resolvedAuctionTier,
         startGameweek: resolvedStartGameweek,
         releaseCycleGws: JSON.stringify(resolvedReleaseCycleGws),
+        authMode: resolvedAuthMode,
       });
 
       // For TVT, pre-create the PL groups and split teams across them so the
@@ -328,14 +338,15 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // Auto-create placeholder team accounts for every format. Teams complete
-      // their own profile (name, players) on first login via /setup.
+      // Placeholder teams for every format: fixtures, groups and scoring need a fixed teamSize.
+      // Legacy: each is a login (team key + generated password), completed on first login via /setup.
+      // Members: nobody logs in as a team — people claim these through the invite link. They still
+      // get a team key, which backups/restores and the importers match teams by; password stays "".
       // (fpl-classic: resolvedTeamSize is 0, so this loop runs zero times — see the comment on
       // the fpl-classic branch above for why that is how "no login accounts" is guaranteed.)
       for (let i = 1; i <= resolvedTeamSize; i++) {
         const loginId = `${resolvedSlug}-Team${i}`;
-        const plainPassword = `Team${i}`;
-        const hashedPassword = await bcrypt.hash(plainPassword, 10);
+        const hashedPassword = resolvedAuthMode === "legacy" ? await bcrypt.hash(`Team${i}`, 10) : "";
         const groupId = teamIndexToGroupId.get(i);
 
         await tx.insert(teams).values({
@@ -344,7 +355,7 @@ export async function POST(request: NextRequest) {
           name: `Team ${i}`,
           leagueId: id,
           password: hashedPassword,
-          mustChangePassword: true,
+          mustChangePassword: resolvedAuthMode === "legacy",
           isProfileComplete: false,
           ...(groupId ? { groupId } : {}),
           ...(format === "auction" ? { purse: initialBudget ?? 100_000_000 } : {}),
@@ -401,9 +412,16 @@ export async function POST(request: NextRequest) {
       }
     });
 
+    // Members leagues start with an invite link ready to share (14 days, one use per team).
+    const invite = resolvedAuthMode === "members" && resolvedTeamSize > 0
+      ? await createLeagueInvite(id, request.headers.get("x-session-id"))
+      : null;
+
     return NextResponse.json({
       success: true,
       id, slug: resolvedSlug, name: resolvedName, sport, format, season,
+      authMode: resolvedAuthMode,
+      invite: invite ? { token: invite.token, maxUses: invite.maxUses, expiresAt: invite.expiresAt?.toISOString() ?? null } : null,
       isActive: true,
       teamSize: resolvedTeamSize,
       groupCount: resolvedGroupCount,

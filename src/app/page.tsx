@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { AppNav } from "@/components/AppNav";
 import { InstallBanner } from "@/components/pwa/InstallBanner";
+import { MyLeaguesHub } from "@/components/MyLeaguesHub";
 
 interface League {
   id: string;
@@ -83,6 +84,7 @@ export default function Home() {
       {/* League Cards */}
       <section className="mx-auto max-w-5xl px-4 pb-12 sm:pb-24 sm:px-6">
         <InstallBanner className="mb-6" />
+        <MyLeaguesHub />
         {isLoading ? (
           <div className="grid gap-6 sm:grid-cols-2">
             {[1, 2].map((i) => (

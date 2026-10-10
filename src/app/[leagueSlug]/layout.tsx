@@ -45,6 +45,7 @@ export default async function LeagueLayout({
         auctionTier: "primary" | "complete";
         startGameweek: number;
         releaseCycleGws: string;
+        authMode: "legacy" | "members";
       }
     | undefined;
   try {
@@ -64,6 +65,7 @@ export default async function LeagueLayout({
         auctionTier: leagues.auctionTier,
         startGameweek: leagues.startGameweek,
         releaseCycleGws: leagues.releaseCycleGws,
+        authMode: leagues.authMode,
       })
       .from(leagues)
       .where(eq(leagues.slug, leagueSlug))
@@ -95,6 +97,7 @@ export default async function LeagueLayout({
           auctionTier: "complete" as const,
           startGameweek: 1,
           releaseCycleGws: JSON.stringify(DEFAULT_RELEASE_CYCLE_GWS),
+          authMode: "legacy" as const,
         }
       : undefined;
   }
@@ -115,6 +118,7 @@ export default async function LeagueLayout({
     auctionTier: row.auctionTier,
     startGameweek: row.startGameweek,
     releaseCycleGws: parseReleaseCycleGws(row.releaseCycleGws),
+    authMode: row.authMode,
   };
 
   // fpl-classic only, and its own try/catch: a `fpl_classic_config` table that lags behind its
@@ -141,7 +145,7 @@ export default async function LeagueLayout({
     }
   }
 
-  const viewer = await resolveViewerInLeague(league.id);
+  const viewer = await resolveViewerInLeague(league.id, league.slug);
 
   // Per-format page background gradient. Applied here so every page under
   // /[leagueSlug]/* picks up the format identity in one place. Individual page

@@ -316,6 +316,14 @@ Event log: type, description, teamId, gameweekId, pointsAffected, createdAt.
 | POST/GET | `/api/team/chips` | Announce / get chip status |
 | GET | `/api/team/dashboard` | Personalized dashboard |
 | GET | `/api/team/dashboard/gw-result` | GW result details |
+| GET/POST | `/api/team/setup` | Team setup (members mode: no login ID; members linked to FPL slots) |
+| GET/POST/DELETE | `/api/team/invite` | Members mode: team members + owner's teammate invite |
+
+### Joining (a person)
+| Method | Path | Purpose |
+|---|---|---|
+| POST | `/api/join` | Use an invite link: claim an open team, join a teammate, or file a join request |
+| DELETE | `/api/join` | Withdraw a pending join request |
 
 ### Admin `[leagueId]` (admin/superadmin required)
 `leagueId` in URL can be UUID or league slug (resolved via `getAuthorizedLeagueId`).
@@ -338,14 +346,18 @@ Event log: type, description, teamId, gameweekId, pointsAffected, createdAt.
 | GET/DELETE/POST | `/api/admin/[leagueId]/fpl-cache` | Cache stats / clear / detail |
 | PUT | `/api/admin/[leagueId]/settings` | Update league settings |
 | GET | `/api/admin/my-leagues` | Leagues this admin can manage |
+| GET/POST/DELETE | `/api/admin/[leagueId]/invites` | Members mode: the league invite link (create = regenerate; approval toggle; revoke) |
+| GET/POST | `/api/admin/[leagueId]/members` | Members mode: roster + actions (assign, remove, replace, transfer-owner, release, approve, reject) |
 
 ### Superadmin
 | Method | Path | Purpose |
 |---|---|---|
-| GET/POST | `/api/superadmin/leagues` | List / create leagues |
+| GET/POST | `/api/superadmin/leagues` | List / create leagues (`authMode`: members (default, returns an invite) or legacy) |
 | GET/PUT | `/api/superadmin/leagues/[id]` | Get / update league config |
-| GET/POST | `/api/superadmin/admins` | List / create admins |
-| DELETE | `/api/superadmin/admins/[userId]` | Delete admin |
+| GET/POST | `/api/superadmin/admins` | List / create admins (password optional: Google links by email; existing players are promoted) |
+| DELETE | `/api/superadmin/admins/[userId]` | Remove admin (demotes people who play or use Google; deletes password-only admins) |
+| GET | `/api/superadmin/users?q=` | Find people with their teams and admin leagues |
+| POST | `/api/superadmin/users/[id]/transfer` | Move every membership and admin right to another account |
 | GET/POST | `/api/superadmin/league-assignments` | List / assign admin to league |
 
 ### Cron (CRON_SECRET Bearer token)
