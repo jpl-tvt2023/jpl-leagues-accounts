@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { leagueFromRequest, resolveTeamActor, teamActorDenied } from "@/lib/team-actor";
 import { db, teams, gameweeks, gameweekChips, settings, leagues, fixtures, auditLogs } from "@/lib/db";
 import { eq, and, asc } from "drizzle-orm";
 import { generateId } from "@/lib/id";
@@ -37,11 +38,9 @@ const CHIP_SET_COL: Record<ChipCode, [keyof typeof teams.$inferSelect, keyof typ
  */
 export async function POST(request: NextRequest) {
   try {
-    // Check if team is logged in
-    const teamId = request.headers.get("x-session-id");
-    if (!teamId) {
-      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-    }
+    const { actor, denial } = await resolveTeamActor(request, { league: leagueFromRequest(request) });
+    if (!actor) return teamActorDenied(denial, { unauthenticated: "Not authenticated" });
+    const teamId = actor.teamId;
 
     const body = await request.json();
     const { gameweek, chipType, challengedTeamId } = body;
@@ -308,6 +307,7 @@ export async function POST(request: NextRequest) {
         .set({
           chipType,
           challengedTeamId: validatedChallengedTeamId,
+          submittedByUserId: actor.userId,
           updatedAt: new Date(),
         })
         .where(eq(gameweekChips.id, existingChip.id));
@@ -335,6 +335,7 @@ export async function POST(request: NextRequest) {
       challengedTeamId: validatedChallengedTeamId,
       isValid: true,
       isProcessed: false,
+      submittedByUserId: actor.userId,
     });
 
     return NextResponse.json({
@@ -362,11 +363,9 @@ export async function POST(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
-    // Check if team is logged in
-    const teamId = request.headers.get("x-session-id");
-    if (!teamId) {
-      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-    }
+    const { actor, denial } = await resolveTeamActor(request, { league: leagueFromRequest(request) });
+    if (!actor) return teamActorDenied(denial, { unauthenticated: "Not authenticated" });
+    const teamId = actor.teamId;
 
     const body = await request.json();
     const { gameweek } = body;

@@ -31,7 +31,7 @@ export default function LeagueHelpPage() {
   const userRole: UserRole =
     viewer.type === "admin" || viewer.type === "superadmin"
       ? "admin"
-      : viewer.type === "team"
+      : viewer.teamId
       ? "team"
       : "public";
 

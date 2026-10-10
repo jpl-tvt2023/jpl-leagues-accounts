@@ -2,6 +2,7 @@
 
 import { AppNav } from "./AppNav";
 import { getFormatPalette } from "@/lib/format-palette";
+import { useOptionalLeague } from "@/lib/league-context";
 
 export interface LeagueNavProps {
   leagueSlug: string;
@@ -44,6 +45,14 @@ export function LeagueNav({
 }: LeagueNavProps) {
   const palette = getFormatPalette(format, teamSize);
 
+  // A person (not a legacy team login) has a dashboard and team page per league, so inside a
+  // league point at that league's own — whatever the page passed for the legacy case.
+  const viewer = useOptionalLeague()?.viewer;
+  const isPerson = !!viewer?.authenticated && viewer.type !== "team";
+  const hasTeamHere = isPerson && !!viewer?.teamId;
+  const effectiveDashboardHref = hasTeamHere ? `/${leagueSlug}/dashboard` : dashboardHref;
+  const settingsHref = isPerson ? (hasTeamHere ? `/${leagueSlug}/team` : "/account") : undefined;
+
   return (
     <AppNav
       context={{
@@ -52,7 +61,8 @@ export function LeagueNav({
         format,
         auctionTier,
         isLoggedIn,
-        dashboardHref,
+        dashboardHref: effectiveDashboardHref,
+        settingsHref,
       }}
       activeKey={currentPage}
       brandHref="/"

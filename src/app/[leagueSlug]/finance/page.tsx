@@ -86,7 +86,7 @@ const FALLBACK_STYLE = { label: "Other", badge: "bg-gray-500/20 text-gray-300 bo
 
 export default function FinancePage() {
   useEnforceFormat(["auction"]);
-  const { league } = useLeague();
+  const { league, viewer } = useLeague();
   const params = useParams();
   const router = useRouter();
   const leagueSlug = params.leagueSlug as string;
@@ -100,19 +100,19 @@ export default function FinancePage() {
     setIsLoading(true);
     setError(null);
     try {
-      const meRes = await fetch("/api/auth/me");
-      const me = await meRes.json();
-      if (!me.authenticated) {
+      // The viewer, and their team in THIS league, is resolved server-side by the league layout.
+      if (!viewer.authenticated) {
         router.push("/signin");
         return;
       }
-      if (me.type !== "team") {
-        setError("Finance page is only available to team accounts.");
+      const myTeam = viewer.teamId;
+      if (!myTeam) {
+        setError("Finance page is only available to teams in this league.");
         setIsLoading(false);
         return;
       }
 
-      const res = await fetch(`/api/auction/finance?teamId=${me.team.id}`);
+      const res = await fetch(`/api/auction/finance?teamId=${myTeam}`);
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || "Failed to load finance");
@@ -124,7 +124,7 @@ export default function FinancePage() {
     } finally {
       setIsLoading(false);
     }
-  }, [router]);
+  }, [router, viewer.authenticated, viewer.teamId]);
 
   useEffect(() => { load(); }, [load]);
 

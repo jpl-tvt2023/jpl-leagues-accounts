@@ -3,7 +3,7 @@
  *
  * The Operations tab's "Process" action. Superadmin-only, and deliberately NOT under
  * /api/admin/[leagueId]/ — this format has no league admins to assign, so it uses the
- * superadmin path directly and checks isSuperAdmin(request) rather than
+ * superadmin path directly and checks (await isSuperAdmin(request)) rather than
  * getAuthorizedLeagueId(request) (which relies on the x-league-id header /api/admin/* routes get
  * from middleware; this route never gets that header).
  *
@@ -36,14 +36,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, leagues } from "@/lib/db";
 import { eq } from "drizzle-orm";
-import { isSuperAdmin } from "@/lib/auth";
+import { isSuperAdmin } from "@/lib/privilege";
 import { FPL_CLASSIC_FORMAT } from "@/lib/format-palette";
 import { syncRoster, settleGameweeks, refreshGameweek, freezeAwards } from "@/lib/fpl-classic/sync";
 
 export const maxDuration = 60;
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ leagueId: string }> }) {
-  if (!isSuperAdmin(request)) {
+  if (!(await isSuperAdmin(request))) {
     return NextResponse.json({ error: "Superadmin access required" }, { status: 403 });
   }
 

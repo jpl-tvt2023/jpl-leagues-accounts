@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { leagueFromRequest, resolveTeamActor, teamActorDenied } from "@/lib/team-actor";
 import { db } from "@/lib/db";
 import { teams, fixtures, gameweeks, leagues, gameweekChips } from "@/lib/db/schema";
 import { and, asc, eq, inArray, or } from "drizzle-orm";
@@ -64,8 +65,9 @@ interface SideInfo {
 
 export async function GET(request: NextRequest) {
   try {
-    const teamId = request.headers.get("x-session-id");
-    if (!teamId) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    const { actor, denial } = await resolveTeamActor(request, { league: leagueFromRequest(request) });
+    if (!actor) return teamActorDenied(denial, { unauthenticated: "Not authenticated" });
+    const teamId = actor.teamId;
 
     const team = await db.query.teams.findFirst({ where: eq(teams.id, teamId) });
     if (!team) return NextResponse.json({ error: "Team not found" }, { status: 404 });

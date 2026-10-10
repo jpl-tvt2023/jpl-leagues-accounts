@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { leagueFromRequest, resolveTeamActor, teamActorDenied } from "@/lib/team-actor";
 import { db, teams, fixtures, results, gameweeks, gameweekCaptains, leagues } from "@/lib/db";
 import { eq, and, asc, desc } from "drizzle-orm";
 import { fplEntryUrl } from "@/lib/fpl-links";
@@ -24,10 +25,9 @@ function inferScores(total: number, players: { name: string }[]) {
  */
 export async function GET(request: NextRequest) {
   try {
-    const teamId = request.headers.get("x-session-id");
-    if (!teamId) {
-      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-    }
+    const { actor, denial } = await resolveTeamActor(request, { league: leagueFromRequest(request) });
+    if (!actor) return teamActorDenied(denial, { unauthenticated: "Not authenticated" });
+    const teamId = actor.teamId;
 
     const url = new URL(request.url);
     const gwParam = url.searchParams.get("gw");

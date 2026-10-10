@@ -5,6 +5,7 @@ import Link from "next/link";
 import { LoadingScreen } from "@/components/LoadingScreen";
 import { FeedbackTab } from "../admin/[leagueId]/FeedbackTab";
 import { AppNav } from "@/components/AppNav";
+import { UsersPanel } from "./UsersPanel";
 import { Tabs } from "@/components/ui/Tabs";
 import { isChipImplemented } from "@/lib/formats/tvt/chip-labels";
 
@@ -40,7 +41,7 @@ interface Admin {
   assignedLeagueIds: string[];
 }
 
-type TabType = "leagues" | "admins" | "operations" | "pl-standings" | "score-adjustments" | "feedback";
+type TabType = "leagues" | "admins" | "users" | "operations" | "pl-standings" | "score-adjustments" | "feedback";
 
 // ── PL Standings (Club Auction tier mapping) ──
 type PLBootstrapTeam = { id: number; name: string; short_name: string };
@@ -149,12 +150,17 @@ export default function SuperAdminDashboard() {
   const [admins, setAdmins] = useState<Admin[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  // Invite link of the members-mode league just created, shown under the success message.
+  const [createdInviteUrl, setCreatedInviteUrl] = useState<string | null>(null);
 
   // ── Create-league wizard ──
   const [showWizard, setShowWizard] = useState(false);
   const [wizardStep, setWizardStep] = useState<WizardStep>("sport");
   const [leagueForm, setLeagueForm] = useState({
     slug: "", name: "", sport: "", format: "", season: "",
+    // How teams sign in: "members" = people join through an invite link with Google; "legacy" =
+    // a generated team ID + password per team, as before.
+    authMode: "members" as "members" | "legacy",
     teamSize: 32, groupCount: 2, playoffStartGw: 31,
     enabledChips: ["D", "W", "C"] as string[],
     initialBudget: 100_000_000,
@@ -415,6 +421,7 @@ export default function SuperAdminDashboard() {
           isSimulated: leagueForm.isSimulated,
           clubAuctionEnabled: leagueForm.clubAuctionEnabled,
           auctionTier: leagueForm.auctionTier,
+          authMode: leagueForm.authMode,
           // fpl-classic only; ignored by the server for every other format. Slug and name are
           // deliberately not sent — the server derives both from the FPL league.
           fplLeagueId: leagueForm.fplLeagueId ? Number(leagueForm.fplLeagueId) : undefined,
@@ -439,10 +446,16 @@ export default function SuperAdminDashboard() {
         fetchAdmins();
       }
 
-      setMessage({ type: "success", text: `League "${data.name ?? leagueForm.name}" created!` });
+      setMessage({
+        type: "success",
+        text: data.invite
+          ? `League "${data.name ?? leagueForm.name}" created! Share its invite link below — each player signs in with Google and gets a team.`
+          : `League "${data.name ?? leagueForm.name}" created!`,
+      });
+      setCreatedInviteUrl(data.invite ? `${window.location.origin}/join/${data.invite.token}` : null);
       setShowWizard(false);
       setWizardStep("sport");
-      setLeagueForm({ slug: "", name: "", sport: "", format: "", season: "", teamSize: 32, groupCount: 2, playoffStartGw: 31, enabledChips: ["D", "W", "C"], initialBudget: 100_000_000, startGameweek: 1, releaseCycleGws: "10, 20, 30", isSimulated: false, clubAuctionEnabled: false, auctionTier: "complete", fplLeagueId: "", scoringMetric: "net", winnerCutPercent: 30 });
+      setLeagueForm({ slug: "", name: "", sport: "", format: "", season: "", authMode: "members", teamSize: 32, groupCount: 2, playoffStartGw: 31, enabledChips: ["D", "W", "C"], initialBudget: 100_000_000, startGameweek: 1, releaseCycleGws: "10, 20, 30", isSimulated: false, clubAuctionEnabled: false, auctionTier: "complete", fplLeagueId: "", scoringMetric: "net", winnerCutPercent: 30 });
       setWizardSelectedAdminIds([]);
       setLeagues(prev => [...prev, { ...data, teamCount: 0, currentGameweek: null }]);
     } catch { setMessage({ type: "error", text: "Network error" }); }
@@ -598,7 +611,14 @@ export default function SuperAdminDashboard() {
       setAdmins(prev => [...prev, data]);
       setShowCreateAdmin(false);
       setAdminForm({ name: "", email: "", password: "" });
-      setMessage({ type: "success", text: `Admin "${adminForm.name}" created. They must change their password on first login.` });
+      setMessage({
+        type: "success",
+        text: data.promoted
+          ? `${data.name} already had an account — they're now an admin.`
+          : adminForm.password
+            ? `Admin "${adminForm.name}" created. They must change their password on first login.`
+            : `Admin "${adminForm.name}" created. They sign in with Google as ${data.email} — nothing to send them.`,
+      });
     } catch { setMessage({ type: "error", text: "Network error" }); }
     finally { setAdminActionLoading(false); }
   };
@@ -1173,6 +1193,7 @@ This overwrites winners that have already been announced. The previous winners a
   const tabs: { id: TabType; label: string }[] = [
     { id: "leagues", label: "Leagues" },
     { id: "admins", label: "Admins" },
+    { id: "users", label: "Users" },
     { id: "operations", label: "Operations" },
     { id: "pl-standings", label: "PL Standings" },
     { id: "score-adjustments", label: "Score Adjustments" },
@@ -1473,14 +1494,14 @@ This overwrites winners that have already been announced. The previous winners a
                 />
               </div>
               <div>
-                <label className="block text-sm text-gray-300 mb-1">Initial Password</label>
+                <label className="block text-sm text-gray-300 mb-1">Initial password <span className="text-gray-500">(optional)</span></label>
                 <input
-                  required type="password" value={adminForm.password}
+                  type="password" value={adminForm.password}
                   onChange={e => setAdminForm({ ...adminForm, password: e.target.value })}
                   placeholder="••••••••"
                   className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-white placeholder-gray-500 focus:border-yellow-500 focus:outline-none"
                 />
-                <p className="text-xs text-gray-500 mt-1">Admin will be asked to change this on first login.</p>
+                <p className="text-xs text-gray-500 mt-1">Leave blank and they sign in with Google using this email. Set one only if they can&apos;t use Google — they&apos;ll change it on first login.</p>
               </div>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setShowCreateAdmin(false)} className="flex-1 rounded-lg border border-white/10 px-4 py-2.5 text-gray-300 hover:bg-white/5 transition">Cancel</button>
@@ -1511,7 +1532,13 @@ This overwrites winners that have already been announced. The previous winners a
               : "bg-red-500/10 border border-red-500/30 text-red-400"
           }`}>
             {message.text}
-            <button onClick={() => setMessage(null)} className="float-right opacity-60 hover:opacity-100">✕</button>
+            <button onClick={() => { setMessage(null); setCreatedInviteUrl(null); }} className="float-right opacity-60 hover:opacity-100">✕</button>
+            {message.type === "success" && createdInviteUrl && (
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                <input readOnly value={createdInviteUrl} onFocus={e => e.target.select()} aria-label="New league invite link" className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-white" />
+                <button type="button" onClick={() => navigator.clipboard.writeText(createdInviteUrl).catch(() => {})} className="shrink-0 rounded-lg bg-yellow-500 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-yellow-400">Copy link</button>
+              </div>
+            )}
           </div>
         )}
 
@@ -1533,7 +1560,7 @@ This overwrites winners that have already been announced. The previous winners a
                 <p className="text-gray-400 text-sm mt-1">Manage all leagues on the platform</p>
               </div>
               <button
-                onClick={() => { setShowWizard(true); setWizardStep("sport"); setLeagueForm({ slug: "", name: "", sport: "", format: "", season: "", teamSize: 32, groupCount: 2, playoffStartGw: 31, enabledChips: ["D", "W", "C"], initialBudget: 100_000_000, startGameweek: 1, releaseCycleGws: "10, 20, 30", isSimulated: false, clubAuctionEnabled: false, auctionTier: "complete", fplLeagueId: "", scoringMetric: "net", winnerCutPercent: 30 }); setMessage(null); }}
+                onClick={() => { setShowWizard(true); setWizardStep("sport"); setLeagueForm({ slug: "", name: "", sport: "", format: "", season: "", authMode: "members", teamSize: 32, groupCount: 2, playoffStartGw: 31, enabledChips: ["D", "W", "C"], initialBudget: 100_000_000, startGameweek: 1, releaseCycleGws: "10, 20, 30", isSimulated: false, clubAuctionEnabled: false, auctionTier: "complete", fplLeagueId: "", scoringMetric: "net", winnerCutPercent: 30 }); setMessage(null); }}
                 className="bg-gradient-to-r from-yellow-400 to-orange-500 text-slate-900 font-semibold px-5 py-2.5 rounded-lg hover:from-yellow-300 hover:to-orange-400 transition"
               >
                 + Create League
@@ -1896,6 +1923,25 @@ This overwrites winners that have already been announced. The previous winners a
                           className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-white placeholder-gray-500 focus:border-yellow-500 focus:outline-none"
                         />
                       </div>
+                      {leagueForm.format !== "fpl-classic" && (
+                        <div className="sm:col-span-2">
+                          <label htmlFor="league-auth-mode" className="block text-sm text-gray-300 mb-1">How teams sign in</label>
+                          <select
+                            id="league-auth-mode"
+                            value={leagueForm.authMode}
+                            onChange={e => setLeagueForm({ ...leagueForm, authMode: e.target.value as "members" | "legacy" })}
+                            className="w-full rounded-lg border border-white/10 bg-slate-900 px-4 py-2.5 text-white focus:border-yellow-500 focus:outline-none"
+                          >
+                            <option value="members">Invite link — players sign in with Google (recommended)</option>
+                            <option value="legacy">Team logins — you hand out a team ID and password per team</option>
+                          </select>
+                          <p className="mt-1 text-xs text-gray-500">
+                            {leagueForm.authMode === "members"
+                              ? "You get one link to share. Each person signs in with their own Google account and claims a team; teammates join with an invite from the team owner."
+                              : "The old way: a generated login per team. Use it only if your players can't use Google."}
+                          </p>
+                        </div>
+                      )}
                       {leagueForm.format === "fpl-classic" ? (
                         <>
                           <div>
@@ -3039,6 +3085,9 @@ This overwrites winners that have already been announced. The previous winners a
         )}
 
         {/* Feedback Tab — site-scoped feedback only */}
+        {/* ── Users Tab (find people; move a lost account's teams to a new one) ── */}
+        {activeTab === "users" && <UsersPanel />}
+
         {activeTab === "feedback" && (
           <FeedbackTab endpoint="/api/superadmin/feedback" scopeLabel="site-wide" />
         )}

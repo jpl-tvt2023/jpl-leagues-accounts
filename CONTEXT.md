@@ -90,11 +90,16 @@ src/
 |---|---|---|
 | id | PK | UUID |
 | email | unique text | |
-| password | text | bcrypt hashed |
+| password | text | bcrypt hashed; `""` for Google-only accounts |
 | name | text | |
-| role | "superadmin"\|"admin" | |
+| role | "superadmin"\|"admin"\|"user" | set explicitly on insert (the column default is still "admin") |
 | mustChangePassword | boolean | default true |
+| username | unique text, nullable | lowercase; null until onboarding |
+| avatarUrl / fplEntryId / lastLoginAt | | person profile |
+| sessionVersion | integer | bump to revoke every session |
 | createdAt / updatedAt | datetime | |
+
+One row per **person**: admins, superadmins and players. Related tables: `user_identities` (Google `sub`), `team_members` (who is on which team; unique `(leagueId, userId)`), `league_invites`, `join_requests`, `auth_handoffs`. See `docs/10-accounts-and-membership.md`.
 
 ### `leagues`
 | Column | Type | Notes |
@@ -293,18 +298,32 @@ Event log: type, description, teamId, gameweekId, pointsAffected, createdAt.
 ### Auth
 | Method | Path | Purpose |
 |---|---|---|
-| POST | `/api/auth/signin` | Login (email or team name + password) |
+| POST | `/api/auth/signin` | Password login: admin email, or legacy team key (refused for members-mode leagues) |
+| GET | `/api/auth/google` → `/api/auth/google/callback` | Google sign-in (find, link by email, or create) |
+| POST | `/api/auth/handoff` | iOS home-screen sign-in handoff (behind `NEXT_PUBLIC_IOS_HANDOFF`) |
 | POST | `/api/auth/signout` | Logout |
-| GET | `/api/auth/me` | Verify session |
+| GET | `/api/auth/me` | Verify session; people are re-checked (revoked → signed out, role changed → re-minted) |
+| GET/PATCH | `/api/me/profile` | Person's profile, username check, FPL entry preview |
+| GET | `/api/me/leagues` | Teams, admin leagues, pending requests |
+| POST | `/api/me/sessions` | Sign out of all other devices |
+| DELETE | `/api/me` | Delete account |
 | POST | `/api/auth/change-password` | Change password (rate-limited 5/min) |
 
-### Team (team session required)
+### Team (a legacy team login, or a person acting in `?league=<slug>`; resolved by `resolveTeamActor`)
 | Method | Path | Purpose |
 |---|---|---|
 | POST/GET | `/api/team/captain` | Announce / get captain for a GW |
 | POST/GET | `/api/team/chips` | Announce / get chip status |
 | GET | `/api/team/dashboard` | Personalized dashboard |
 | GET | `/api/team/dashboard/gw-result` | GW result details |
+| GET/POST | `/api/team/setup` | Team setup (members mode: no login ID; members linked to FPL slots) |
+| GET/POST/DELETE | `/api/team/invite` | Members mode: team members + owner's teammate invite |
+
+### Joining (a person)
+| Method | Path | Purpose |
+|---|---|---|
+| POST | `/api/join` | Use an invite link: claim an open team, join a teammate, or file a join request |
+| DELETE | `/api/join` | Withdraw a pending join request |
 
 ### Admin `[leagueId]` (admin/superadmin required)
 `leagueId` in URL can be UUID or league slug (resolved via `getAuthorizedLeagueId`).
@@ -327,14 +346,18 @@ Event log: type, description, teamId, gameweekId, pointsAffected, createdAt.
 | GET/DELETE/POST | `/api/admin/[leagueId]/fpl-cache` | Cache stats / clear / detail |
 | PUT | `/api/admin/[leagueId]/settings` | Update league settings |
 | GET | `/api/admin/my-leagues` | Leagues this admin can manage |
+| GET/POST/DELETE | `/api/admin/[leagueId]/invites` | Members mode: the league invite link (create = regenerate; approval toggle; revoke) |
+| GET/POST | `/api/admin/[leagueId]/members` | Members mode: roster + actions (assign, remove, replace, transfer-owner, release, approve, reject) |
 
 ### Superadmin
 | Method | Path | Purpose |
 |---|---|---|
-| GET/POST | `/api/superadmin/leagues` | List / create leagues |
+| GET/POST | `/api/superadmin/leagues` | List / create leagues (`authMode`: members (default, returns an invite) or legacy) |
 | GET/PUT | `/api/superadmin/leagues/[id]` | Get / update league config |
-| GET/POST | `/api/superadmin/admins` | List / create admins |
-| DELETE | `/api/superadmin/admins/[userId]` | Delete admin |
+| GET/POST | `/api/superadmin/admins` | List / create admins (password optional: Google links by email; existing players are promoted) |
+| DELETE | `/api/superadmin/admins/[userId]` | Remove admin (demotes people who play or use Google; deletes password-only admins) |
+| GET | `/api/superadmin/users?q=` | Find people with their teams and admin leagues |
+| POST | `/api/superadmin/users/[id]/transfer` | Move every membership and admin right to another account |
 | GET/POST | `/api/superadmin/league-assignments` | List / assign admin to league |
 
 ### Cron (CRON_SECRET Bearer token)
@@ -350,7 +373,8 @@ Runs on all `/api/*` routes:
 
 - **Public routes** (bypassed): `/api/auth/*`, GET `/api/fixtures`, GET `/api/standings`, GET `/api/leagues`, GET `/api/playoffs/bracket`, GET `/api/gameweeks/[gw]`
 - **Rate limiting** via Upstash Redis: signin (5/min), change-password (5/min), reset-season (1/min)
-- **Session verification**: reads `session` cookie → HMAC verify → forwards `x-session-id`, `x-session-type`, `x-league-id` headers
+- **Session verification**: reads `session` cookie → HMAC verify → forwards `x-session-id`, `x-session-type`, `x-session-sv`, `x-league-id` headers
+- **Team routes**: any valid session passes; the route decides the team via `src/lib/team-actor.ts`
 - **Cron auth**: checks `Authorization: Bearer CRON_SECRET`
 
 ---
@@ -359,8 +383,9 @@ Runs on all `/api/*` routes:
 
 ### `src/lib/auth.ts`
 ```typescript
-createSession(id: string, type: "superadmin"|"admin"|"team"): string
-verifySession(token: string): { id, type, exp } | null
+createSession(id: string, type: "superadmin"|"admin"|"user"|"team", opts?: { sv?: number }): string
+verifySession(token: string): { id, type, exp, sv? } | null
+// isSuperAdmin moved to src/lib/privilege.ts (async; re-checks the database)
 // HMAC-SHA256, 7-day expiry, cookie name: "session"
 ```
 
@@ -371,6 +396,7 @@ getAuthorizedLeagueId(request: NextRequest): Promise<string | null>
 // - Accepts slug or UUID; resolves slug → UUID
 // - Superadmins: unrestricted
 // - Admins: must be in leagueAdmins table + league.isActive
+// - Both: role + session version re-checked in the database (src/lib/privilege.ts)
 ```
 
 ### `src/lib/fpl.ts`

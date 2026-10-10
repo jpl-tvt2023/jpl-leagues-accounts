@@ -1,0 +1,754 @@
+{
+  "moduleId": "ACC",
+  "moduleName": "Accounts & Membership (Google sign-in, invites, multi-league)",
+  "sheetName": "Accounts & Membership",
+  "status": "qa-writing",
+  "owners": {
+    "ba": "business-analyst agent",
+    "qa": "qa-tester agent"
+  },
+  "requirements": {
+    "version": 1,
+    "businessContext": "People sign in with Google, pick one unique username, and join any number of members-mode leagues through invite links; TVT/Continental teammates each have their own account. The session identifies the person; the league comes from the URL and team_members decides the team on every request. Legacy leagues (a team ID and password per team) keep working unchanged until the end of the 2026-27 season. Design: docs/10-accounts-and-membership.md.",
+    "userStories": [
+      {
+        "id": "US-ACC-001",
+        "asA": "player",
+        "iWant": "to sign in with my Google account and pick one username",
+        "soThat": "I don't juggle a login per team or league",
+        "sourceRefs": [
+          "src/app/api/auth/google/callback/route.ts",
+          "src/app/api/me/profile/route.ts"
+        ]
+      },
+      {
+        "id": "US-ACC-002",
+        "asA": "player",
+        "iWant": "to join a league from an invite link",
+        "soThat": "my league admin doesn't have to hand out credentials",
+        "sourceRefs": [
+          "src/app/api/join/route.ts",
+          "src/lib/membership.ts"
+        ]
+      },
+      {
+        "id": "US-ACC-003",
+        "asA": "team owner (TVT/Continental)",
+        "iWant": "to invite my teammate with a link",
+        "soThat": "they play on our team with their own sign-in",
+        "sourceRefs": [
+          "src/app/api/team/invite/route.ts"
+        ]
+      },
+      {
+        "id": "US-ACC-004",
+        "asA": "player in several leagues",
+        "iWant": "to switch between my leagues without signing in again",
+        "soThat": "managing all my teams is quick",
+        "sourceRefs": [
+          "src/lib/team-actor.ts",
+          "src/components/LeagueSwitcher.tsx"
+        ]
+      },
+      {
+        "id": "US-ACC-005",
+        "asA": "league admin",
+        "iWant": "to share one link, approve joins if I choose, and assign or remove people by username",
+        "soThat": "I control who plays",
+        "sourceRefs": [
+          "src/app/api/admin/[leagueId]/members/route.ts",
+          "src/app/api/admin/[leagueId]/invites/route.ts"
+        ]
+      },
+      {
+        "id": "US-ACC-006",
+        "asA": "player",
+        "iWant": "to sign out of all other devices or delete my account",
+        "soThat": "I stay in control of my access and data",
+        "sourceRefs": [
+          "src/app/api/me/sessions/route.ts",
+          "src/app/api/me/route.ts"
+        ]
+      },
+      {
+        "id": "US-ACC-007",
+        "asA": "superadmin",
+        "iWant": "to move a person's teams to a new account",
+        "soThat": "a lost Google account doesn't lose their teams",
+        "sourceRefs": [
+          "src/app/api/superadmin/users/[id]/transfer/route.ts"
+        ]
+      },
+      {
+        "id": "US-ACC-008",
+        "asA": "superadmin",
+        "iWant": "to create admins by email and have removal take effect immediately",
+        "soThat": "admin access is easy to grant and safe to revoke",
+        "sourceRefs": [
+          "src/lib/privilege.ts",
+          "src/app/api/superadmin/admins/route.ts"
+        ]
+      }
+    ],
+    "businessRules": [
+      {
+        "id": "BR-ACC-001",
+        "rule": "A person is on at most one team per league (unique league_id + user_id); a team has at most one owner.",
+        "sourceRefs": [
+          "src/lib/db/schema.ts"
+        ]
+      },
+      {
+        "id": "BR-ACC-002",
+        "rule": "Team-scoped APIs resolve the team via resolveTeamActor: a legacy login is its own team; a person is their membership in the league named by ?league= (or the team named). Never from the session id directly.",
+        "sourceRefs": [
+          "src/lib/team-actor.ts",
+          "tests/unit/team-actor-guard.test.ts"
+        ]
+      },
+      {
+        "id": "BR-ACC-003",
+        "rule": "Removing a member, replacing an account or bumping users.session_version takes effect on the next request.",
+        "sourceRefs": [
+          "src/lib/team-actor.ts",
+          "src/lib/privilege.ts"
+        ]
+      },
+      {
+        "id": "BR-ACC-004",
+        "rule": "League invites default to 14 days and one use per team; partner invites are single-use for 7 days; regenerating revokes the previous link.",
+        "sourceRefs": [
+          "src/lib/membership.ts"
+        ]
+      },
+      {
+        "id": "BR-ACC-005",
+        "rule": "Password sign-in is refused for Google-only accounts and for team keys of members-mode leagues.",
+        "sourceRefs": [
+          "src/app/api/auth/signin/route.ts"
+        ]
+      },
+      {
+        "id": "BR-ACC-006",
+        "rule": "In-app browsers (WhatsApp, Instagram, ...) get an open-in-browser screen instead of the Google button.",
+        "sourceRefs": [
+          "src/lib/in-app-browser.ts"
+        ]
+      },
+      {
+        "id": "BR-ACC-007",
+        "rule": "Post-sign-in redirects only ever go to same-site paths.",
+        "sourceRefs": [
+          "src/lib/safe-next.ts"
+        ]
+      },
+      {
+        "id": "BR-ACC-008",
+        "rule": "The repo talks only to a local file: database or the jpl-leagues-accounts Turso database.",
+        "sourceRefs": [
+          "src/lib/db/target-guard.ts"
+        ]
+      },
+      {
+        "id": "BR-ACC-009",
+        "rule": "Members-mode backups leave Password blank and list members; restore preserves memberships.",
+        "sourceRefs": [
+          "src/lib/backup/generate.ts"
+        ]
+      }
+    ],
+    "acceptanceCriteria": [
+      {
+        "id": "AC-ACC-001",
+        "given": "a new person signed in with Google",
+        "when": "they have no username",
+        "then": "they are sent to onboarding before joining anything",
+        "linksTo": "US-ACC-001"
+      },
+      {
+        "id": "AC-ACC-002",
+        "given": "a valid league invite and a signed-in person with a username",
+        "when": "they tap Join",
+        "then": "they own the first open team and land on that league's setup",
+        "linksTo": "US-ACC-002"
+      },
+      {
+        "id": "AC-ACC-003",
+        "given": "a team owner's partner invite",
+        "when": "the teammate opens it",
+        "then": "they join the same team as member, and the link can't be reused",
+        "linksTo": "US-ACC-003"
+      },
+      {
+        "id": "AC-ACC-004",
+        "given": "a person on teams in two leagues",
+        "when": "they act in either league",
+        "then": "each action lands on that league's team",
+        "linksTo": "US-ACC-004"
+      },
+      {
+        "id": "AC-ACC-005",
+        "given": "a person not on a team in a league",
+        "when": "they call that league's team or auction APIs",
+        "then": "they get 403",
+        "linksTo": "BR-ACC-002"
+      },
+      {
+        "id": "AC-ACC-006",
+        "given": "an invite that requires approval",
+        "when": "a person joins",
+        "then": "a request waits until an admin approves (team claimed) or rejects",
+        "linksTo": "US-ACC-005"
+      },
+      {
+        "id": "AC-ACC-007",
+        "given": "an expired, revoked or used-up invite, or a full league",
+        "when": "someone tries to join",
+        "then": "they get a clear message and no team",
+        "linksTo": "BR-ACC-004"
+      },
+      {
+        "id": "AC-ACC-008",
+        "given": "two signed-in devices",
+        "when": "one chooses sign out of all other devices",
+        "then": "the other is signed out on its next request",
+        "linksTo": "US-ACC-006"
+      },
+      {
+        "id": "AC-ACC-009",
+        "given": "an admin removed by the superadmin",
+        "when": "they make their next admin request",
+        "then": "it is refused",
+        "linksTo": "US-ACC-008"
+      },
+      {
+        "id": "AC-ACC-010",
+        "given": "a person's seat moved to a new account",
+        "when": "the old account makes its next request",
+        "then": "it no longer reaches the team",
+        "linksTo": "US-ACC-007"
+      },
+      {
+        "id": "AC-ACC-011",
+        "given": "a WhatsApp/Instagram user agent",
+        "when": "the sign-in or join page opens",
+        "then": "an open-in-browser screen replaces the Google button",
+        "linksTo": "BR-ACC-006"
+      },
+      {
+        "id": "AC-ACC-012",
+        "given": "a members-mode league with memberships",
+        "when": "it is backed up and restored",
+        "then": "every membership is still there",
+        "linksTo": "BR-ACC-009"
+      }
+    ]
+  },
+  "testCases": [
+    {
+      "id": "TC-ACC-001",
+      "feature": "Onboarding",
+      "scenario": "New person has no username until onboarding",
+      "type": "Positive",
+      "priority": "P1",
+      "preconditions": "Test DB reset; TEST_AUTH_ENABLED=1 (test-only person sign-in stands in for Google).",
+      "testData": "Generated per run (see the automated spec named in Notes).",
+      "testSteps": [
+        "Sign in as a new person",
+        "GET /api/auth/me"
+      ],
+      "expectedResult": "type=user, needsUsername=true",
+      "postconditions": "None.",
+      "requirementId": "AC-ACC-001",
+      "author": "Claude (accounts rebuild)",
+      "createdDate": "2026-10-10",
+      "status": "Pass",
+      "notes": "Automated: tests/accounts/identity.spec.ts"
+    },
+    {
+      "id": "TC-ACC-002",
+      "feature": "Onboarding",
+      "scenario": "Username rules, normalisation and uniqueness",
+      "type": "Negative",
+      "priority": "P2",
+      "preconditions": "Test DB reset; TEST_AUTH_ENABLED=1 (test-only person sign-in stands in for Google).",
+      "testData": "Generated per run (see the automated spec named in Notes).",
+      "testSteps": [
+        "Check 'admin', 'ab', '@NAME'",
+        "Set a username",
+        "A second person tries the same"
+      ],
+      "expectedResult": "Reserved/short refused; normalised; duplicate gives 409",
+      "postconditions": "None.",
+      "requirementId": "AC-ACC-001",
+      "author": "Claude (accounts rebuild)",
+      "createdDate": "2026-10-10",
+      "status": "Pass",
+      "notes": "Automated: tests/accounts/identity.spec.ts"
+    },
+    {
+      "id": "TC-ACC-003",
+      "feature": "Onboarding",
+      "scenario": "Onboarding page picks a username and continues to next",
+      "type": "Positive",
+      "priority": "P2",
+      "preconditions": "Test DB reset; TEST_AUTH_ENABLED=1 (test-only person sign-in stands in for Google).",
+      "testData": "Generated per run (see the automated spec named in Notes).",
+      "testSteps": [
+        "Open /onboarding?next=/account",
+        "Type a free username",
+        "Continue"
+      ],
+      "expectedResult": "Lands on /account",
+      "postconditions": "None.",
+      "requirementId": "AC-ACC-001",
+      "author": "Claude (accounts rebuild)",
+      "createdDate": "2026-10-10",
+      "status": "Pass",
+      "notes": "Automated: tests/accounts/identity.spec.ts"
+    },
+    {
+      "id": "TC-ACC-004",
+      "feature": "Sign-in",
+      "scenario": "Password sign-in refused for a Google-only account",
+      "type": "Negative",
+      "priority": "P1",
+      "preconditions": "Test DB reset; TEST_AUTH_ENABLED=1 (test-only person sign-in stands in for Google).",
+      "testData": "Generated per run (see the automated spec named in Notes).",
+      "testSteps": [
+        "POST /api/auth/signin with the person's email"
+      ],
+      "expectedResult": "401",
+      "postconditions": "None.",
+      "requirementId": "BR-ACC-005",
+      "author": "Claude (accounts rebuild)",
+      "createdDate": "2026-10-10",
+      "status": "Pass",
+      "notes": "Automated: tests/accounts/identity.spec.ts"
+    },
+    {
+      "id": "TC-ACC-005",
+      "feature": "Sign-in",
+      "scenario": "Team key of a members league can't sign in",
+      "type": "Negative",
+      "priority": "P1",
+      "preconditions": "Test DB reset; TEST_AUTH_ENABLED=1 (test-only person sign-in stands in for Google).",
+      "testData": "Generated per run (see the automated spec named in Notes).",
+      "testSteps": [
+        "POST /api/auth/signin with a members-league team key"
+      ],
+      "expectedResult": "Refused",
+      "postconditions": "None.",
+      "requirementId": "BR-ACC-005",
+      "author": "Claude (accounts rebuild)",
+      "createdDate": "2026-10-10",
+      "status": "Pass",
+      "notes": "Automated: tests/accounts/members-leagues.spec.ts"
+    },
+    {
+      "id": "TC-ACC-006",
+      "feature": "Joining",
+      "scenario": "Join page: one tap joins and lands on setup",
+      "type": "Positive",
+      "priority": "P1",
+      "preconditions": "Test DB reset; TEST_AUTH_ENABLED=1 (test-only person sign-in stands in for Google).",
+      "testData": "Generated per run (see the automated spec named in Notes).",
+      "testSteps": [
+        "Open /join/<token> signed in",
+        "Tap Join"
+      ],
+      "expectedResult": "Owner of an open team; URL /<slug>/setup",
+      "postconditions": "None.",
+      "requirementId": "AC-ACC-002",
+      "author": "Claude (accounts rebuild)",
+      "createdDate": "2026-10-10",
+      "status": "Pass",
+      "notes": "Automated: tests/accounts/members-leagues.spec.ts"
+    },
+    {
+      "id": "TC-ACC-007",
+      "feature": "Joining",
+      "scenario": "Person without a username is sent to onboarding",
+      "type": "Negative",
+      "priority": "P2",
+      "preconditions": "Test DB reset; TEST_AUTH_ENABLED=1 (test-only person sign-in stands in for Google).",
+      "testData": "Generated per run (see the automated spec named in Notes).",
+      "testSteps": [
+        "POST /api/join without a username"
+      ],
+      "expectedResult": "409 needs-username",
+      "postconditions": "None.",
+      "requirementId": "AC-ACC-001",
+      "author": "Claude (accounts rebuild)",
+      "createdDate": "2026-10-10",
+      "status": "Pass",
+      "notes": "Automated: tests/accounts/members-leagues.spec.ts"
+    },
+    {
+      "id": "TC-ACC-008",
+      "feature": "Teammates",
+      "scenario": "Partner invite: teammate joins same team; link single-use",
+      "type": "Positive",
+      "priority": "P1",
+      "preconditions": "Test DB reset; TEST_AUTH_ENABLED=1 (test-only person sign-in stands in for Google).",
+      "testData": "Generated per run (see the automated spec named in Notes).",
+      "testSteps": [
+        "Owner creates invite",
+        "Teammate joins",
+        "Third person reuses link"
+      ],
+      "expectedResult": "Same team as member; reuse gives 410",
+      "postconditions": "None.",
+      "requirementId": "AC-ACC-003",
+      "author": "Claude (accounts rebuild)",
+      "createdDate": "2026-10-10",
+      "status": "Pass",
+      "notes": "Automated: tests/accounts/members-leagues.spec.ts"
+    },
+    {
+      "id": "TC-ACC-009",
+      "feature": "Multi-league",
+      "scenario": "Captain (TVT) and wishlist (auction) land on the right teams",
+      "type": "Positive",
+      "priority": "P1",
+      "preconditions": "Test DB reset; TEST_AUTH_ENABLED=1 (test-only person sign-in stands in for Google).",
+      "testData": "Generated per run (see the automated spec named in Notes).",
+      "testSteps": [
+        "Join both leagues",
+        "Set captain with ?league=<tvt>",
+        "Add a wishlist entry on the auction team"
+      ],
+      "expectedResult": "Rows belong to the respective league's team",
+      "postconditions": "None.",
+      "requirementId": "AC-ACC-004",
+      "author": "Claude (accounts rebuild)",
+      "createdDate": "2026-10-10",
+      "status": "Pass",
+      "notes": "Automated: tests/accounts/members-leagues.spec.ts"
+    },
+    {
+      "id": "TC-ACC-010",
+      "feature": "Authorization",
+      "scenario": "Non-member refused on team and auction routes",
+      "type": "Negative",
+      "priority": "P1",
+      "preconditions": "Test DB reset; TEST_AUTH_ENABLED=1 (test-only person sign-in stands in for Google).",
+      "testData": "Generated per run (see the automated spec named in Notes).",
+      "testSteps": [
+        "Dashboard and captain with ?league=",
+        "Wishlist on someone else's team"
+      ],
+      "expectedResult": "403 each",
+      "postconditions": "None.",
+      "requirementId": "AC-ACC-005",
+      "author": "Claude (accounts rebuild)",
+      "createdDate": "2026-10-10",
+      "status": "Pass",
+      "notes": "Automated: tests/accounts/members-leagues.spec.ts"
+    },
+    {
+      "id": "TC-ACC-011",
+      "feature": "Approval",
+      "scenario": "Request then approve claims a team; reject and cancel don't",
+      "type": "Positive",
+      "priority": "P1",
+      "preconditions": "Test DB reset; TEST_AUTH_ENABLED=1 (test-only person sign-in stands in for Google).",
+      "testData": "Generated per run (see the automated spec named in Notes).",
+      "testSteps": [
+        "Admin turns on approval",
+        "Three people join",
+        "Approve one, reject one, one cancels"
+      ],
+      "expectedResult": "Only the approved person has a team",
+      "postconditions": "None.",
+      "requirementId": "AC-ACC-006",
+      "author": "Claude (accounts rebuild)",
+      "createdDate": "2026-10-10",
+      "status": "Pass",
+      "notes": "Automated: tests/accounts/members-leagues.spec.ts"
+    },
+    {
+      "id": "TC-ACC-012",
+      "feature": "Invites",
+      "scenario": "Used-up and revoked invites refused",
+      "type": "Negative",
+      "priority": "P2",
+      "preconditions": "Test DB reset; TEST_AUTH_ENABLED=1 (test-only person sign-in stands in for Google).",
+      "testData": "Generated per run (see the automated spec named in Notes).",
+      "testSteps": [
+        "Invite with maxUses 1 used twice",
+        "Revoke an invite and use it"
+      ],
+      "expectedResult": "used-up / revoked codes, no team",
+      "postconditions": "None.",
+      "requirementId": "AC-ACC-007",
+      "author": "Claude (accounts rebuild)",
+      "createdDate": "2026-10-10",
+      "status": "Pass",
+      "notes": "Automated: tests/accounts/members-leagues.spec.ts"
+    },
+    {
+      "id": "TC-ACC-013",
+      "feature": "Invites",
+      "scenario": "Full league refuses a join",
+      "type": "Edge",
+      "priority": "P2",
+      "preconditions": "Test DB reset; TEST_AUTH_ENABLED=1 (test-only person sign-in stands in for Google).",
+      "testData": "Generated per run (see the automated spec named in Notes).",
+      "testSteps": [
+        "Fill every team",
+        "Join"
+      ],
+      "expectedResult": "409 league-full",
+      "postconditions": "None.",
+      "requirementId": "AC-ACC-007",
+      "author": "Claude (accounts rebuild)",
+      "createdDate": "2026-10-10",
+      "status": "Pass",
+      "notes": "Automated: tests/accounts/members-leagues.spec.ts"
+    },
+    {
+      "id": "TC-ACC-014",
+      "feature": "Admin tools",
+      "scenario": "Assign by username, replace account, remove",
+      "type": "Positive",
+      "priority": "P1",
+      "preconditions": "Test DB reset; TEST_AUTH_ENABLED=1 (test-only person sign-in stands in for Google).",
+      "testData": "Generated per run (see the automated spec named in Notes).",
+      "testSteps": [
+        "Assign",
+        "Replace with a new account",
+        "Remove",
+        "Assign an unknown username"
+      ],
+      "expectedResult": "Seat moves; old account gets 403; unknown gives 404",
+      "postconditions": "None.",
+      "requirementId": "AC-ACC-010",
+      "author": "Claude (accounts rebuild)",
+      "createdDate": "2026-10-10",
+      "status": "Pass",
+      "notes": "Automated: tests/accounts/members-leagues.spec.ts"
+    },
+    {
+      "id": "TC-ACC-015",
+      "feature": "Recovery",
+      "scenario": "Superadmin transfer moves memberships and signs the old account out",
+      "type": "Positive",
+      "priority": "P1",
+      "preconditions": "Test DB reset; TEST_AUTH_ENABLED=1 (test-only person sign-in stands in for Google).",
+      "testData": "Generated per run (see the automated spec named in Notes).",
+      "testSteps": [
+        "Search users",
+        "Transfer old to new"
+      ],
+      "expectedResult": "New account on the team; old account signed out",
+      "postconditions": "None.",
+      "requirementId": "AC-ACC-010",
+      "author": "Claude (accounts rebuild)",
+      "createdDate": "2026-10-10",
+      "status": "Pass",
+      "notes": "Automated: tests/accounts/members-leagues.spec.ts"
+    },
+    {
+      "id": "TC-ACC-016",
+      "feature": "Devices",
+      "scenario": "Sign out of all other devices",
+      "type": "Positive",
+      "priority": "P1",
+      "preconditions": "Test DB reset; TEST_AUTH_ENABLED=1 (test-only person sign-in stands in for Google).",
+      "testData": "Generated per run (see the automated spec named in Notes).",
+      "testSteps": [
+        "Sign in on two contexts",
+        "POST /api/me/sessions from one"
+      ],
+      "expectedResult": "Other context signed out; this one stays",
+      "postconditions": "None.",
+      "requirementId": "AC-ACC-008",
+      "author": "Claude (accounts rebuild)",
+      "createdDate": "2026-10-10",
+      "status": "Pass",
+      "notes": "Automated: tests/accounts/identity.spec.ts"
+    },
+    {
+      "id": "TC-ACC-017",
+      "feature": "Account",
+      "scenario": "Delete account needs the typed username",
+      "type": "Positive",
+      "priority": "P2",
+      "preconditions": "Test DB reset; TEST_AUTH_ENABLED=1 (test-only person sign-in stands in for Google).",
+      "testData": "Generated per run (see the automated spec named in Notes).",
+      "testSteps": [
+        "DELETE /api/me with a wrong confirm",
+        "DELETE with the username"
+      ],
+      "expectedResult": "400 then 200; row gone; signed out",
+      "postconditions": "None.",
+      "requirementId": "US-ACC-006",
+      "author": "Claude (accounts rebuild)",
+      "createdDate": "2026-10-10",
+      "status": "Pass",
+      "notes": "Automated: tests/accounts/identity.spec.ts"
+    },
+    {
+      "id": "TC-ACC-018",
+      "feature": "Admins",
+      "scenario": "Passwordless admin gets league access; removal revokes it immediately",
+      "type": "Positive",
+      "priority": "P1",
+      "preconditions": "Test DB reset; TEST_AUTH_ENABLED=1 (test-only person sign-in stands in for Google).",
+      "testData": "Generated per run (see the automated spec named in Notes).",
+      "testSteps": [
+        "Create admin by email",
+        "Assign a league",
+        "Remove the admin"
+      ],
+      "expectedResult": "200 then 403 on the next request",
+      "postconditions": "None.",
+      "requirementId": "AC-ACC-009",
+      "author": "Claude (accounts rebuild)",
+      "createdDate": "2026-10-10",
+      "status": "Pass",
+      "notes": "Automated: tests/accounts/identity.spec.ts"
+    },
+    {
+      "id": "TC-ACC-019",
+      "feature": "Admins",
+      "scenario": "Promotion takes effect without signing in again; demotion kills sessions",
+      "type": "Positive",
+      "priority": "P2",
+      "preconditions": "Test DB reset; TEST_AUTH_ENABLED=1 (test-only person sign-in stands in for Google).",
+      "testData": "Generated per run (see the automated spec named in Notes).",
+      "testSteps": [
+        "Promote a player",
+        "GET /api/auth/me",
+        "Remove the admin"
+      ],
+      "expectedResult": "Type flips to admin; then signed out",
+      "postconditions": "None.",
+      "requirementId": "AC-ACC-009",
+      "author": "Claude (accounts rebuild)",
+      "createdDate": "2026-10-10",
+      "status": "Pass",
+      "notes": "Automated: tests/accounts/identity.spec.ts"
+    },
+    {
+      "id": "TC-ACC-020",
+      "feature": "In-app browsers",
+      "scenario": "WhatsApp user agent gets the open-in-browser screen",
+      "type": "Positive",
+      "priority": "P1",
+      "preconditions": "Test DB reset; TEST_AUTH_ENABLED=1 (test-only person sign-in stands in for Google).",
+      "testData": "Generated per run (see the automated spec named in Notes).",
+      "testSteps": [
+        "Open /signin with a WhatsApp UA",
+        "GET /api/auth/google with a WhatsApp UA"
+      ],
+      "expectedResult": "Escape screen; Google start redirects to /signin?inapp=1",
+      "postconditions": "None.",
+      "requirementId": "AC-ACC-011",
+      "author": "Claude (accounts rebuild)",
+      "createdDate": "2026-10-10",
+      "status": "Pass",
+      "notes": "Automated: tests/accounts/identity.spec.ts"
+    },
+    {
+      "id": "TC-ACC-021",
+      "feature": "Redirects",
+      "scenario": "Off-site next is dropped",
+      "type": "Negative",
+      "priority": "P1",
+      "preconditions": "Test DB reset; TEST_AUTH_ENABLED=1 (test-only person sign-in stands in for Google).",
+      "testData": "Generated per run (see the automated spec named in Notes).",
+      "testSteps": [
+        "GET /api/auth/google?next=//evil.example.com"
+      ],
+      "expectedResult": "Location never contains the off-site host",
+      "postconditions": "None.",
+      "requirementId": "BR-ACC-007",
+      "author": "Claude (accounts rebuild)",
+      "createdDate": "2026-10-10",
+      "status": "Pass",
+      "notes": "Automated: tests/accounts/identity.spec.ts"
+    },
+    {
+      "id": "TC-ACC-022",
+      "feature": "Backups",
+      "scenario": "Backup then restore keeps memberships",
+      "type": "Regression",
+      "priority": "P2",
+      "preconditions": "Test DB reset; TEST_AUTH_ENABLED=1 (test-only person sign-in stands in for Google).",
+      "testData": "Generated per run (see the automated spec named in Notes).",
+      "testSteps": [
+        "Download the backup zip",
+        "Restore it"
+      ],
+      "expectedResult": "team_members unchanged",
+      "postconditions": "None.",
+      "requirementId": "AC-ACC-012",
+      "author": "Claude (accounts rebuild)",
+      "createdDate": "2026-10-10",
+      "status": "Pass",
+      "notes": "Automated: tests/accounts/members-leagues.spec.ts"
+    },
+    {
+      "id": "TC-ACC-023",
+      "feature": "Help",
+      "scenario": "Members-league help shows Google/invite FAQs; /help and /privacy load signed out",
+      "type": "Smoke",
+      "priority": "P3",
+      "preconditions": "Test DB reset; TEST_AUTH_ENABLED=1 (test-only person sign-in stands in for Google).",
+      "testData": "Generated per run (see the automated spec named in Notes).",
+      "testSteps": [
+        "Open league help as a member",
+        "Open /help and /privacy signed out"
+      ],
+      "expectedResult": "Members FAQ visible; public pages return 200",
+      "postconditions": "None.",
+      "requirementId": "US-ACC-002",
+      "author": "Claude (accounts rebuild)",
+      "createdDate": "2026-10-10",
+      "status": "Pass",
+      "notes": "Automated: tests/accounts/members-leagues.spec.ts"
+    },
+    {
+      "id": "TC-ACC-024",
+      "feature": "Safety",
+      "scenario": "Team-scoped routes never read the session id as a team id",
+      "type": "Regression",
+      "priority": "P1",
+      "preconditions": "Test DB reset; TEST_AUTH_ENABLED=1 (test-only person sign-in stands in for Google).",
+      "testData": "Generated per run (see the automated spec named in Notes).",
+      "testSteps": [
+        "npm run test:unit (team-actor-guard)"
+      ],
+      "expectedResult": "No offenders",
+      "postconditions": "None.",
+      "requirementId": "BR-ACC-002",
+      "author": "Claude (accounts rebuild)",
+      "createdDate": "2026-10-10",
+      "status": "Pass",
+      "notes": "Automated: tests/unit/team-actor-guard.test.ts"
+    },
+    {
+      "id": "TC-ACC-025",
+      "feature": "Safety",
+      "scenario": "Database guard refuses production's database",
+      "type": "Regression",
+      "priority": "P1",
+      "preconditions": "Test DB reset; TEST_AUTH_ENABLED=1 (test-only person sign-in stands in for Google).",
+      "testData": "Generated per run (see the automated spec named in Notes).",
+      "testSteps": [
+        "npm run test:unit (db-target-guard)"
+      ],
+      "expectedResult": "Only file: and jpl-leagues-accounts are allowed",
+      "postconditions": "None.",
+      "requirementId": "BR-ACC-008",
+      "author": "Claude (accounts rebuild)",
+      "createdDate": "2026-10-10",
+      "status": "Pass",
+      "notes": "Automated: tests/unit/db-target-guard.test.ts"
+    }
+  ],
+  "gapFlags": [],
+  "defects": []
+}

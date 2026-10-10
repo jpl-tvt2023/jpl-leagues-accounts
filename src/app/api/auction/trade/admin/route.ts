@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
   // Initial gate: must be admin or superadmin session (block teams + anonymous).
   // The fine-grained league-admin scope check runs after we know the proposal's league.
   const sessionType = request.headers.get("x-session-type");
-  const sessionId = request.headers.get("x-session-id");
+  const sessionId = request.headers.get("x-session-id"); // team-actor-guard-ignore: admin-only route, a users.id
   if (sessionType !== "superadmin" && sessionType !== "admin") {
     return NextResponse.json({ error: "Admin access required" }, { status: 403 });
   }

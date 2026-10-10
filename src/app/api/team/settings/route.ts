@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, teams, players } from "@/lib/db";
 import { eq, and, sql, asc } from "drizzle-orm";
-import { verifySession, SESSION_COOKIE_NAME } from "@/lib/auth";
+import { leagueFromRequest, resolveTeamActor, teamActorDenied } from "@/lib/team-actor";
 
 /**
  * GET /api/team/settings
@@ -9,14 +9,11 @@ import { verifySession, SESSION_COOKIE_NAME } from "@/lib/auth";
  */
 export async function GET(request: NextRequest) {
   try {
-    const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-    const session = token ? await verifySession(token) : null;
+    const { actor, denial } = await resolveTeamActor(request, { league: leagueFromRequest(request) });
+    if (!actor) return teamActorDenied(denial, { unauthenticated: "Unauthorized" });
+    const teamId = actor.teamId;
 
-    if (!session || session.type !== "team") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const teamList = await db.select().from(teams).where(eq(teams.id, session.id));
+    const teamList = await db.select().from(teams).where(eq(teams.id, teamId));
     const team = teamList[0];
 
     if (!team) {
@@ -26,7 +23,7 @@ export async function GET(request: NextRequest) {
     const teamPlayers = await db
       .select({ name: players.name, fplId: players.fplId })
       .from(players)
-      .where(eq(players.teamId, session.id))
+      .where(eq(players.teamId, teamId))
       .orderBy(asc(players.createdAt), asc(players.id));
 
     return NextResponse.json({
@@ -49,12 +46,9 @@ export async function GET(request: NextRequest) {
  */
 export async function PATCH(request: NextRequest) {
   try {
-    const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-    const session = token ? await verifySession(token) : null;
-
-    if (!session || session.type !== "team") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const { actor, denial } = await resolveTeamActor(request, { league: leagueFromRequest(request) });
+    if (!actor) return teamActorDenied(denial, { unauthenticated: "Unauthorized" });
+    const teamId = actor.teamId;
 
     const body = await request.json();
     const { teamLoginId, teamName } = body;
@@ -66,7 +60,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
     }
 
-    const teamList = await db.select().from(teams).where(eq(teams.id, session.id));
+    const teamList = await db.select().from(teams).where(eq(teams.id, teamId));
     const team = teamList[0];
 
     if (!team) {
@@ -74,6 +68,11 @@ export async function PATCH(request: NextRequest) {
     }
 
     const updateData: Record<string, unknown> = {};
+
+    // The team key is a login only for legacy team logins; in members leagues it's internal.
+    if (teamLoginIdProvided && actor.memberRole !== "legacy") {
+      return NextResponse.json({ error: "The team key can't be changed." }, { status: 400 });
+    }
 
     if (teamLoginIdProvided) {
       const trimmedLoginId = teamLoginId.trim();
@@ -91,7 +90,7 @@ export async function PATCH(request: NextRequest) {
         .from(teams)
         .where(sql`LOWER(${teams.teamLoginId}) = ${normalizedLoginId}`)
         .limit(1);
-      if (existingLoginId.length > 0 && existingLoginId[0].id !== session.id) {
+      if (existingLoginId.length > 0 && existingLoginId[0].id !== teamId) {
         return NextResponse.json({ error: "Team ID is already taken" }, { status: 400 });
       }
 
@@ -107,7 +106,7 @@ export async function PATCH(request: NextRequest) {
         .where(
           and(eq(teams.leagueId, team.leagueId), sql`LOWER(REPLACE(${teams.name}, ' ', '')) = LOWER(REPLACE(${trimmedTeamName}, ' ', ''))`)
         );
-      if (existingName.length > 0 && existingName[0].id !== session.id) {
+      if (existingName.length > 0 && existingName[0].id !== teamId) {
         return NextResponse.json({ error: "Team name is already taken in this league" }, { status: 400 });
       }
 
@@ -116,7 +115,7 @@ export async function PATCH(request: NextRequest) {
 
     updateData.updatedAt = new Date();
 
-    await db.update(teams).set(updateData).where(eq(teams.id, session.id));
+    await db.update(teams).set(updateData).where(eq(teams.id, teamId));
 
     return NextResponse.json({ success: true, message: "Settings updated successfully" });
   } catch (error) {

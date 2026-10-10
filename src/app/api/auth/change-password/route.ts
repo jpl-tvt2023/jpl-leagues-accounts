@@ -56,7 +56,8 @@ export async function POST(request: NextRequest) {
       }
 
       // Verify current password
-      const isValid = await bcrypt.compare(currentPassword, team.password);
+      // "" = no password (members-mode team): never matches, and keeps bcrypt off a non-hash.
+      const isValid = team.password !== "" && (await bcrypt.compare(currentPassword, team.password));
       if (!isValid) {
         return NextResponse.json(
           { error: "Current password is incorrect" },
@@ -100,7 +101,8 @@ export async function POST(request: NextRequest) {
       }
 
       // Verify current password
-      const isValid = await bcrypt.compare(currentPassword, user.password);
+      // "" = Google-only account: there is no current password to change.
+      const isValid = user.password !== "" && (await bcrypt.compare(currentPassword, user.password));
       if (!isValid) {
         return NextResponse.json(
           { error: "Current password is incorrect" },

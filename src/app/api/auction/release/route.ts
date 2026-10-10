@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { sessionActsAsTeam } from "@/lib/team-actor";
 import { db, leagues, auctionOwnership, auctionScores } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
-import { verifySession, SESSION_COOKIE_NAME, isSuperAdmin } from "@/lib/auth";
+import { verifySession, SESSION_COOKIE_NAME } from "@/lib/auth";
+import { isSuperAdmin } from "@/lib/privilege";
 import { calculateFMV } from "@/lib/formats/auction/economy";
 import { isAuctionLive } from "@/lib/formats/auction/live-session";
 import { invalidateLeaguePageCache } from "@/lib/fpl-cache";
@@ -17,7 +19,7 @@ import { invalidateLeaguePageCache } from "@/lib/fpl-cache";
 export async function POST(request: NextRequest) {
   const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
   const session = token ? await verifySession(token) : null;
-  const isAdmin = isSuperAdmin(request);
+  const isAdmin = (await isSuperAdmin(request));
 
   if (!session && !isAdmin) {
     return NextResponse.json({ error: "Authentication required" }, { status: 401 });
@@ -52,7 +54,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Verify the requesting team owns this player (unless admin)
-  if (!isAdmin && session?.id !== ownership.teamId) {
+  if (!isAdmin && !(await sessionActsAsTeam(session, ownership.teamId))) {
     return NextResponse.json({ error: "You don't own this player" }, { status: 403 });
   }
 
@@ -129,7 +131,7 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
   const session = token ? await verifySession(token) : null;
-  const isAdmin = isSuperAdmin(request);
+  const isAdmin = (await isSuperAdmin(request));
 
   if (!session && !isAdmin) {
     return NextResponse.json({ error: "Authentication required" }, { status: 401 });
@@ -159,7 +161,7 @@ export async function DELETE(request: NextRequest) {
   }
 
   // Verify the requesting team owns this player (unless admin)
-  if (!isAdmin && session?.id !== ownership.teamId) {
+  if (!isAdmin && !(await sessionActsAsTeam(session, ownership.teamId))) {
     return NextResponse.json({ error: "You don't own this player" }, { status: 403 });
   }
 

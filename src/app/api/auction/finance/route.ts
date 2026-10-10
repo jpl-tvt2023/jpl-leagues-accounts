@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, teams } from "@/lib/db";
 import { eq } from "drizzle-orm";
-import { verifySession, SESSION_COOKIE_NAME, isSuperAdmin } from "@/lib/auth";
+import { isSuperAdmin } from "@/lib/privilege";
+import { getRequestSession, sessionTeamIdInLeague } from "@/lib/team-actor";
 import { buildTeamLedger, buildAllTeamsSummary } from "@/lib/formats/auction/finance";
 import { fetchClubOwnershipMap } from "@/lib/teams/rename-rows";
 
@@ -12,9 +13,8 @@ import { fetchClubOwnershipMap } from "@/lib/teams/rename-rows";
  *   ?leagueId=xxx&allTeams=true       → all teams' summaries (admin only)
  */
 export async function GET(request: NextRequest) {
-  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-  const session = token ? await verifySession(token) : null;
-  const admin = isSuperAdmin(request);
+  const session = await getRequestSession(request);
+  const admin = (await isSuperAdmin(request));
 
   if (!session && !admin) {
     return NextResponse.json({ error: "Authentication required" }, { status: 401 });
@@ -52,11 +52,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Team not found" }, { status: 404 });
   }
 
-  // Team can only view their own ledger; admin or other teams in same league can view too
-  if (!admin && session?.type === "team") {
-    const sameLeague = teamRow[0].leagueId;
-    const sessionTeam = await db.select().from(teams).where(eq(teams.id, session.id)).limit(1);
-    if (sessionTeam.length === 0 || sessionTeam[0].leagueId !== sameLeague) {
+  // Any team in the same league (legacy login or member) may view a ledger; admins may too.
+  if (!admin && session && session.type !== "admin") {
+    if (!(await sessionTeamIdInLeague(session, teamRow[0].leagueId))) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
   }

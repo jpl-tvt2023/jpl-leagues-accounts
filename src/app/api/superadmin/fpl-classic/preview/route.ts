@@ -7,12 +7,12 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { isSuperAdmin } from "@/lib/auth";
+import { isSuperAdmin } from "@/lib/privilege";
 import { fetchClassicLeagueStandings, FplClassicLeagueNotFoundError } from "@/lib/fpl/classic-league";
 import { withFplBudget, FplUnavailableError } from "@/lib/fpl/gateway";
 
 export async function GET(request: NextRequest) {
-  if (!isSuperAdmin(request)) {
+  if (!(await isSuperAdmin(request))) {
     return NextResponse.json({ error: "Superadmin access required" }, { status: 403 });
   }
 

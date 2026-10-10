@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { processOneLeagueOneGw, type LeaguePlanItem } from "@/lib/cron/process-all";
-import { isSuperAdmin } from "@/lib/auth";
+import { isSuperAdmin } from "@/lib/privilege";
 
 export const maxDuration = 60;
 
@@ -14,7 +14,7 @@ export const maxDuration = 60;
  * live per-GW progress chips inside each league card.
  */
 export async function POST(request: NextRequest) {
-  if (!isSuperAdmin(request)) {
+  if (!(await isSuperAdmin(request))) {
     return NextResponse.json({ error: "Superadmin only" }, { status: 403 });
   }
 

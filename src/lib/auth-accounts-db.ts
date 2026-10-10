@@ -38,7 +38,7 @@ export async function describeAccounts(accounts: StoredAccount[]): Promise<Map<s
 
   if (userIds.length > 0) {
     const rows = await db
-      .select({ id: users.id, name: users.name, email: users.email })
+      .select({ id: users.id, name: users.name, email: users.email, username: users.username })
       .from(users)
       .where(inArray(users.id, userIds));
     const byId = new Map(rows.map((r) => [r.id, r]));
@@ -48,7 +48,10 @@ export async function describeAccounts(accounts: StoredAccount[]): Promise<Map<s
       if (!u) continue;
       out.set(a.key, {
         label: u.name || u.email,
-        sublabel: a.session.type === "superadmin" ? "Platform admin" : "League admin",
+        sublabel:
+          a.session.type === "superadmin" ? "Platform admin"
+          : a.session.type === "admin" ? "League admin"
+          : u.username ? `@${u.username}` : "Finish setting up your account",
         loginId: u.email,
       });
     }

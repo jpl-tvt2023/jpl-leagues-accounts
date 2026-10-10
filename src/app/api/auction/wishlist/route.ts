@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, auctionWishlists } from "@/lib/db";
 import { eq, and, asc, sql } from "drizzle-orm";
-import { verifySession, SESSION_COOKIE_NAME, isSuperAdmin } from "@/lib/auth";
+import { isSuperAdmin } from "@/lib/privilege";
+import { getRequestSession, sessionActsAsTeam } from "@/lib/team-actor";
 import { generateId } from "@/lib/id";
 
 /** Shared auth + ownership check. Teams may only touch their own wishlist; super-admins any. */
 async function authorize(request: NextRequest, teamId: string | null | undefined) {
-  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-  const session = token ? await verifySession(token) : null;
-  const isAdmin = isSuperAdmin(request);
+  const session = await getRequestSession(request);
+  const isAdmin = (await isSuperAdmin(request));
 
   if (!session && !isAdmin) {
     return NextResponse.json({ error: "Authentication required" }, { status: 401 });
@@ -16,7 +16,7 @@ async function authorize(request: NextRequest, teamId: string | null | undefined
   if (!teamId) {
     return NextResponse.json({ error: "teamId is required" }, { status: 400 });
   }
-  if (!isAdmin && session?.id !== teamId) {
+  if (!isAdmin && !(await sessionActsAsTeam(session, teamId))) {
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }
   return null;

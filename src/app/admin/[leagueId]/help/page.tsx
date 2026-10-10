@@ -67,6 +67,8 @@ export default function AdminHelpPage() {
   const [playoffStartGw, setPlayoffStartGw] = useState<number>(31);
   const [leagueName, setLeagueName] = useState<string>("");
   const [leagueFormat, setLeagueFormat] = useState<string>("tvt");
+  // "members": players join via invite link (Google sign-in). "legacy": a team ID + password per team.
+  const [authMode, setAuthMode] = useState<"legacy" | "members">("legacy");
   const [activeTab, setActiveTab] = useState<ActiveTab>("faqs");
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
@@ -96,6 +98,7 @@ export default function AdminHelpPage() {
         if (!league) return;
         if (league.name) setLeagueName(league.name);
         if (league.format) setLeagueFormat(league.format);
+        setAuthMode(league.authMode === "members" ? "members" : "legacy");
         if (league.teamSize) setTeamSize(league.teamSize);
         if (league.playoffStartGw) setPlayoffStartGw(league.playoffStartGw);
         if (league.enabledChips) {
@@ -126,9 +129,64 @@ export default function AdminHelpPage() {
   const variantLabel = teamSize === 8 ? "8-Team" : teamSize === 16 ? "16-Team" : "32-Team";
   const groupDesc = teamSize === 32 ? "2 groups of 16 teams each" : teamSize === 16 ? "1 group of 16 teams" : "1 group of 8 teams";
 
-  const faqs = [
+  // Members-mode leagues: people join through the invite link; nothing to hand out.
+  const memberFaqs = [
     {
-      question: "How do I add teams to my league?",
+      question: "How do players join my league?",
+      answer: (
+        <ol className="list-decimal list-inside space-y-1.5">
+          <li>Open the <strong className="text-white">Members</strong> tab and copy the <strong className="text-white">invite link</strong>. It&apos;s created with the league.</li>
+          <li>Share it in your league&apos;s group chat. Each person signs in with Google, picks a username, and is given an open team.</li>
+          <li>They set up the team themselves — its name and FPL IDs. The tab shows each team as Open, Claimed or Set up.</li>
+          <li>Want someone specific on a team? Use <strong className="text-white">Assign by username</strong> on that team. They need to have signed in once.</li>
+        </ol>
+      ),
+    },
+    {
+      question: "Can I approve each player before they join?",
+      answer: (
+        <div className="space-y-2">
+          <p>Yes: on the invite link, click <strong className="text-white">Require my approval</strong>. Joins then wait in a <strong className="text-white">Requests</strong> list on the Members tab, where you approve (which gives them an open team) or decline.</p>
+          <p>Changing the setting creates a new link and the old one stops working, so share the new one.</p>
+        </div>
+      ),
+    },
+    {
+      question: "How long does the invite link work?",
+      answer: (
+        <p>14 days, and at most once per team in the league. You can <strong className="text-white">turn it off</strong> or make a <strong className="text-white">new link</strong> at any time — do that if it ends up somewhere it shouldn&apos;t.</p>
+      ),
+    },
+    {
+      question: "How do teammates join (two-player formats)?",
+      answer: (
+        <p>The team owner invites their teammate from <strong className="text-white">Settings → Your team</strong> (one use, 7 days). Or add them yourself with <strong className="text-white">Add teammate by username</strong>. A team can play with just its owner signed in — both FPL IDs are entered in team setup.</p>
+      ),
+    },
+    {
+      question: "Someone lost access to their Google account",
+      answer: (
+        <p>Have them sign in with a new Google account and pick a username. Then, on their seat in the Members tab, click <strong className="text-white">Replace account</strong> and enter the new username. Their team, role and FPL slot carry over. If they&apos;re in several leagues, your platform admin can move all of them at once.</p>
+      ),
+    },
+    {
+      question: "What's the difference between Remove and Release team?",
+      answer: (
+        <p><strong className="text-white">Remove</strong> takes one person off a team; if they owned it, their teammate becomes the owner. <strong className="text-white">Release team</strong> takes everyone off so someone else can claim it. Either way the team, its results and its players stay exactly as they are.</p>
+      ),
+    },
+    {
+      question: "What is the team key?",
+      answer: (
+        <p>An internal identifier each team has (e.g. <span className="font-mono">my-league-Team3</span>). Backups and the captain/chip importers match teams by it. In invite-link leagues it is <em>not</em> a login — nobody signs in with it.</p>
+      ),
+    },
+  ];
+
+  const faqs = [
+    ...(authMode === "members" ? memberFaqs : []),
+    {
+      question: authMode === "members" ? "How do I add teams by hand? (team-login leagues)" : "How do I add teams to my league?",
       answer: (
         <ol className="list-decimal list-inside space-y-1.5">
           <li>Go to your Admin Dashboard and click the <strong className="text-white">Teams</strong> tab.</li>
@@ -316,8 +374,15 @@ export default function AdminHelpPage() {
       title: "Setting up a new league (add teams, generate/import fixtures, enable announcements)",
       steps: [
         "Confirm your league has been created by your superadmin and you have admin access — check by logging in to your Admin Dashboard.",
-        "Go to the Teams tab. Add teams one by one using Add Team, or use Bulk Upload for multiple teams at once.",
-        "Share login credentials (team login ID + temp password) with each team.",
+        ...(authMode === "members"
+          ? [
+              "Go to the Members tab and copy the invite link. Share it in your league's group chat.",
+              "Players sign in with Google and claim a team; watch the Members tab fill up (Open → Claimed → Set up). Assign anyone specific by username.",
+            ]
+          : [
+              "Go to the Teams tab. Add teams one by one using Add Team, or use Bulk Upload for multiple teams at once.",
+              "Share login credentials (team login ID + temp password) with each team.",
+            ]),
         teamSize === 32
           ? "Generate fixtures automatically: scroll to Quick Actions at the bottom of the Teams tab and click Generate Fixtures. The system creates a full home-and-away round-robin for both groups (GW1–30)."
           : teamSize === 16

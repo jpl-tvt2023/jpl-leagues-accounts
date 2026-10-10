@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { leagueAdmins, users, leagues } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
-import { isSuperAdmin } from "@/lib/auth";
+import { isSuperAdmin } from "@/lib/privilege";
 import { generateId } from "@/lib/id";
 
 /**
@@ -11,7 +11,7 @@ import { generateId } from "@/lib/id";
  * Body: { userId, leagueId }
  */
 export async function POST(request: NextRequest) {
-  if (!isSuperAdmin(request)) {
+  if (!(await isSuperAdmin(request))) {
     return NextResponse.json({ error: "Superadmin access required" }, { status: 403 });
   }
 
@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
  * Body: { userId, leagueId }
  */
 export async function DELETE(request: NextRequest) {
-  if (!isSuperAdmin(request)) {
+  if (!(await isSuperAdmin(request))) {
     return NextResponse.json({ error: "Superadmin access required" }, { status: 403 });
   }
 

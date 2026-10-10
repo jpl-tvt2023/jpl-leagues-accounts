@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import {
   AccordionItem,
+  accountFaqs,
   type ActiveTab,
   type FaqEntry,
   HelpTabBar,
@@ -13,6 +14,7 @@ import {
   SectionDivider,
   type UserRole,
 } from "./shared";
+import { useLeague } from "@/lib/league-context";
 
 interface Props {
   userRole: UserRole;
@@ -20,6 +22,7 @@ interface Props {
 }
 
 export function AuctionHelp({ userRole, leagueSlug }: Props) {
+  const { league } = useLeague();
   const [activeTab, setActiveTab] = useState<ActiveTab>("faqs");
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
@@ -109,6 +112,7 @@ export function AuctionHelp({ userRole, leagueSlug }: Props) {
         </p>
       ),
     },
+    ...accountFaqs(league.authMode, { twoPlayer: false }),
   ];
 
   const teamFaqs: FaqEntry[] = [

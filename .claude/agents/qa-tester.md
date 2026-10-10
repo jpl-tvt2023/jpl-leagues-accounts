@@ -68,6 +68,10 @@ You write to **only one file per invocation**: `test-cases/sources/<NN>-<module>
 
 ## Conventions
 
+- Two kinds of league (docs/10-accounts-and-membership.md):
+  - **Legacy:** each team signs in with a team key + password. `tests/harness/league-factory.ts` creates these by default (`authMode: "legacy"`) so existing specs keep using `apiSignInTeam`.
+  - **Members mode:** people sign in with Google and join by invite. In tests, sign people in with `apiSignInUser` (test-only `/api/test-auth/signin`), create the league with `authMode: "members"`, and pass `?league=<slug>` to `/api/team/*`. Pattern: `tests/accounts/members-leagues.spec.ts`.
+  - Membership checks are P1 (auth): a person must never act as a team they aren't on.
 - Test case IDs are stable. Never renumber. Append-only.
 - Every `requirementId` MUST point to an existing AC, BR, or US ID in this module's `requirements` block.
 - Priority guide:

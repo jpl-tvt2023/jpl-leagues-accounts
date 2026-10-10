@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { plStandingsConfig } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import { isSuperAdmin } from "@/lib/auth";
+import { isSuperAdmin } from "@/lib/privilege";
 import { fetchBootstrapData } from "@/lib/fpl";
 import {
   PL_STANDINGS_SEED_ID,
@@ -66,7 +66,7 @@ function parseIdList(raw: string): number[] {
  * Seeds the row on first read.
  */
 export async function GET(request: NextRequest) {
-  if (!isSuperAdmin(request)) {
+  if (!(await isSuperAdmin(request))) {
     return NextResponse.json({ error: "Superadmin access required" }, { status: 403 });
   }
 
@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
  * Validates: top8 has exactly 8 IDs, mid has 9, promoted has 3, no duplicates across lists.
  */
 export async function PUT(request: NextRequest) {
-  if (!isSuperAdmin(request)) {
+  if (!(await isSuperAdmin(request))) {
     return NextResponse.json({ error: "Superadmin access required" }, { status: 403 });
   }
 

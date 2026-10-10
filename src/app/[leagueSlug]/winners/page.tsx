@@ -42,6 +42,7 @@ export default function LeagueWinnersPage() {
 }
 
 function PlayoffWinners() {
+  const { viewer } = useLeague();
   const params = useParams();
   const leagueSlug = params.leagueSlug as string;
 
@@ -60,12 +61,10 @@ function PlayoffWinners() {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const res = await fetch("/api/auth/me");
-        const me = await res.json();
-        if (res.ok && me.authenticated && (me.type === "team" || me.type === "admin" || me.type === "superadmin")) {
+        // Resolved server-side by the league layout.
+        if (viewer.authenticated) {
           setIsLoggedIn(true);
-          if (me.type === "admin" && me.adminLeagueId) setDashboardHref(`/admin/${me.adminLeagueId}`);
-          else if (me.type === "superadmin") setDashboardHref("/admin");
+          setDashboardHref(viewer.dashboardHref);
         }
       } catch {}
     };
@@ -83,7 +82,7 @@ function PlayoffWinners() {
       .catch(() => {});
 
     checkAuth();
-  }, [leagueSlug]);
+  }, [leagueSlug, viewer.authenticated, viewer.dashboardHref]);
 
   useEffect(() => {
     const fetchWinners = async () => {

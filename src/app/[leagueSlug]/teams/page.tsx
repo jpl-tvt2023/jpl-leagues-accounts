@@ -125,7 +125,7 @@ function SortableTh({
 
 export default function TeamsPage() {
   useEnforceFormat(["auction"]);
-  const { league } = useLeague();
+  const { league, viewer } = useLeague();
   const params = useParams();
   const leagueSlug = params.leagueSlug as string;
 
@@ -144,9 +144,7 @@ export default function TeamsPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const meRes = await fetch("/api/auth/me");
-      const me = await meRes.json().catch(() => ({}));
-      setIsLoggedIn(!!me.authenticated);
+      setIsLoggedIn(viewer.authenticated);
 
       const leaguesRes = await fetch("/api/leagues");
       const leaguesJson = await leaguesRes.json();
@@ -167,7 +165,7 @@ export default function TeamsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [leagueSlug]);
+  }, [leagueSlug, viewer.authenticated]);
 
   useEffect(() => {
     load();

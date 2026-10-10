@@ -34,6 +34,8 @@ async function createLeague(
   const slug = `cp${tag}${seq++}-${Date.now().toString(36).slice(-5)}`;
   const res = await request.post("/api/superadmin/leagues", {
     data: {
+      // Team logins: this spec signs teams in with team keys.
+      authMode: "legacy",
       slug, name: `Chips ${enabledChips.join("/")}`, sport: "fpl", format: "tvt",
       season: "2025-26", teamSize: TEAMS, groupCount: 2, enabledChips,
     },

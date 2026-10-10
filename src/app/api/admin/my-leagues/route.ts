@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { leagues, leagueAdmins, teams } from "@/lib/db/schema";
 import { eq, count } from "drizzle-orm";
-import { isSuperAdmin } from "@/lib/auth";
+import { isSuperAdmin } from "@/lib/privilege";
 import { getCurrentGameweekNumber } from "@/lib/gameweeks/current-gw";
 
 /**
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
   // Get the set of leagues this user can access
   let leagueIds: string[] | null = null; // null = all (superadmin)
 
-  if (!isSuperAdmin(request) && sessionId) {
+  if (!(await isSuperAdmin(request)) && sessionId) {
     const assignments = await db
       .select({ leagueId: leagueAdmins.leagueId })
       .from(leagueAdmins)

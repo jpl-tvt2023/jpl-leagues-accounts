@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, feedback, teams } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { generateId } from "@/lib/id";
+import { leagueFromRequest, resolveTeamActor, teamActorDenied } from "@/lib/team-actor";
 
 const MIN_MESSAGE_LENGTH = 5;
 const MAX_MESSAGE_LENGTH = 5000;
@@ -10,15 +11,14 @@ const MAX_SUBJECT_LENGTH = 200;
 /**
  * POST /api/feedback
  * Submit user feedback. Scope is "site" (general) or "league" (this user's league).
- * Team session required. leagueId is derived from the team — never accepted from the client.
+ * A team session (legacy login, or a person acting in `?league=`) is required. leagueId is derived
+ * from the team — never accepted from the body.
  */
 export async function POST(request: NextRequest) {
   try {
-    const teamId = request.headers.get("x-session-id");
-    const sessionType = request.headers.get("x-session-type");
-    if (!teamId || sessionType !== "team") {
-      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-    }
+    const { actor, denial } = await resolveTeamActor(request, { league: leagueFromRequest(request) });
+    if (!actor) return teamActorDenied(denial);
+    const teamId = actor.teamId;
 
     const body = await request.json().catch(() => null);
     if (!body || typeof body !== "object") {
@@ -77,6 +77,7 @@ export async function POST(request: NextRequest) {
       scope,
       leagueId,
       submitterTeamId: teamId,
+      submitterUserId: actor.userId,
       submitterName: team[0].name,
       subject: trimmedSubject,
       message: trimmedMessage,

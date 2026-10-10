@@ -45,7 +45,9 @@ async function createLeague(
   request: APIRequestContext,
   payload: Record<string, unknown>,
 ): Promise<LeagueRef> {
-  const res = await request.post("/api/superadmin/leagues", { data: payload, failOnStatusCode: false });
+  // Existing specs drive leagues through team logins, so they ask for a legacy league explicitly;
+  // new leagues default to members mode (people join via invite). Override with payload.authMode.
+  const res = await request.post("/api/superadmin/leagues", { data: { authMode: "legacy", ...payload }, failOnStatusCode: false });
   const body = await res.json().catch(() => ({}));
   if (!res.ok()) {
     throw new Error(

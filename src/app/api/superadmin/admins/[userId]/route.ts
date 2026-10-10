@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { users, leagueAdmins } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
-import { isSuperAdmin } from "@/lib/auth";
+import { users, leagueAdmins, teamMembers, userIdentities } from "@/lib/db/schema";
+import { eq, sql } from "drizzle-orm";
+import { isSuperAdmin } from "@/lib/privilege";
 import bcrypt from "bcryptjs";
 
 /**
@@ -13,7 +13,7 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ userId: string }> }
 ) {
-  if (!isSuperAdmin(request)) {
+  if (!(await isSuperAdmin(request))) {
     return NextResponse.json({ error: "Superadmin access required" }, { status: 403 });
   }
 
@@ -74,13 +74,17 @@ export async function PATCH(
 
 /**
  * DELETE /api/superadmin/admins/[userId]
- * Delete an admin user and all their league assignments
+ * Remove someone as an admin.
+ * - An account that is also a person on the platform (plays in a league, or signs in with Google)
+ *   is DEMOTED to a player: league assignments removed, role "user", session version bumped so
+ *   every open admin session stops working on its next request. Their teams are untouched.
+ * - A password-only admin with no team is deleted, as before.
  */
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ userId: string }> }
 ) {
-  if (!isSuperAdmin(request)) {
+  if (!(await isSuperAdmin(request))) {
     return NextResponse.json({ error: "Superadmin access required" }, { status: 403 });
   }
 
@@ -95,10 +99,21 @@ export async function DELETE(
     return NextResponse.json({ error: "Cannot delete a superadmin account" }, { status: 403 });
   }
 
+  const [membership] = await db.select({ id: teamMembers.id }).from(teamMembers).where(eq(teamMembers.userId, userId)).limit(1);
+  const [identity] = await db.select({ id: userIdentities.id }).from(userIdentities).where(eq(userIdentities.userId, userId)).limit(1);
+  const demote = !!membership || !!identity;
+
   await db.transaction(async (tx) => {
     await tx.delete(leagueAdmins).where(eq(leagueAdmins.userId, userId));
-    await tx.delete(users).where(eq(users.id, userId));
+    if (demote) {
+      await tx
+        .update(users)
+        .set({ role: "user", sessionVersion: sql`${users.sessionVersion} + 1`, updatedAt: new Date() })
+        .where(eq(users.id, userId));
+    } else {
+      await tx.delete(users).where(eq(users.id, userId));
+    }
   });
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true, demoted: demote });
 }

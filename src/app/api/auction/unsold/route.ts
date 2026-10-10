@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, auctionBids, auctionSessions, auctionOwnership } from "@/lib/db";
 import { eq, and, desc, inArray } from "drizzle-orm";
-import { verifySession, SESSION_COOKIE_NAME, isSuperAdmin } from "@/lib/auth";
+import { verifySession, SESSION_COOKIE_NAME } from "@/lib/auth";
+import { isSuperAdmin } from "@/lib/privilege";
 
 /**
  * GET /api/auction/unsold?leagueId=xxx
@@ -15,7 +16,7 @@ import { verifySession, SESSION_COOKIE_NAME, isSuperAdmin } from "@/lib/auth";
 export async function GET(request: NextRequest) {
   const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
   const session = token ? await verifySession(token) : null;
-  const isAdmin = isSuperAdmin(request);
+  const isAdmin = (await isSuperAdmin(request));
 
   if (!session && !isAdmin) {
     return NextResponse.json({ error: "Authentication required" }, { status: 401 });

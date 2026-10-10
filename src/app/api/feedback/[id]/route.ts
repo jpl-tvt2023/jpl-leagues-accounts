@@ -15,7 +15,7 @@ async function loadAndAuthorise(
   feedbackId: string
 ): Promise<typeof feedback.$inferSelect | NextResponse> {
   const sessionType = request.headers.get("x-session-type");
-  const sessionId = request.headers.get("x-session-id");
+  const sessionId = request.headers.get("x-session-id"); // team-actor-guard-ignore: admin-only route, a users.id
 
   if (!sessionType || !sessionId) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });

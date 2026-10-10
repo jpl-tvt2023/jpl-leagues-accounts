@@ -1,26 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, users, teams } from "@/lib/db";
+import { db, users, teams, leagues } from "@/lib/db";
 import { eq, sql } from "drizzle-orm";
 import bcrypt from "bcryptjs";
-import { createSession, SESSION_COOKIE_NAME, SESSION_COOKIE_OPTIONS } from "@/lib/auth";
-import {
-  ACCOUNTS_COOKIE_NAME,
-  ACCOUNTS_COOKIE_OPTIONS,
-  encodeAccounts,
-  upsertAccount,
-} from "@/lib/auth-accounts";
+import { createSession } from "@/lib/auth";
+import { setSignedInSession } from "@/lib/session-cookies";
 
 /**
- * Signing in adds the account to this device's signed-in accounts instead of replacing the
- * previous one, so the account switcher can go back to it without a password. A session from
- * before the accounts cookie existed is folded in first, so it isn't lost on the upgrade.
+ * Password sign-in: admins and superadmins (by email), and team logins in legacy leagues (by team
+ * key). Players in members-mode leagues sign in with Google — see /api/auth/google.
  */
-async function rememberSignedInAccount(request: NextRequest, response: NextResponse, token: string) {
-  let raw = request.cookies.get(ACCOUNTS_COOKIE_NAME)?.value;
-  const previous = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-  if (previous) raw = encodeAccounts(await upsertAccount(raw, previous));
-  response.cookies.set(ACCOUNTS_COOKIE_NAME, encodeAccounts(await upsertAccount(raw, token)), ACCOUNTS_COOKIE_OPTIONS);
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -49,13 +37,18 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Verify password
-      const isValid = await bcrypt.compare(password, user.password);
+      // Verify password. A Google-only account stores "" — never a usable password.
+      const isValid = user.password !== "" && (await bcrypt.compare(password, user.password));
       if (!isValid) {
         return NextResponse.json(
           { error: "Invalid credentials" },
           { status: 401 }
         );
+      }
+
+      // Players sign in with Google; password sign-in is for admins and superadmins only.
+      if (user.role !== "admin" && user.role !== "superadmin") {
+        return NextResponse.json({ error: "Please sign in with Google." }, { status: 401 });
       }
 
       const response = NextResponse.json({
@@ -72,9 +65,8 @@ export async function POST(request: NextRequest) {
       });
 
       // Session type matches the user's role ("superadmin" or "admin")
-      const token = await createSession(user.id, user.role as "superadmin" | "admin");
-      response.cookies.set(SESSION_COOKIE_NAME, token, SESSION_COOKIE_OPTIONS);
-      await rememberSignedInAccount(request, response, token);
+      const token = await createSession(user.id, user.role as "superadmin" | "admin", { sv: user.sessionVersion });
+      await setSignedInSession(request, response, token);
 
       return response;
     } else {
@@ -89,6 +81,13 @@ export async function POST(request: NextRequest) {
           { error: "Invalid credentials" },
           { status: 401 }
         );
+      }
+
+      // Team keys are credentials only in legacy leagues. Members-mode teams store "" and are
+      // joined through invites — refuse them with the same message as a wrong password.
+      const [teamLeague] = await db.select({ authMode: leagues.authMode }).from(leagues).where(eq(leagues.id, team.leagueId)).limit(1);
+      if (teamLeague?.authMode !== "legacy" || team.password === "") {
+        return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
       }
 
       // Verify password
@@ -124,8 +123,7 @@ export async function POST(request: NextRequest) {
 
       // Single signed session cookie — replaces teamId/isAdmin cookies
       const token = await createSession(team.id, "team");
-      response.cookies.set(SESSION_COOKIE_NAME, token, SESSION_COOKIE_OPTIONS);
-      await rememberSignedInAccount(request, response, token);
+      await setSignedInSession(request, response, token);
 
       return response;
     }

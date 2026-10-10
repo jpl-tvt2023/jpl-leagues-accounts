@@ -126,7 +126,7 @@ function formatCurrency(amount: number): string {
 
 export default function SquadPage() {
   useEnforceFormat(["auction"]);
-  const { league } = useLeague();
+  const { league, viewer } = useLeague();
   // "GW 10/20/30" for a default league, whatever the admin configured otherwise.
   // Derived rather than hardcoded so this copy can't drift from what the scorer does.
   const releaseCadence = formatReleaseCycleGws(league.releaseCycleGws);
@@ -185,18 +185,18 @@ export default function SquadPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const meRes = await fetch("/api/auth/me");
-      const me = await meRes.json();
-      if (!me.authenticated) {
+      // The viewer, and their team in THIS league, is resolved server-side by the league layout.
+      if (!viewer.authenticated) {
         router.push("/signin");
         return;
       }
-      if (me.type !== "team") {
-        setError("Squad view is only available to team accounts.");
+      const myTeam = viewer.teamId;
+      if (!myTeam) {
+        setError("Squad view is only available to teams in this league.");
         setIsLoading(false);
         return;
       }
-      const teamId = me.team.id;
+      const teamId = myTeam;
 
       const [squadRes, economyRes, bootstrapRes] = await Promise.all([
         fetch(`/api/auction/squad?teamId=${teamId}`),
@@ -245,7 +245,7 @@ export default function SquadPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [router]);
+  }, [router, viewer.authenticated, viewer.teamId]);
 
   useEffect(() => {
     loadAll();

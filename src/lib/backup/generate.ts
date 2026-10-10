@@ -20,6 +20,8 @@ import { db } from "@/lib/db";
 import {
   leagues,
   teams,
+  teamMembers,
+  users,
   gameweeks,
   fixtures,
   gameweekCaptains,
@@ -46,6 +48,11 @@ export type TeamRow = {
   "Player2 Name": string;
   "Player2 FPL ID": string;
   Group: string;
+  /**
+   * Members-mode leagues only: who is on the team ("owner:@alice, member:@bob"). Read-only —
+   * restore ignores it: team rows survive a restore, and so do their memberships.
+   */
+  Members?: string;
 };
 
 export type FixtureRow = {
@@ -258,6 +265,7 @@ export async function generateBackupRows(leagueId: string): Promise<BackupRows> 
       name: leagues.name,
       format: leagues.format,
       season: leagues.season,
+      authMode: leagues.authMode,
     })
     .from(leagues)
     .where(eq(leagues.id, leagueId))
@@ -281,17 +289,33 @@ export async function generateBackupRows(leagueId: string): Promise<BackupRows> 
       where: and(eq(teams.leagueId, leagueId), eq(teams.isGhost, false)),
       with: { players: true, group: true },
     });
+    // Members mode: there are no team passwords to placeholder, and the useful fact is who's on it.
+    const membersMode = league.authMode === "members";
+    const membersByTeam = new Map<string, string[]>();
+    if (membersMode && teamRows.length > 0) {
+      const rows = await db
+        .select({ teamId: teamMembers.teamId, role: teamMembers.role, username: users.username, name: users.name })
+        .from(teamMembers)
+        .innerJoin(users, eq(users.id, teamMembers.userId))
+        .where(eq(teamMembers.leagueId, leagueId));
+      for (const r of rows) {
+        const list = membersByTeam.get(r.teamId) ?? [];
+        list.push(`${r.role}:${r.username ? "@" + r.username : r.name}`);
+        membersByTeam.set(r.teamId, list);
+      }
+    }
     teamsRows = teamRows.map(t => {
       const [p1, p2] = t.players;
       return {
         "Team ID": t.teamLoginId ?? "",
         "Team Name": t.name,
-        Password: PASSWORD_PLACEHOLDER,
+        Password: membersMode ? "" : PASSWORD_PLACEHOLDER,
         "Player1 Name": p1?.name ?? "",
         "Player1 FPL ID": p1?.fplId ?? "",
         "Player2 Name": p2?.name ?? "",
         "Player2 FPL ID": p2?.fplId ?? "",
         Group: t.group?.name ?? "",
+        ...(membersMode ? { Members: (membersByTeam.get(t.id) ?? []).join(", ") } : {}),
       };
     });
   }

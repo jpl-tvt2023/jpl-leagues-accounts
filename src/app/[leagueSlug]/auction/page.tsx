@@ -37,7 +37,7 @@ const STATUS_ORDER: Record<SessionRow["status"], number> = { active: 0, paused: 
 
 export default function AuctionSessionsListPage() {
   useEnforceFormat(["auction"]);
-  const { league } = useLeague();
+  const { league, viewer } = useLeague();
   const params = useParams();
   const router = useRouter();
   const leagueSlug = params.leagueSlug as string;
@@ -51,20 +51,18 @@ export default function AuctionSessionsListPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const [meRes, leaguesRes] = await Promise.all([
-        fetch("/api/auth/me"),
-        fetch("/api/leagues"),
-      ]);
-      const me = await meRes.json();
-      if (!me.authenticated) {
+      // The viewer, and their team in THIS league, is resolved server-side by the league layout.
+      if (!viewer.authenticated) {
         router.push("/signin");
         return;
       }
-      if (me.type !== "team") {
-        setError("Auction is only available to team accounts.");
+      const myTeam = viewer.teamId;
+      if (!myTeam) {
+        setError("Auction is only available to teams in this league.");
         setIsLoading(false);
         return;
       }
+      const leaguesRes = await fetch("/api/leagues");
 
       const leaguesJson = await leaguesRes.json();
       const leagueRow = (leaguesJson.leagues || []).find((l: { slug: string; id: string }) => l.slug === leagueSlug);
@@ -72,7 +70,7 @@ export default function AuctionSessionsListPage() {
 
       const [sessRes, econRes] = await Promise.all([
         fetch(`/api/auction/session?leagueId=${leagueRow.id}`),
-        fetch(`/api/auction/economy?teamId=${me.team.id}`),
+        fetch(`/api/auction/economy?teamId=${myTeam}`),
       ]);
       if (sessRes.ok) {
         const d = await sessRes.json();
@@ -87,7 +85,7 @@ export default function AuctionSessionsListPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [leagueSlug, router]);
+  }, [leagueSlug, router, viewer.authenticated, viewer.teamId]);
 
   useEffect(() => { loadInitial(); }, [loadInitial]);
 

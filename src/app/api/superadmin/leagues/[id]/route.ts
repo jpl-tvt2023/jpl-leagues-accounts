@@ -7,7 +7,7 @@ import {
   fplClassicConfig, fplClassicEntrants, fplClassicEntryGws, fplClassicAwards,
 } from "@/lib/db/schema";
 import { eq, inArray } from "drizzle-orm";
-import { isSuperAdmin } from "@/lib/auth";
+import { isSuperAdmin } from "@/lib/privilege";
 import bcrypt from "bcryptjs";
 import { invalidateLeaguePageCache } from "@/lib/fpl-cache";
 import { validateEnabledChipsArray } from "@/lib/formats/tvt/chip-validation";
@@ -17,7 +17,7 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!isSuperAdmin(request)) {
+  if (!(await isSuperAdmin(request))) {
     return NextResponse.json({ error: "Superadmin access required" }, { status: 403 });
   }
 
@@ -89,7 +89,7 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!isSuperAdmin(request)) {
+  if (!(await isSuperAdmin(request))) {
     return NextResponse.json({ error: "Superadmin access required" }, { status: 403 });
   }
 

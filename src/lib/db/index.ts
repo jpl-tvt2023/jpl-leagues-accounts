@@ -1,6 +1,7 @@
 import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
 import * as schema from "./schema";
+import { assertSafeDbTarget } from "./target-guard";
 
 function resolveDbConfig(): { url: string; authToken?: string } {
   const direct = process.env.DATABASE_URL;
@@ -16,7 +17,10 @@ function resolveDbConfig(): { url: string; authToken?: string } {
   return { url: turso, authToken: process.env.TURSO_AUTH_TOKEN };
 }
 
-const client = createClient(resolveDbConfig());
+const dbConfig = resolveDbConfig();
+// Never production: see target-guard.ts.
+assertSafeDbTarget(dbConfig.url);
+const client = createClient(dbConfig);
 
 // Enforce referential integrity. SQLite/libSQL ship with foreign keys OFF by
 // default — without this pragma, ON DELETE CASCADE is silent and orphan rows

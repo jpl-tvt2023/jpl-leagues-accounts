@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, auctionBids, auctionBidLogs, auctionSessions, auctionOwnership, teams, leagues } from "@/lib/db";
 import { eq, and, isNotNull } from "drizzle-orm";
-import { verifySession, SESSION_COOKIE_NAME, isSuperAdmin } from "@/lib/auth";
+import { isSuperAdmin } from "@/lib/privilege";
+import { getRequestSession, sessionTeamIdInLeague } from "@/lib/team-actor";
 import { generateId } from "@/lib/id";
 import {
   resolveExpiredBid,
@@ -22,9 +23,8 @@ const DEFAULT_MIN_BID = 500_000; // 500K minimum starting bid
  * Body: { sessionId, fplElementId, playerName, minBid? }
  */
 export async function POST(request: NextRequest) {
-  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-  const session = token ? await verifySession(token) : null;
-  const isAdmin = isSuperAdmin(request);
+  const session = await getRequestSession(request);
+  const isAdmin = (await isSuperAdmin(request));
 
   if (!session && !isAdmin) {
     return NextResponse.json({ error: "Authentication required" }, { status: 401 });
@@ -49,6 +49,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Auction session is not active" }, { status: 400 });
   }
 
+  // The caller's own team in this auction's league (legacy login or member); null for admins.
+  const myTeamId = await sessionTeamIdInLeague(session, sessionRow[0].leagueId);
+
   // Post-sale intermission: nominations are locked until the cooldown elapses (sync beat). Applies to
   // both player and club auctions; the SSE stream arms the next nominator when the window ends.
   if (sessionRow[0].intermissionUntil && Date.now() < new Date(sessionRow[0].intermissionUntil).getTime()) {
@@ -66,11 +69,11 @@ export async function POST(request: NextRequest) {
     }
     const clubSnakeOrder: string[] = JSON.parse(sessionRow[0].snakeOrder);
     const clubNominatorId = clubSnakeOrder[sessionRow[0].currentNominatorIndex];
-    if (!isAdmin && session?.id !== clubNominatorId) {
+    if (!isAdmin && myTeamId !== clubNominatorId) {
       return NextResponse.json({ error: "Not your turn to nominate a club" }, { status: 403 });
     }
     // When an admin nominates on a team's behalf, attribute it to the current nominator.
-    const nominatorTeamId = !isAdmin && session ? session.id : clubNominatorId;
+    const nominatorTeamId = !isAdmin && myTeamId ? myTeamId : clubNominatorId;
     const result = await nominateClub(sessionId, nominatorTeamId, plTeamId);
     if ("error" in result) {
       return NextResponse.json({ error: result.error }, { status: result.status });
@@ -92,8 +95,8 @@ export async function POST(request: NextRequest) {
   const snakeOrderInitial: string[] = JSON.parse(sessionRow[0].snakeOrder);
   const initialNominatorId = snakeOrderInitial[sessionRow[0].currentNominatorIndex];
 
-  if (!isAdmin && session?.id !== initialNominatorId) {
-    console.error("[nominate] 403: not your turn", { sessionId, teamId: session?.id, currentNominator: initialNominatorId });
+  if (!isAdmin && myTeamId !== initialNominatorId) {
+    console.error("[nominate] 403: not your turn", { sessionId, teamId: myTeamId, currentNominator: initialNominatorId });
     return NextResponse.json({ error: "Not your turn to nominate" }, { status: 403 });
   }
 
@@ -134,7 +137,7 @@ export async function POST(request: NextRequest) {
   if (resolvedALot) {
     console.info("[nominate] 409: caller's request resolved the open lot — nomination window not yet open", {
       sessionId,
-      teamId: session?.id,
+      teamId: myTeamId,
     });
     return NextResponse.json(
       { error: "That lot just closed — the next nomination window is opening." },
@@ -159,8 +162,8 @@ export async function POST(request: NextRequest) {
   const currentNominatorId = snakeOrder[auctionSession.currentNominatorIndex];
 
   // Re-check nominator auth — safety-net may have advanced past the submitter
-  if (!isAdmin && session?.id !== currentNominatorId) {
-    console.error("[nominate] 403: no longer nominator after safety-net advance", { sessionId, teamId: session?.id, currentNominator: currentNominatorId });
+  if (!isAdmin && myTeamId !== currentNominatorId) {
+    console.error("[nominate] 403: no longer nominator after safety-net advance", { sessionId, teamId: myTeamId, currentNominator: currentNominatorId });
     return NextResponse.json({ error: "Not your turn to nominate" }, { status: 403 });
   }
 

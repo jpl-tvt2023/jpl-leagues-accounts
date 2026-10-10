@@ -149,13 +149,19 @@ Ranks 5–8: Eliminated after league stage
 ## Project Structure
 
 ```
-jpl-leagues/
+jpl-leagues-accounts/
 ├── src/
 │   ├── app/                          # Next.js App Router pages and API routes
 │   │   ├── layout.tsx                # Root layout (metadata, fonts)
-│   │   ├── page.tsx                  # Public home — league list
-│   │   ├── signin/page.tsx           # Login page (teams + admins)
-│   │   ├── dashboard/page.tsx        # Team dashboard (captain, chips, GW results)
+│   │   ├── page.tsx                  # Public home — league list (+ "Your leagues" when signed in)
+│   │   ├── signin/                   # Sign in: Google first; team-ID / admin-email form below
+│   │   ├── onboarding/               # First Google sign-in: pick a username
+│   │   ├── account/page.tsx          # Your profile, leagues, devices, delete account
+│   │   ├── join/[token]/             # Invite links land here
+│   │   ├── help/page.tsx             # Public sign-in & account help (no sign-in needed)
+│   │   ├── privacy/page.tsx          # What we store, and why
+│   │   ├── auth/handoff/             # iOS home-screen sign-in handoff (behind a flag)
+│   │   ├── dashboard/                # Team dashboard (TeamDashboard.tsx); /dashboard = legacy logins
 │   │   ├── change-password/page.tsx  # First-login password change
 │   │   ├── standings/page.tsx        # Legacy single-league standings
 │   │   ├── fixtures/page.tsx         # Legacy single-league fixtures
@@ -165,14 +171,20 @@ jpl-leagues/
 │   │   ├── admin/
 │   │   │   ├── page.tsx              # Admin league selector
 │   │   │   └── [leagueId]/page.tsx   # Per-league admin panel (teams, scoring, chips, playoffs)
-│   │   ├── [leagueSlug]/             # Public per-league pages
+│   │   ├── [leagueSlug]/             # Per-league pages
+│   │   │   ├── dashboard/page.tsx    # Your team's dashboard in this league (people)
+│   │   │   ├── setup/page.tsx        # Set up your team in this league (people)
+│   │   │   ├── team/page.tsx         # Your team: members, teammate invite, name
 │   │   │   ├── standings/page.tsx
 │   │   │   ├── fixtures/page.tsx
 │   │   │   └── playoffs/page.tsx
 │   │   └── api/                      # API routes (37 files)
-│   │       ├── auth/                 # signin, signout, me, change-password
+│   │       ├── auth/                 # signin, signout, me, change-password, google, handoff
+│   │       ├── me/                   # the signed-in person: profile, leagues, sessions, delete
+│   │       ├── join/                 # use an invite link
+│   │       ├── test-auth/            # TEST ONLY person sign-in (TEST_AUTH_ENABLED)
 │   │       ├── admin/[leagueId]/     # Admin operations (14 routes)
-│   │       ├── team/                 # captain, chips, dashboard, gw-result
+│   │       ├── team/                 # captain, chips, dashboard, gw-result, setup, invite (resolveTeamActor)
 │   │       ├── cron/                 # Automated score processing
 │   │       ├── fixtures/             # Fixture listing, generation, live scores
 │   │       ├── gameweeks/[gw]/       # GW deadline info
@@ -189,6 +201,12 @@ jpl-leagues/
 │       │   ├── index.ts              # Drizzle client (LibSQL connection)
 │       │   └── schema.ts             # Complete database schema + relations
 │       ├── auth.ts                   # Session create/verify (HMAC-SHA256)
+│       ├── team-actor.ts             # Which team a request acts as (legacy login or membership)
+│       ├── membership.ts             # Invites, joining, teammates, approvals, admin tools
+│       ├── accounts.ts               # People: Google find/link/create, sessions
+│       ├── privilege.ts              # Admin/superadmin re-checked against the database
+│       ├── google-oauth.ts           # Google sign-in (arctic, PKCE)
+│       ├── db/target-guard.ts        # Refuses every database but file: / jpl-leagues-accounts
 │       ├── scoring.ts                # TVT scoring engine, getChipSet()
 │       ├── fixtures.ts               # Round-robin fixture generation
 │       ├── chip-validation.ts        # TVT chip rules validation
@@ -216,11 +234,13 @@ jpl-leagues/
 
 | Table | Purpose |
 |-------|---------|
-| `users` | Admin and superadmin accounts |
+| `users` | One row per person: admins, superadmins and players (Google sign-in, username) |
 | `leagues` | League instances with variant config |
 | `league_admins` | Maps admins to their leagues |
 | `groups` | Groups (A/B) within a league |
-| `teams` | TVT teams (2 players) — also login credentials |
+| `teams` | Teams (TVT: 2 players). A login only in legacy leagues; otherwise people join via `team_members` |
+| `team_members` | Who is on which team (members-mode leagues); one team per person per league |
+| `user_identities` / `league_invites` / `join_requests` / `auth_handoffs` | Google links, invite links, approval requests, iOS sign-in handoffs |
 | `players` | Individual FPL managers within a team |
 | `gameweeks` | GW1–38 with deadlines and phase flags |
 | `fixtures` | Head-to-head matches (league + playoff) |
@@ -288,32 +308,47 @@ Sessions are custom HMAC-SHA256 signed tokens (no JWT library dependency):
 token = base64url(JSON payload) + "." + HMAC-SHA256(payload, SESSION_SECRET)
 ```
 
-- Payload: `{ id, type, exp }` — expires after **7 days**
+- Payload: `{ id, type, exp, sv? }` — expires after **7 days**
+  - `type`: `superadmin` | `admin` | `user` (a person, `id` = users.id) or `team` (a legacy team login, `id` = teams.id)
+  - `sv`: the person's `users.session_version` when the token was minted. Bumping the column revokes every older token.
 - Stored in an `HttpOnly; SameSite=Lax` cookie named `session`
 - Verification uses constant-time comparison to prevent timing attacks
 
-### Roles
+Full design: [docs/10-accounts-and-membership.md](docs/10-accounts-and-membership.md).
 
-| Role | Login | Access |
+### Who signs in, and how
+
+| Who | Signs in with | Access |
 |------|-------|--------|
-| `superadmin` | Email + password | Full platform access: create leagues, manage admins, view all data |
-| `admin` | Email + password | League-scoped: manage teams, process scores, override chips/captains |
-| `team` | Team name + password | Team dashboard: submit captain, play chips, view standings/fixtures |
+| `superadmin` | Google (linked by email) — or a password, kept as a break-glass | Full platform access: create leagues, manage admins, view all data |
+| `admin` | Google (linked by email), or a password if created with one | League-scoped: manage teams, process scores, override chips/captains |
+| `user` (player) | Google, then a unique username | Every team they're on, in any number of members-mode leagues |
+| `team` (legacy) | Team key + password from the admin | That one team, in a league created before Google sign-in (until the 2026-27 season ends) |
+
+An admin who also plays has one identity: their membership gives them a team like anyone else's.
 
 ### Middleware
 
 `src/middleware.ts` runs on all `/api/*` routes and:
 
-1. **Rate limits** signin/change-password (5 req/min) and reset-season (1 req/min) per IP via Upstash Redis
-2. **Allows public GET** routes: `/api/standings`, `/api/fixtures`, `/api/playoffs/bracket`, `/api/leagues`, `/api/gameweeks/[gw]`
-3. **Validates session cookie** for all protected routes
-4. **Enforces role** — admin routes require `admin` or `superadmin`; team routes require `team`
-5. **Injects headers** (`x-session-id`, `x-session-type`, `x-league-id`) for route handlers
+1. **Rate limits** signin/change-password (5 req/min), reset-season (1 req/min), the sign-in handoff and joins, and the profile endpoint, per IP, via Upstash Redis
+2. **Allows public GET** routes: `/api/standings`, `/api/fixtures`, `/api/playoffs/bracket`, `/api/leagues`, `/api/gameweeks/[gw]`; all of `/api/auth/*`; and the test-only stubs
+3. **Validates the session cookie** for all protected routes
+4. **Enforces role**:
+   - admin routes require `admin` or `superadmin`;
+   - team routes take any valid session, and **which team** is decided in the route by `resolveTeamActor` (`src/lib/team-actor.ts`): legacy login = its own team; person = their membership in the league named by `?league=`
+5. **Injects headers** (`x-session-id`, `x-session-type`, `x-session-sv`, `x-league-id`) for route handlers
 6. **Cron support** — Vercel cron jobs authenticate via `Authorization: Bearer <CRON_SECRET>`
 
 ### League-Scoped Admin Auth
 
 `src/lib/league-auth.ts` verifies that an admin's session ID corresponds to a user assigned to the requested `leagueId`. Superadmins bypass this check.
+
+Both admins and superadmins are also re-checked against the database on every request (`src/lib/privilege.ts`): the role must still be held and the session not revoked. `isSuperAdmin()` lives there too and is async — always `await` it.
+
+### Allowed databases
+
+This repo only ever talks to a local `file:` database or the **`jpl-leagues-accounts`** Turso database. `src/lib/db/target-guard.ts` refuses anything else, production's included, before connecting.
 
 ---
 
