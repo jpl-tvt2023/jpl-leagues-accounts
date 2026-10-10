@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { sessionActsAsTeam } from "@/lib/team-actor";
 import { db, teams, leagues, auctionSessions, teamSlotUnlocks } from "@/lib/db";
 import { eq, and, sql } from "drizzle-orm";
-import { verifySession, SESSION_COOKIE_NAME, isSuperAdmin } from "@/lib/auth";
+import { verifySession, SESSION_COOKIE_NAME } from "@/lib/auth";
+import { isSuperAdmin } from "@/lib/privilege";
 import { calculatePurse } from "@/lib/formats/auction/economy";
 import {
   MAX_SQUAD_SIZE,
@@ -25,7 +27,7 @@ import { invalidateLeaguePageCache } from "@/lib/fpl-cache";
 export async function POST(request: NextRequest) {
   const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
   const session = token ? await verifySession(token) : null;
-  const admin = isSuperAdmin(request);
+  const admin = (await isSuperAdmin(request));
 
   if (!session && !admin) {
     return NextResponse.json({ error: "Authentication required" }, { status: 401 });
@@ -38,7 +40,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Caller must be the team owner (or admin)
-  if (!admin && session?.type === "team" && session.id !== teamId) {
+  if (!admin && session && session.type !== "admin" && !(await sessionActsAsTeam(session, teamId))) {
     return NextResponse.json({ error: "Can only unlock slots for your own team" }, { status: 403 });
   }
 

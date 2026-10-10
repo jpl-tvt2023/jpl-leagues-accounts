@@ -1,7 +1,11 @@
 import { defineConfig } from "drizzle-kit";
+import { assertSafeDbTarget } from "./src/lib/db/target-guard";
 
 const direct = process.env.DATABASE_URL;
 const isFile = direct?.startsWith("file:");
+
+// db:push / db:migrate / db:studio must never reach production: see src/lib/db/target-guard.ts.
+assertSafeDbTarget(direct ?? process.env.TURSO_CONNECTION_URL ?? "");
 
 export default defineConfig(
   isFile

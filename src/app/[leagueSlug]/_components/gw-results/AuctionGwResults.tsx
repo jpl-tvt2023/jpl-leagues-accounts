@@ -67,7 +67,7 @@ export function AuctionGwResults() {
   const gwParam = searchParams.get("gw");
 
   const { league, viewer } = useLeague();
-  const myTeamId = viewer.type === "team" ? viewer.teamId ?? null : null;
+  const myTeamId = viewer.teamId ?? null;
 
   const [processedGws, setProcessedGws] = useState<number[]>([]);
   const [liveGameweek, setLiveGameweek] = useState<number | null>(null);

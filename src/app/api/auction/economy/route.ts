@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, teams, leagues, auctionScores, gameweeks, leagueAdmins } from "@/lib/db";
 import { eq, and, asc } from "drizzle-orm";
-import { verifySession, SESSION_COOKIE_NAME } from "@/lib/auth";
+import { getRequestSession, sessionActsAsTeam } from "@/lib/team-actor";
 import { calculatePurse } from "@/lib/formats/auction/economy";
 
 /**
@@ -9,8 +9,7 @@ import { calculatePurse } from "@/lib/formats/auction/economy";
  * Returns a team's full economic breakdown: purse, income history, spending.
  */
 export async function GET(request: NextRequest) {
-  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-  const session = token ? await verifySession(token) : null;
+  const session = await getRequestSession(request);
 
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -34,18 +33,16 @@ export async function GET(request: NextRequest) {
   }
 
   // Authorization: superadmin → any team; admin → only teams in leagues they administer;
-  // team → only their own team. Anything else → 403.
-  if (session.type === "team") {
-    if (session.id !== teamId) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+  // a team (legacy login or member) → only their own team. Anything else → 403.
+  if (await sessionActsAsTeam(session, teamId)) {
+    // own team
   } else if (session.type === "admin") {
     const adminRow = await db
       .select({ id: leagueAdmins.id })
       .from(leagueAdmins)
       .where(
         and(
-          eq(leagueAdmins.userId, session.id),
+          eq(leagueAdmins.userId, session.id), // team-actor-guard-ignore: admin branch, a users.id
           eq(leagueAdmins.leagueId, team.leagueId)
         )
       )

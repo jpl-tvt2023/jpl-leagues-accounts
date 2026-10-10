@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { leagues, teams, groups, fplClassicConfig, fplClassicEntrants } from "@/lib/db/schema";
 import { eq, count } from "drizzle-orm";
-import { isSuperAdmin } from "@/lib/auth";
+import { isSuperAdmin } from "@/lib/privilege";
 import { generateId } from "@/lib/id";
 import { getCurrentGameweekNumber } from "@/lib/gameweeks/current-gw";
 import { validateEnabledChipsArray } from "@/lib/formats/tvt/chip-validation";
@@ -16,9 +16,10 @@ import {
 } from "@/lib/fpl/classic-league";
 import { withFplBudget, FplUnavailableError } from "@/lib/fpl/gateway";
 import bcrypt from "bcryptjs";
+import { isReservedLeagueSlug } from "@/lib/reserved-slugs";
 
 export async function GET(request: NextRequest) {
-  if (!isSuperAdmin(request)) {
+  if (!(await isSuperAdmin(request))) {
     return NextResponse.json({ error: "Superadmin access required" }, { status: 403 });
   }
   // Defensive: schema may include columns (e.g. auction_tier) that lag the prod migration. Fall back
@@ -54,6 +55,7 @@ export async function GET(request: NextRequest) {
       auctionTier: "complete" as const,
       startGameweek: 1,
       releaseCycleGws: JSON.stringify(DEFAULT_RELEASE_CYCLE_GWS),
+      authMode: "legacy" as const,
     }));
   }
 
@@ -87,7 +89,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!isSuperAdmin(request)) {
+  if (!(await isSuperAdmin(request))) {
     return NextResponse.json({ error: "Superadmin access required" }, { status: 403 });
   }
 
@@ -253,6 +255,11 @@ export async function POST(request: NextRequest) {
     resolvedName = classicPayload.league.name;
   } else {
     return NextResponse.json({ error: `Format "${format}" is not supported` }, { status: 400 });
+  }
+
+  // A league lives at /<slug>; a slug a top-level route owns (/help, /admin, …) would be shadowed.
+  if (isReservedLeagueSlug(resolvedSlug)) {
+    return NextResponse.json({ error: `"${resolvedSlug}" is reserved by the site — pick another slug` }, { status: 400 });
   }
 
   // Pre-check slug to give a precise error before doing any inserts. (For fpl-classic this is a

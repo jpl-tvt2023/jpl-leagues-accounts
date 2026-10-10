@@ -90,11 +90,16 @@ src/
 |---|---|---|
 | id | PK | UUID |
 | email | unique text | |
-| password | text | bcrypt hashed |
+| password | text | bcrypt hashed; `""` for Google-only accounts |
 | name | text | |
-| role | "superadmin"\|"admin" | |
+| role | "superadmin"\|"admin"\|"user" | set explicitly on insert (the column default is still "admin") |
 | mustChangePassword | boolean | default true |
+| username | unique text, nullable | lowercase; null until onboarding |
+| avatarUrl / fplEntryId / lastLoginAt | | person profile |
+| sessionVersion | integer | bump to revoke every session |
 | createdAt / updatedAt | datetime | |
+
+One row per **person**: admins, superadmins and players. Related tables: `user_identities` (Google `sub`), `team_members` (who is on which team; unique `(leagueId, userId)`), `league_invites`, `join_requests`, `auth_handoffs`. See `docs/10-accounts-and-membership.md`.
 
 ### `leagues`
 | Column | Type | Notes |
@@ -293,12 +298,18 @@ Event log: type, description, teamId, gameweekId, pointsAffected, createdAt.
 ### Auth
 | Method | Path | Purpose |
 |---|---|---|
-| POST | `/api/auth/signin` | Login (email or team name + password) |
+| POST | `/api/auth/signin` | Password login: admin email, or legacy team key (refused for members-mode leagues) |
+| GET | `/api/auth/google` → `/api/auth/google/callback` | Google sign-in (find, link by email, or create) |
+| POST | `/api/auth/handoff` | iOS home-screen sign-in handoff (behind `NEXT_PUBLIC_IOS_HANDOFF`) |
 | POST | `/api/auth/signout` | Logout |
-| GET | `/api/auth/me` | Verify session |
+| GET | `/api/auth/me` | Verify session; people are re-checked (revoked → signed out, role changed → re-minted) |
+| GET/PATCH | `/api/me/profile` | Person's profile, username check, FPL entry preview |
+| GET | `/api/me/leagues` | Teams, admin leagues, pending requests |
+| POST | `/api/me/sessions` | Sign out of all other devices |
+| DELETE | `/api/me` | Delete account |
 | POST | `/api/auth/change-password` | Change password (rate-limited 5/min) |
 
-### Team (team session required)
+### Team (a legacy team login, or a person acting in `?league=<slug>`; resolved by `resolveTeamActor`)
 | Method | Path | Purpose |
 |---|---|---|
 | POST/GET | `/api/team/captain` | Announce / get captain for a GW |
@@ -350,7 +361,8 @@ Runs on all `/api/*` routes:
 
 - **Public routes** (bypassed): `/api/auth/*`, GET `/api/fixtures`, GET `/api/standings`, GET `/api/leagues`, GET `/api/playoffs/bracket`, GET `/api/gameweeks/[gw]`
 - **Rate limiting** via Upstash Redis: signin (5/min), change-password (5/min), reset-season (1/min)
-- **Session verification**: reads `session` cookie → HMAC verify → forwards `x-session-id`, `x-session-type`, `x-league-id` headers
+- **Session verification**: reads `session` cookie → HMAC verify → forwards `x-session-id`, `x-session-type`, `x-session-sv`, `x-league-id` headers
+- **Team routes**: any valid session passes; the route decides the team via `src/lib/team-actor.ts`
 - **Cron auth**: checks `Authorization: Bearer CRON_SECRET`
 
 ---
@@ -359,8 +371,9 @@ Runs on all `/api/*` routes:
 
 ### `src/lib/auth.ts`
 ```typescript
-createSession(id: string, type: "superadmin"|"admin"|"team"): string
-verifySession(token: string): { id, type, exp } | null
+createSession(id: string, type: "superadmin"|"admin"|"user"|"team", opts?: { sv?: number }): string
+verifySession(token: string): { id, type, exp, sv? } | null
+// isSuperAdmin moved to src/lib/privilege.ts (async; re-checks the database)
 // HMAC-SHA256, 7-day expiry, cookie name: "session"
 ```
 
@@ -371,6 +384,7 @@ getAuthorizedLeagueId(request: NextRequest): Promise<string | null>
 // - Accepts slug or UUID; resolves slug → UUID
 // - Superadmins: unrestricted
 // - Admins: must be in leagueAdmins table + league.isActive
+// - Both: role + session version re-checked in the database (src/lib/privilege.ts)
 ```
 
 ### `src/lib/fpl.ts`

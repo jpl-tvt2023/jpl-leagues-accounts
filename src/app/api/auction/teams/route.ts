@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, teams, leagues, auctionOwnership, auctionScores, gameweeks } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
-import { verifySession, SESSION_COOKIE_NAME } from "@/lib/auth";
+import { getRequestSession, sessionTeamIdInLeague } from "@/lib/team-actor";
 import { calculateFMV } from "@/lib/formats/auction/economy";
 import { computeAuctionStandings } from "@/lib/formats/auction/standings";
 import { fetchElementInfo } from "@/lib/fpl";
@@ -14,8 +14,7 @@ import { MAX_SQUAD_SIZE } from "@/lib/formats/auction/squad-rules";
  * rank, total points, purse, squad value (FMV), squad size, top performer.
  */
 export async function GET(request: NextRequest) {
-  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-  const session = token ? await verifySession(token) : null;
+  const session = await getRequestSession(request);
 
   const leagueId = request.nextUrl.searchParams.get("leagueId");
   if (!leagueId) {
@@ -27,7 +26,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Not an auction league" }, { status: 400 });
   }
 
-  const myTeamId = session?.type === "team" ? session.id : null;
+  const myTeamId = await sessionTeamIdInLeague(session, leagueId);
 
   const leagueTeams = await db
     .select({

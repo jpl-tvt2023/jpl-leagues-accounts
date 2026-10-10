@@ -105,6 +105,10 @@ function isPublicRoute(pathname: string, method: string): boolean {
   // TEST_FPL_STUB=1, so this is inert in production.
   if (pathname.startsWith("/api/test-fpl-stub")) return true;
 
+  // Test-only person sign-in (e2e suite, preview deployments). The route itself 404s unless
+  // TEST_AUTH_ENABLED=1 and never on a Vercel production deployment.
+  if (pathname.startsWith("/api/test-auth/")) return true;
+
   // Public GET-only routes
   if (method === "GET") {
     if (PUBLIC_ROUTES.some((r) => pathname === r || pathname.startsWith(r + "/"))) return true;
@@ -137,6 +141,18 @@ function isTeamRoute(pathname: string): boolean {
 const RATE_LIMITED_ROUTES: Record<string, { max: number; windowMs: number }> = {
   "/api/auth/signin": { max: 5, windowMs: 60_000 },
   "/api/auth/change-password": { max: 5, windowMs: 60_000 },
+  // iOS sign-in handoff: start / confirm / claim. The app polls claim every 2s for a few minutes.
+  "/api/auth/handoff": { max: 60, windowMs: 60_000 },
+  // Joining a league claims a team slot.
+  "/api/join": { max: 20, windowMs: 60_000 },
+};
+
+/**
+ * Per-IP limits on any method. The profile endpoint backs onboarding's live username check,
+ * so it needs headroom for typing — but not for enumerating every username.
+ */
+const RATE_LIMITED_ANY_METHOD: Record<string, { max: number; windowMs: number }> = {
+  "/api/me/profile": { max: 60, windowMs: 60_000 },
 };
 
 // Rate limit reset-season regardless of leagueId in path
@@ -181,6 +197,14 @@ export async function middleware(request: NextRequest) {
           { error: "Too many requests. Please try again later." },
           { status: 429 }
         );
+      }
+    }
+  }
+  for (const [route, limits] of Object.entries(RATE_LIMITED_ANY_METHOD)) {
+    if (pathname === route) {
+      const ip = getClientIp(request);
+      if (!(await rateLimit(`${route}:${ip}`, limits.max, limits.windowMs))) {
+        return NextResponse.json({ error: "Too many requests. Please try again later." }, { status: 429 });
       }
     }
   }
@@ -250,19 +274,26 @@ export async function middleware(request: NextRequest) {
     const response = NextResponse.next();
     response.headers.set("x-session-id", session.id);
     response.headers.set("x-session-type", session.type);
+    // Lets privileged checks confirm the token is not revoked (lib/privilege.ts).
+    response.headers.set("x-session-sv", String(session.sv ?? 0));
     const leagueId = extractLeagueId(pathname);
     if (leagueId) response.headers.set("x-league-id", leagueId);
     return response;
   }
 
-  // Team routes require team session
+  // Team routes: a legacy team login, or a person (who may be on a team in members-mode leagues).
+  // Which team — and whether the person is on it at all — is decided per request by
+  // resolveTeamActor (src/lib/team-actor.ts), not here: it needs the league from the URL and a
+  // database lookup.
   if (isTeamRoute(pathname)) {
-    if (session.type !== "team") {
+    if (session.type !== "team" && session.type !== "user" && session.type !== "admin" && session.type !== "superadmin") {
       return NextResponse.json({ error: "Team access required" }, { status: 403 });
     }
     const response = NextResponse.next();
     response.headers.set("x-session-id", session.id);
     response.headers.set("x-session-type", session.type);
+    // Lets privileged checks confirm the token is not revoked (lib/privilege.ts).
+    response.headers.set("x-session-sv", String(session.sv ?? 0));
     return response;
   }
 
@@ -270,6 +301,7 @@ export async function middleware(request: NextRequest) {
   const response = NextResponse.next();
   response.headers.set("x-session-id", session.id);
   response.headers.set("x-session-type", session.type);
+  response.headers.set("x-session-sv", String(session.sv ?? 0));
   return response;
 }
 

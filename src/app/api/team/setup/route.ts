@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, teams, players, leagues } from "@/lib/db";
 import { eq, and, sql, asc } from "drizzle-orm";
-import { verifySession, SESSION_COOKIE_NAME } from "@/lib/auth";
+import { leagueFromRequest, resolveTeamActor, teamActorDenied } from "@/lib/team-actor";
 import { generateId } from "@/lib/id";
 import { invalidateLeaguePageCache } from "@/lib/fpl-cache";
 
@@ -17,15 +17,12 @@ async function isAuctionLeague(leagueId: string): Promise<boolean> {
  */
 export async function GET(request: NextRequest) {
   try {
-    const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-    const session = token ? await verifySession(token) : null;
-
-    if (!session || session.type !== "team") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const { actor, denial } = await resolveTeamActor(request, { league: leagueFromRequest(request) });
+    if (!actor) return teamActorDenied(denial, { unauthenticated: "Unauthorized" });
+    const teamId = actor.teamId;
 
     // Get current team to know leagueId for per-league checks
-    const teamList = await db.select().from(teams).where(eq(teams.id, session.id));
+    const teamList = await db.select().from(teams).where(eq(teams.id, teamId));
     const team = teamList[0];
 
     if (!team) {
@@ -42,7 +39,7 @@ export async function GET(request: NextRequest) {
       const existing = await db.select().from(teams).where(sql`LOWER(${teams.teamLoginId}) = ${checkLoginIdLower}`).limit(1);
       // Available if: no team with this loginId, OR this is the current team's loginId
       return NextResponse.json({
-        available: existing.length === 0 || existing[0].id === session.id,
+        available: existing.length === 0 || existing[0].id === teamId,
       });
     }
 
@@ -53,7 +50,7 @@ export async function GET(request: NextRequest) {
       ).limit(1);
       // Available if: no team with this name in league, OR this is the current team's name
       return NextResponse.json({
-        available: existing.length === 0 || existing[0].id === session.id,
+        available: existing.length === 0 || existing[0].id === teamId,
       });
     }
 
@@ -74,12 +71,9 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-    const session = token ? await verifySession(token) : null;
-
-    if (!session || session.type !== "team") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const { actor, denial } = await resolveTeamActor(request, { league: leagueFromRequest(request) });
+    if (!actor) return teamActorDenied(denial, { unauthenticated: "Unauthorized" });
+    const teamId = actor.teamId;
 
     const body = await request.json();
     const {
@@ -120,7 +114,7 @@ export async function POST(request: NextRequest) {
       .from(teams)
       .where(sql`LOWER(${teams.teamLoginId}) = ${normalizedLoginId}`)
       .limit(1);
-    if (existingLoginId.length > 0 && existingLoginId[0].id !== session.id) {
+    if (existingLoginId.length > 0 && existingLoginId[0].id !== teamId) {
       return NextResponse.json(
         { error: "Team ID is already taken" },
         { status: 400 }
@@ -138,7 +132,7 @@ export async function POST(request: NextRequest) {
     const trimmedTeamName = teamName.trim();
 
     // Get current team to check league
-    const teamList = await db.select().from(teams).where(eq(teams.id, session.id));
+    const teamList = await db.select().from(teams).where(eq(teams.id, teamId));
     const team = teamList[0];
 
     if (!team) {
@@ -153,7 +147,7 @@ export async function POST(request: NextRequest) {
       .select()
       .from(teams)
       .where(and(eq(teams.leagueId, leagueId), sql`LOWER(REPLACE(${teams.name}, ' ', '')) = LOWER(REPLACE(${trimmedTeamName}, ' ', ''))`));
-    if (existingName.length > 0 && existingName[0].id !== session.id) {
+    if (existingName.length > 0 && existingName[0].id !== teamId) {
       return NextResponse.json(
         { error: "Team name is already taken in this league" },
         { status: 400 }
@@ -180,7 +174,7 @@ export async function POST(request: NextRequest) {
       await db
         .update(teams)
         .set(updateSet)
-        .where(eq(teams.id, session.id));
+        .where(eq(teams.id, teamId));
 
       await invalidateLeaguePageCache(leagueId);
 
@@ -247,7 +241,7 @@ export async function POST(request: NextRequest) {
         isProfileComplete: true,
         updatedAt: new Date(),
       })
-      .where(eq(teams.id, session.id));
+      .where(eq(teams.id, teamId));
 
     // ============= Create/Update Players =============
 
@@ -258,7 +252,7 @@ export async function POST(request: NextRequest) {
     const existingPlayers = await db
       .select()
       .from(players)
-      .where(eq(players.teamId, session.id))
+      .where(eq(players.teamId, teamId))
       .orderBy(asc(players.createdAt), asc(players.id));
 
     if (existingPlayers.length >= 2) {
@@ -288,13 +282,13 @@ export async function POST(request: NextRequest) {
           id: generateId(),
           name: player1Name.trim(),
           fplId: player1FplId.trim(),
-          teamId: session.id,
+          teamId: teamId,
         },
         {
           id: generateId(),
           name: player2Name.trim(),
           fplId: player2FplId.trim(),
-          teamId: session.id,
+          teamId: teamId,
         },
       ]);
     }

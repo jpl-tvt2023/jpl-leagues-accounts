@@ -5,8 +5,8 @@ import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 
 /** One account signed in on this device, as `/api/auth/accounts` describes it (never the token). */
 export interface DeviceAccount {
   key: string;
-  type: "team" | "admin" | "superadmin";
-  /** Team name, or the admin's name. */
+  type: "team" | "user" | "admin" | "superadmin";
+  /** Team name, or the person's name. */
   label: string;
   /** League name for a team; role for an admin. */
   sublabel: string | null;

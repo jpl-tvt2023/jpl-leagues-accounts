@@ -10,12 +10,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, leagues } from "@/lib/db";
 import { fplClassicConfig, fplClassicAwards } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import { isSuperAdmin } from "@/lib/auth";
+import { isSuperAdmin } from "@/lib/privilege";
 import { FPL_CLASSIC_FORMAT } from "@/lib/format-palette";
 import { getActiveFplGameweek } from "@/lib/fpl/event-status";
 
 export async function GET(request: NextRequest) {
-  if (!isSuperAdmin(request)) {
+  if (!(await isSuperAdmin(request))) {
     return NextResponse.json({ error: "Superadmin access required" }, { status: 403 });
   }
 

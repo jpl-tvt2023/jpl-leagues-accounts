@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Redis } from "@upstash/redis";
-import { isSuperAdmin } from "@/lib/auth";
+import { isSuperAdmin } from "@/lib/privilege";
 import {
   fplRequest,
   FPL_BASE_URL,
@@ -107,7 +107,7 @@ async function probeRedis(): Promise<Omit<ProbeResult, "ok" | "ms">> {
 }
 
 export async function GET(request: NextRequest) {
-  if (!isSuperAdmin(request)) {
+  if (!(await isSuperAdmin(request))) {
     return NextResponse.json({ error: "Superadmin only" }, { status: 403 });
   }
 

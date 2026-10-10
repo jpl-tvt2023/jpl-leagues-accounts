@@ -1,22 +1,41 @@
 import { sqliteTable, text, integer, real, uniqueIndex, primaryKey, index } from "drizzle-orm/sqlite-core";
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 
 // ============================================
 // TVT Fantasy Super League Database Schema
 // ============================================
 
-// Admin accounts only
+// One row per person: platform admins and, in members-mode leagues, every player.
+// See docs/10-accounts-and-membership.md.
 export const users = sqliteTable("users", {
   id: text("id").primaryKey(),
   email: text("email").notNull().unique(),
+  // bcrypt hash, or "" for an account that signs in with Google only. NOT NULL is kept on purpose:
+  // dropping it would mean rebuilding this table, and league_admins cascades from it. Password
+  // sign-in rejects an empty hash explicitly (see lib/passwords.ts).
   password: text("password").notNull(),
   name: text("name").notNull(),
-  // "superadmin" = platform owner (full access); "admin" = league-scoped admin
+  // "superadmin" = platform owner (full access); "admin" = league-scoped admin; "user" = player.
+  // ⚠️ The column default is still "admin" (changing a SQLite default rebuilds the table), so every
+  // insert must set `role` explicitly.
   role: text("role").notNull().default("admin"),
   mustChangePassword: integer("must_change_password", { mode: "boolean" }).notNull().default(true),
+
+  // Unique handle, stored lowercase. Null until the person finishes onboarding.
+  username: text("username"),
+  avatarUrl: text("avatar_url"),
+  // The person's own FPL entry id, used to prefill team setup. Text, like players.fplId.
+  fplEntryId: text("fpl_entry_id"),
+  lastLoginAt: integer("last_login_at", { mode: "timestamp" }),
+  // Bumped to revoke every session at once (demotion, sign out everywhere, account replaced).
+  // Tokens carry the version they were minted with; see lib/team-actor.ts and lib/auth.ts.
+  sessionVersion: integer("session_version").notNull().default(0),
+
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
-});
+}, (table) => ({
+  usernameUnique: uniqueIndex("users_username_unique").on(table.username),
+}));
 
 // ============================================
 // Multi-League Infrastructure
@@ -69,6 +88,11 @@ export const leagues = sqliteTable("leagues", {
   // the old hardcoded `gw % 10 === 0` cadence, so pre-existing leagues are unaffected.
   releaseCycleGws: text("release_cycle_gws").notNull().default('[10,20,30]'),
 
+  // How teams sign in. "legacy": each team is a login (team key + password) handed out by the
+  // admin. "members": people sign in with Google and join via invite; team_members links them.
+  // Every pre-existing league is legacy; new leagues are created as members.
+  authMode: text("auth_mode", { enum: ["legacy", "members"] }).notNull().default("legacy"),
+
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
 });
 
@@ -91,13 +115,18 @@ export const groups = sqliteTable("groups", {
   leagueNameUnique: uniqueIndex("groups_league_name_unique").on(table.leagueId, table.name),
 }));
 
-// Team (2 players per team) - also acts as login account
+// Team (2 players per team). In a legacy league the team row is also the login account; in a
+// members league people sign in as themselves and team_members says who is on which team.
 export const teams = sqliteTable("teams", {
   id: text("id").primaryKey(),
-  teamLoginId: text("team_login_id"), // Global login credential (set by admin, editable by team during setup)
+  // "Team key": globally unique, human-readable team identifier. Backups, restores and the
+  // captain/chip/fixture importers find teams by it, so members-mode teams get one too. It is a
+  // login credential ONLY in legacy leagues — api/auth/signin refuses it for members leagues.
+  teamLoginId: text("team_login_id"),
   name: text("name").notNull(), // Team display name (set by team during setup, unique per league)
   leagueId: text("league_id").notNull().references(() => leagues.id, { onDelete: "cascade" }),
-  password: text("password").notNull(), // Hashed password for team login
+  // Legacy leagues: bcrypt hash for team login. Members leagues: "" (never a usable credential).
+  password: text("password").notNull(),
   mustChangePassword: integer("must_change_password", { mode: "boolean" }).notNull().default(true),
   groupId: text("group_id").references(() => groups.id, { onDelete: "set null" }), // Optional: null if group not assigned
   
@@ -265,6 +294,10 @@ export const gameweekCaptains = sqliteTable("gameweek_captains", {
   // when team failed to announce). See BR-CHIP-044 and the auto-fallback BR.
   bypassReason: text("bypass_reason"),
 
+  // Which person announced it (members leagues). Null for legacy team logins, admin overrides and
+  // imports — the team itself is still known through playerId.
+  submittedByUserId: text("submitted_by_user_id").references(() => users.id, { onDelete: "set null" }),
+
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
 });
@@ -312,7 +345,10 @@ export const gameweekChips = sqliteTable("gameweek_chips", {
 
   // For Score Lock: the team's season average score at time of chip use (used as the floor)
   averageScoreAtUse: integer("average_score_at_use"),
-  
+
+  // Which person played it (members leagues). Null for legacy team logins, overrides and imports.
+  submittedByUserId: text("submitted_by_user_id").references(() => users.id, { onDelete: "set null" }),
+
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
 });
@@ -428,6 +464,10 @@ export const auditLogs = sqliteTable("audit_logs", {
   teamId: text("team_id"),
   gameweekId: text("gameweek_id"),
   pointsAffected: integer("points_affected").notNull().default(0),
+  // Membership events (join, assign, remove, replace, approve, transfer) record who and where.
+  // No foreign keys, like teamId above: an audit row must outlive what it describes.
+  userId: text("user_id"),
+  leagueId: text("league_id"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
 });
 
@@ -673,6 +713,8 @@ export const feedback = sqliteTable("feedback", {
   scope: text("scope", { enum: ["site", "league"] }).notNull(),
   leagueId: text("league_id").references(() => leagues.id, { onDelete: "cascade" }), // null when scope='site'
   submitterTeamId: text("submitter_team_id").notNull().references(() => teams.id, { onDelete: "cascade" }),
+  // The person who wrote it (members leagues); null for legacy team logins.
+  submitterUserId: text("submitter_user_id").references(() => users.id, { onDelete: "set null" }),
   submitterName: text("submitter_name").notNull(),
   subject: text("subject"),
   message: text("message").notNull(),
@@ -688,6 +730,109 @@ export const feedback = sqliteTable("feedback", {
 
 export type Feedback = typeof feedback.$inferSelect;
 export type FeedbackInsert = typeof feedback.$inferInsert;
+
+// ============================================
+// Accounts & membership (members-mode leagues)
+//
+// A person (users row) signs in with Google, picks a username, and joins teams in any number of
+// leagues. Legacy leagues — where each team row is its own login — never touch these tables.
+// Full design: docs/10-accounts-and-membership.md.
+// ============================================
+
+/** External sign-in identities. One per provider account; a user may have several. */
+export const userIdentities = sqliteTable("user_identities", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  provider: text("provider").notNull(), // "google"
+  // The provider's stable account id (Google `sub`). Email can change; this cannot.
+  providerSubject: text("provider_subject").notNull(),
+  email: text("email"),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+}, (table) => ({
+  providerSubjectUnique: uniqueIndex("user_identities_provider_subject_unique").on(table.provider, table.providerSubject),
+  userIdx: index("user_identities_user").on(table.userId),
+}));
+
+/**
+ * Who is on which team. `leagueId` is denormalised from the team so the one-team-per-league rule
+ * is a plain unique index — which is also what makes (user, league) → team unambiguous, the
+ * lookup every team-scoped API resolves through (lib/team-actor.ts).
+ */
+export const teamMembers = sqliteTable("team_members", {
+  id: text("id").primaryKey(),
+  teamId: text("team_id").notNull().references(() => teams.id, { onDelete: "cascade" }),
+  leagueId: text("league_id").notNull().references(() => leagues.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  role: text("role", { enum: ["owner", "member"] }).notNull(),
+  // The FPL manager slot this person is (TVT / Continental: one of the team's two players).
+  playerId: text("player_id").references(() => players.id, { onDelete: "set null" }),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+}, (table) => ({
+  teamUserUnique: uniqueIndex("team_members_team_user_unique").on(table.teamId, table.userId),
+  leagueUserUnique: uniqueIndex("team_members_league_user_unique").on(table.leagueId, table.userId),
+  // At most one owner per team.
+  teamOwnerUnique: uniqueIndex("team_members_team_owner_unique").on(table.teamId).where(sql`role = 'owner'`),
+  userIdx: index("team_members_user").on(table.userId),
+}));
+
+/**
+ * Invite links. `teamId` null = league invite (claims an open team slot); set = partner invite for
+ * that team. The token is the whole secret — 128 random bits, base64url.
+ */
+export const leagueInvites = sqliteTable("league_invites", {
+  id: text("id").primaryKey(),
+  leagueId: text("league_id").notNull().references(() => leagues.id, { onDelete: "cascade" }),
+  teamId: text("team_id").references(() => teams.id, { onDelete: "cascade" }),
+  token: text("token").notNull(),
+  createdByUserId: text("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  maxUses: integer("max_uses"), // null = unlimited
+  useCount: integer("use_count").notNull().default(0),
+  // League invites only: a join files a join_requests row for an admin to decide.
+  requiresApproval: integer("requires_approval", { mode: "boolean" }).notNull().default(false),
+  expiresAt: integer("expires_at", { mode: "timestamp" }), // null = never
+  revokedAt: integer("revoked_at", { mode: "timestamp" }),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+}, (table) => ({
+  tokenUnique: uniqueIndex("league_invites_token_unique").on(table.token),
+  leagueIdx: index("league_invites_league").on(table.leagueId),
+}));
+
+/** Requests to join a league through an invite that requires approval. */
+export const joinRequests = sqliteTable("join_requests", {
+  id: text("id").primaryKey(),
+  leagueId: text("league_id").notNull().references(() => leagues.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  inviteId: text("invite_id").references(() => leagueInvites.id, { onDelete: "set null" }),
+  status: text("status", { enum: ["pending", "approved", "rejected", "cancelled"] }).notNull().default("pending"),
+  decidedByUserId: text("decided_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  decidedAt: integer("decided_at", { mode: "timestamp" }),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+}, (table) => ({
+  // One open request per person per league.
+  pendingUnique: uniqueIndex("join_requests_pending_unique").on(table.leagueId, table.userId).where(sql`status = 'pending'`),
+  leagueStatusIdx: index("join_requests_league_status").on(table.leagueId, table.status),
+}));
+
+/**
+ * One-time sign-in handoff for the iOS home-screen app, whose cookie jar is separate from the
+ * browser that completes Google sign-in. Lives five minutes; single use. See
+ * docs/10-accounts-and-membership.md ("iOS home-screen app").
+ */
+export const authHandoffs = sqliteTable("auth_handoffs", {
+  id: text("id").primaryKey(), // random, also the public handoff id
+  verifierHash: text("verifier_hash").notNull(), // SHA-256 of the verifier only the app holds
+  matchCode: text("match_code").notNull(), // short code shown in the app and on the confirm page
+  userId: text("user_id").references(() => users.id, { onDelete: "cascade" }),
+  status: text("status", { enum: ["pending", "confirmed", "claimed"] }).notNull().default("pending"),
+  expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+});
+
+export type UserIdentity = typeof userIdentities.$inferSelect;
+export type TeamMember = typeof teamMembers.$inferSelect;
+export type LeagueInvite = typeof leagueInvites.$inferSelect;
+export type JoinRequest = typeof joinRequests.$inferSelect;
+export type AuthHandoff = typeof authHandoffs.$inferSelect;
 
 // ============================================
 // FPL Classic format
@@ -880,7 +1025,33 @@ export const leagueAdminsRelations = relations(leagueAdmins, ({ one }) => ({
   }),
 }));
 
-// Users are now admin-only, no team relation needed
+export const usersRelations = relations(users, ({ many }) => ({
+  adminOf: many(leagueAdmins),
+  identities: many(userIdentities),
+  memberships: many(teamMembers),
+}));
+
+export const userIdentitiesRelations = relations(userIdentities, ({ one }) => ({
+  user: one(users, { fields: [userIdentities.userId], references: [users.id] }),
+}));
+
+export const teamMembersRelations = relations(teamMembers, ({ one }) => ({
+  team: one(teams, { fields: [teamMembers.teamId], references: [teams.id] }),
+  league: one(leagues, { fields: [teamMembers.leagueId], references: [leagues.id] }),
+  user: one(users, { fields: [teamMembers.userId], references: [users.id] }),
+  player: one(players, { fields: [teamMembers.playerId], references: [players.id] }),
+}));
+
+export const leagueInvitesRelations = relations(leagueInvites, ({ one }) => ({
+  league: one(leagues, { fields: [leagueInvites.leagueId], references: [leagues.id] }),
+  team: one(teams, { fields: [leagueInvites.teamId], references: [teams.id] }),
+}));
+
+export const joinRequestsRelations = relations(joinRequests, ({ one }) => ({
+  league: one(leagues, { fields: [joinRequests.leagueId], references: [leagues.id] }),
+  user: one(users, { fields: [joinRequests.userId], references: [users.id] }),
+  invite: one(leagueInvites, { fields: [joinRequests.inviteId], references: [leagueInvites.id] }),
+}));
 
 export const groupsRelations = relations(groups, ({ one, many }) => ({
   league: one(leagues, {
@@ -901,6 +1072,7 @@ export const teamsRelations = relations(teams, ({ one, many }) => ({
     references: [groups.id],
   }),
   players: many(players),
+  members: many(teamMembers),
   homeFixtures: many(fixtures, { relationName: "homeTeam" }),
   awayFixtures: many(fixtures, { relationName: "awayTeam" }),
   results: many(results),

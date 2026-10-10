@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { db, leagues } from "@/lib/db";
 import { fplClassicConfig } from "@/lib/db/schema";
 import { LeagueProvider, type LeagueInfo } from "@/lib/league-context";
-import { resolveViewer } from "@/lib/viewer";
+import { resolveViewerInLeague } from "@/lib/viewer";
 import { getFormatPalette, FPL_CLASSIC_FORMAT } from "@/lib/format-palette";
 import { DEFAULT_RELEASE_CYCLE_GWS, parseReleaseCycleGws } from "@/lib/formats/auction/cycle";
 
@@ -141,7 +141,7 @@ export default async function LeagueLayout({
     }
   }
 
-  const viewer = await resolveViewer();
+  const viewer = await resolveViewerInLeague(league.id);
 
   // Per-format page background gradient. Applied here so every page under
   // /[leagueSlug]/* picks up the format identity in one place. Individual page

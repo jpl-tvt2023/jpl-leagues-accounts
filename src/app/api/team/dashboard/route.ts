@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { leagueFromRequest, resolveTeamActor, teamActorDenied } from "@/lib/team-actor";
 import { db, teams, players, groups, fixtures, results, gameweeks, gameweekCaptains, gameweekChips, settings, leagues } from "@/lib/db";
 import { eq, and, gt, asc, desc, or, inArray } from "drizzle-orm";
 import { fplEntryUrl } from "@/lib/fpl-links";
@@ -63,11 +64,9 @@ async function getAnnouncementSettings(leagueId: string | null | undefined) {
  */
 export async function GET(request: NextRequest) {
   try {
-    // Check if team is logged in
-    const teamId = request.headers.get("x-session-id");
-    if (!teamId) {
-      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-    }
+    const { actor, denial } = await resolveTeamActor(request, { league: leagueFromRequest(request) });
+    if (!actor) return teamActorDenied(denial, { unauthenticated: "Not authenticated" });
+    const teamId = actor.teamId;
 
     // --- FPL API: Sync deadlines for this team's league gameweeks ---
     // Get team's leagueId for scoped deadline sync

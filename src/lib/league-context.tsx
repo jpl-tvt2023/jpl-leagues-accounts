@@ -39,11 +39,19 @@ export interface LeagueInfo {
 
 export interface ViewerInfo {
   authenticated: boolean;
-  type: "team" | "admin" | "superadmin" | null;
+  /** "team" = legacy team login; the others are people ("user" = player). */
+  type: "team" | "user" | "admin" | "superadmin" | null;
   dashboardHref: string;
+  /**
+   * Under /[leagueSlug]/*: the viewer's team in THIS league (legacy login for a team of this league,
+   * or a person's membership here); absent when they have none. Use it to decide "my team".
+   */
   teamId?: string;
   userId?: string;
+  username?: string | null;
   adminLeagueId?: string | null;
+  /** Under /[leagueSlug]/*: superadmin, or an admin of this league. */
+  isLeagueAdmin?: boolean;
 }
 
 export interface LeagueContextValue {

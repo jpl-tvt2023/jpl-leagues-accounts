@@ -13,6 +13,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { leagueFromRequest, resolveTeamActor, teamActorDenied } from "@/lib/team-actor";
 import { db, teams } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import {
@@ -23,11 +24,9 @@ import {
 
 export async function GET(request: NextRequest) {
   try {
-    // Middleware has already verified the session and that it is a team session.
-    const teamId = request.headers.get("x-session-id");
-    if (!teamId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const { actor, denial } = await resolveTeamActor(request, { league: leagueFromRequest(request) });
+    if (!actor) return teamActorDenied(denial, { unauthenticated: "Unauthorized" });
+    const teamId = actor.teamId;
 
     const [team] = await db
       .select({ id: teams.id, leagueId: teams.leagueId })

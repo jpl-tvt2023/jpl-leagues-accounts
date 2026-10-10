@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, teams, leagues, auctionOwnership, tradeProposals, auctionScores } from "@/lib/db";
 import { eq, and, or, lt } from "drizzle-orm";
-import { verifySession, SESSION_COOKIE_NAME, isSuperAdmin } from "@/lib/auth";
+import { isSuperAdmin } from "@/lib/privilege";
+import { getRequestSession, resolveTeamActorForSession, sessionActsAsTeam, sessionTeamIdInLeague } from "@/lib/team-actor";
 import { generateId } from "@/lib/id";
 import { validateTradeProposal, buildPositionMap, type TradePlayer } from "@/lib/formats/auction/marketplace";
 import { calculateFMV } from "@/lib/formats/auction/economy";
@@ -34,8 +35,7 @@ async function expireStaleProposals(leagueId: string) {
  * Otherwise shows all proposals for the league.
  */
 export async function GET(request: NextRequest) {
-  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-  const session = token ? await verifySession(token) : null;
+  const session = await getRequestSession(request);
 
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -49,6 +49,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "leagueId is required" }, { status: 400 });
   }
 
+  const myTeamId = await sessionTeamIdInLeague(session, leagueId);
+
   // Lazy expiry — mark pending proposals older than 24h as "expired" before reading.
   await expireStaleProposals(leagueId);
 
@@ -61,7 +63,7 @@ export async function GET(request: NextRequest) {
       .where(eq(tradeProposals.leagueId, leagueId));
     proposals = baseRows.filter((p) => {
       if (p.status !== "pending" && p.status !== "accepted") return false;
-      if (session.type === "team" && (p.proposerTeamId === session.id || p.targetTeamId === session.id)) return false;
+      if (myTeamId && (p.proposerTeamId === myTeamId || p.targetTeamId === myTeamId)) return false;
       return true;
     });
   } else if (teamId) {
@@ -108,10 +110,9 @@ export async function GET(request: NextRequest) {
  * Body: { leagueId, targetTeamId, offeredPlayerIds, requestedPlayerIds, cashOffered }
  */
 export async function POST(request: NextRequest) {
-  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-  const session = token ? await verifySession(token) : null;
+  const session = await getRequestSession(request);
 
-  if (!session || session.type !== "team") {
+  if (!session) {
     return NextResponse.json({ error: "Team authentication required" }, { status: 401 });
   }
 
@@ -122,7 +123,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "leagueId and targetTeamId are required" }, { status: 400 });
   }
 
-  if (session.id === targetTeamId) {
+  const { actor } = await resolveTeamActorForSession(session, { league: leagueId });
+  if (!actor) {
+    return NextResponse.json({ error: "Team authentication required" }, { status: 401 });
+  }
+  const myTeamId = actor.teamId;
+
+  if (myTeamId === targetTeamId) {
     return NextResponse.json({ error: "Cannot trade with yourself" }, { status: 400 });
   }
 
@@ -188,7 +195,7 @@ export async function POST(request: NextRequest) {
   // Verify ownership: offered must belong to proposer, requested must belong to target
   for (const p of offered) {
     const own = await db.select().from(auctionOwnership).where(eq(auctionOwnership.id, p.ownershipId)).limit(1);
-    if (own[0]?.teamId !== session.id) {
+    if (own[0]?.teamId !== myTeamId) {
       return NextResponse.json({ error: `You don't own player ${p.playerName}` }, { status: 400 });
     }
   }
@@ -201,13 +208,13 @@ export async function POST(request: NextRequest) {
 
   // Get squad sizes and purses
   const proposerSquad = await db.select().from(auctionOwnership).where(
-    and(eq(auctionOwnership.leagueId, leagueId), eq(auctionOwnership.teamId, session.id), eq(auctionOwnership.status, "active"))
+    and(eq(auctionOwnership.leagueId, leagueId), eq(auctionOwnership.teamId, myTeamId), eq(auctionOwnership.status, "active"))
   );
   const targetSquad = await db.select().from(auctionOwnership).where(
     and(eq(auctionOwnership.leagueId, leagueId), eq(auctionOwnership.teamId, targetTeamId), eq(auctionOwnership.status, "active"))
   );
 
-  const proposerTeam = await db.select().from(teams).where(eq(teams.id, session.id)).limit(1);
+  const proposerTeam = await db.select().from(teams).where(eq(teams.id, myTeamId)).limit(1);
   const targetTeam = await db.select().from(teams).where(eq(teams.id, targetTeamId)).limit(1);
 
   const proposerPositions = buildPositionMap(proposerSquad);
@@ -237,7 +244,7 @@ export async function POST(request: NextRequest) {
   await db.insert(tradeProposals).values({
     id,
     leagueId,
-    proposerTeamId: session.id,
+    proposerTeamId: myTeamId,
     targetTeamId,
     offeredPlayerIds: JSON.stringify(offeredPlayerIds ?? []),
     requestedPlayerIds: JSON.stringify(requestedPlayerIds ?? []),
@@ -247,7 +254,7 @@ export async function POST(request: NextRequest) {
 
   // PL Club Auction rename — notification body shows the proposer's club name if they own one.
   const clubByTeamId = await fetchClubOwnershipMap(leagueId);
-  const proposerDisplay = clubByTeamId.get(session.id)?.plTeamName ?? proposerTeam[0]?.name ?? "A team";
+  const proposerDisplay = clubByTeamId.get(myTeamId)?.plTeamName ?? proposerTeam[0]?.name ?? "A team";
   await createNotification({
     teamId: targetTeamId,
     leagueId,
@@ -267,10 +274,9 @@ export async function POST(request: NextRequest) {
  * Body: { proposalId, action: "accept" | "reject" }
  */
 export async function PATCH(request: NextRequest) {
-  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-  const session = token ? await verifySession(token) : null;
+  const session = await getRequestSession(request);
 
-  if (!session || session.type !== "team") {
+  if (!session) {
     return NextResponse.json({ error: "Team authentication required" }, { status: 401 });
   }
 
@@ -321,7 +327,7 @@ export async function PATCH(request: NextRequest) {
   }
 
   // Only the target team can accept/reject
-  if (session.id !== proposal.targetTeamId) {
+  if (!(await sessionActsAsTeam(session, proposal.targetTeamId))) {
     return NextResponse.json({ error: "Only the target team can respond" }, { status: 403 });
   }
 

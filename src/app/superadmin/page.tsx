@@ -598,7 +598,14 @@ export default function SuperAdminDashboard() {
       setAdmins(prev => [...prev, data]);
       setShowCreateAdmin(false);
       setAdminForm({ name: "", email: "", password: "" });
-      setMessage({ type: "success", text: `Admin "${adminForm.name}" created. They must change their password on first login.` });
+      setMessage({
+        type: "success",
+        text: data.promoted
+          ? `${data.name} already had an account — they're now an admin.`
+          : adminForm.password
+            ? `Admin "${adminForm.name}" created. They must change their password on first login.`
+            : `Admin "${adminForm.name}" created. They sign in with Google as ${data.email} — nothing to send them.`,
+      });
     } catch { setMessage({ type: "error", text: "Network error" }); }
     finally { setAdminActionLoading(false); }
   };
@@ -1473,14 +1480,14 @@ This overwrites winners that have already been announced. The previous winners a
                 />
               </div>
               <div>
-                <label className="block text-sm text-gray-300 mb-1">Initial Password</label>
+                <label className="block text-sm text-gray-300 mb-1">Initial password <span className="text-gray-500">(optional)</span></label>
                 <input
-                  required type="password" value={adminForm.password}
+                  type="password" value={adminForm.password}
                   onChange={e => setAdminForm({ ...adminForm, password: e.target.value })}
                   placeholder="••••••••"
                   className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-white placeholder-gray-500 focus:border-yellow-500 focus:outline-none"
                 />
-                <p className="text-xs text-gray-500 mt-1">Admin will be asked to change this on first login.</p>
+                <p className="text-xs text-gray-500 mt-1">Leave blank and they sign in with Google using this email. Set one only if they can&apos;t use Google — they&apos;ll change it on first login.</p>
               </div>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setShowCreateAdmin(false)} className="flex-1 rounded-lg border border-white/10 px-4 py-2.5 text-gray-300 hover:bg-white/5 transition">Cancel</button>

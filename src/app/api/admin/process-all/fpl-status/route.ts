@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getActiveFplGameweek } from "@/lib/fpl/event-status";
-import { isSuperAdmin } from "@/lib/auth";
+import { isSuperAdmin } from "@/lib/privilege";
 
 export const maxDuration = 30;
 
@@ -14,7 +14,7 @@ export const maxDuration = 30;
  * should not open a run in the audit log.
  */
 export async function GET(request: NextRequest) {
-  if (!isSuperAdmin(request)) {
+  if (!(await isSuperAdmin(request))) {
     return NextResponse.json({ error: "Superadmin only" }, { status: 403 });
   }
   try {

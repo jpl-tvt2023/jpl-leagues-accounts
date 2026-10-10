@@ -134,3 +134,18 @@ export async function apiResetTeamPassword(
   await apiSignOut(request);
   return TEAM_RESET_PASSWORD;
 }
+
+/**
+ * Sign in as a PERSON (members-mode leagues) without Google, via the test-only
+ * POST /api/test-auth/signin (needs TEST_AUTH_ENABLED=1, set in .env.test). Creates the account
+ * on first use; pass `username` to skip onboarding. The session cookie lands in `request`.
+ */
+export async function apiSignInUser(
+  request: APIRequestContext,
+  opts: { email: string; username?: string; name?: string; role?: "user" | "admin" | "superadmin" },
+): Promise<{ id: string; username: string | null; role: string }> {
+  const res = await request.post("/api/test-auth/signin", { data: opts, failOnStatusCode: false });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok()) throw new Error(`apiSignInUser(${opts.email}) failed: ${res.status()} ${body?.error ?? ""}`);
+  return body.user;
+}

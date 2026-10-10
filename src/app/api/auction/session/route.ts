@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, leagues, auctionSessions, auctionBids, teams } from "@/lib/db";
 import { eq, and, desc, count } from "drizzle-orm";
-import { isSuperAdmin, verifySession, SESSION_COOKIE_NAME } from "@/lib/auth";
+import { isSuperAdmin } from "@/lib/privilege";
+import { getRequestSession, sessionTeamIdInLeague } from "@/lib/team-actor";
 import { generateId } from "@/lib/id";
 import { generateSnakeOrder } from "@/lib/formats/auction/mini-auction";
 import {
@@ -104,8 +105,7 @@ async function resolveExpiredBids(sessionId: string) {
  * Returns the current/latest auction session for a league.
  */
 export async function GET(request: NextRequest) {
-  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-  const session = token ? await verifySession(token) : null;
+  const session = await getRequestSession(request);
 
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -192,7 +192,8 @@ export async function GET(request: NextRequest) {
   if (activeSession && activeSession.type === CLUB_AUCTION_SESSION_TYPE) {
     const clublessIds = await getClubLessTeamIds(leagueId);
     allClubsAllocated = clublessIds.length === 0;
-    if (session.type === "team") myOwnsClub = !clublessIds.includes(session.id);
+    const myTeamId = await sessionTeamIdInLeague(session, leagueId);
+    if (myTeamId) myOwnsClub = !clublessIds.includes(myTeamId);
   }
 
   // For a player auction (initial / mini), signal when every squad is full so the UI shows a
@@ -251,7 +252,7 @@ export async function GET(request: NextRequest) {
  * Body: { leagueId, action: "create" | "start" | "pause" | "resume" | "complete", sessionId?, type?, cycleNumber? }
  */
 export async function POST(request: NextRequest) {
-  if (!isSuperAdmin(request)) {
+  if (!(await isSuperAdmin(request))) {
     return NextResponse.json({ error: "Admin access required" }, { status: 403 });
   }
 

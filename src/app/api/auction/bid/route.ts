@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, auctionBids, auctionBidLogs, auctionSessions, auctionOwnership, auctionClubOwnership, teams, leagues } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
-import { verifySession, SESSION_COOKIE_NAME } from "@/lib/auth";
+import { getRequestSession, resolveTeamActorForSession } from "@/lib/team-actor";
 import { generateId } from "@/lib/id";
 import { calculatePurse } from "@/lib/formats/auction/economy";
 import { countsFromOwnership, validateAddPlayer } from "@/lib/formats/auction/squad-rules";
@@ -20,10 +20,9 @@ const MIN_BID_INCREMENT = 100_000; // 100K minimum raise
  * Body: { sessionId, bidAmount }
  */
 export async function POST(request: NextRequest) {
-  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-  const session = token ? await verifySession(token) : null;
+  const session = await getRequestSession(request);
 
-  if (!session || session.type !== "team") {
+  if (!session) {
     return NextResponse.json({ error: "Team authentication required" }, { status: 401 });
   }
 
@@ -47,9 +46,16 @@ export async function POST(request: NextRequest) {
 
   const leagueId = sessionRow[0].leagueId;
 
-  // Get team and verify they belong to this league
-  const teamRow = await db.select().from(teams).where(eq(teams.id, session.id)).limit(1);
-  if (teamRow.length === 0 || teamRow[0].leagueId !== leagueId) {
+  // The bidding team: the caller's own team in this league (legacy login or member).
+  const { actor, denial } = await resolveTeamActorForSession(session, { league: leagueId });
+  if (!actor) {
+    return denial === "unauthenticated"
+      ? NextResponse.json({ error: "Team authentication required" }, { status: 401 })
+      : NextResponse.json({ error: "Team not in this league" }, { status: 403 });
+  }
+  const myTeamId = actor.teamId;
+  const teamRow = await db.select().from(teams).where(eq(teams.id, myTeamId)).limit(1);
+  if (teamRow.length === 0) {
     return NextResponse.json({ error: "Team not in this league" }, { status: 403 });
   }
 
@@ -108,7 +114,7 @@ export async function POST(request: NextRequest) {
         .where(
           and(
             eq(auctionClubOwnership.leagueId, leagueId),
-            eq(auctionClubOwnership.teamId, session.id)
+            eq(auctionClubOwnership.teamId, myTeamId)
           )
         )
         .limit(1);
@@ -123,7 +129,7 @@ export async function POST(request: NextRequest) {
         .where(
           and(
             eq(auctionOwnership.leagueId, leagueId),
-            eq(auctionOwnership.teamId, session.id),
+            eq(auctionOwnership.teamId, myTeamId),
             eq(auctionOwnership.status, "active")
           )
         );
@@ -151,7 +157,7 @@ export async function POST(request: NextRequest) {
       .update(auctionBids)
       .set({
         currentHighBid: bidAmount,
-        currentHighBidderId: session.id,
+        currentHighBidderId: myTeamId,
         expiresAt: newExpiry,
         updatedAt: new Date(),
       })
@@ -161,7 +167,7 @@ export async function POST(request: NextRequest) {
     await tx.insert(auctionBidLogs).values({
       id: generateId(),
       bidId: currentBid.id,
-      teamId: session.id,
+      teamId: myTeamId,
       amount: bidAmount,
       type: "bid",
     });
@@ -170,7 +176,7 @@ export async function POST(request: NextRequest) {
       success: true,
       bidId: currentBid.id,
       bidAmount,
-      bidderId: session.id,
+      bidderId: myTeamId,
       expiresAt: newExpiry.toISOString(),
     };
   });

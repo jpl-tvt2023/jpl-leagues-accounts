@@ -2,12 +2,15 @@ import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { leagueAdmins, leagues } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
+import { forwardedPrivilegedIdentity, privilegeStillHeld } from "@/lib/privilege";
 
 /**
  * Returns the leagueId (UUID) from the request if the session has access to it.
  * The URL segment may be a slug — resolves it to the UUID automatically.
  * - Superadmins have access to all leagues (active or inactive).
  * - Admins are checked against the leagueAdmins table AND the league must be active.
+ * - Both re-check the database: the role must still be held and the session not revoked
+ *   (lib/privilege.ts), so a demoted admin loses access on their next request.
  * Returns null if unauthorized, league is inactive (for admins), or leagueId is missing.
  */
 export async function getAuthorizedLeagueId(request: NextRequest): Promise<string | null> {
@@ -33,6 +36,9 @@ export async function getAuthorizedLeagueId(request: NextRequest): Promise<strin
     if (!row[0]) return null;
     leagueId = row[0].id;
   }
+
+  const identity = forwardedPrivilegedIdentity(request);
+  if (!identity || !(await privilegeStillHeld(identity, identity.type))) return null;
 
   if (sessionType === "superadmin") return leagueId;
 

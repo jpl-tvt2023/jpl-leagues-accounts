@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { leagueFromRequest, resolveTeamActor, teamActorDenied } from "@/lib/team-actor";
 import { db, gameweeks, gameweekCaptains, teams, settings, leagues, auditLogs } from "@/lib/db";
 import { eq, and, asc } from "drizzle-orm";
 import { generateId } from "@/lib/id";
@@ -16,11 +17,9 @@ import { getFinishedGwNumbers } from "@/lib/gameweeks/finished-set";
  */
 export async function POST(request: NextRequest) {
   try {
-    // Check if team is logged in
-    const teamId = request.headers.get("x-session-id");
-    if (!teamId) {
-      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-    }
+    const { actor, denial } = await resolveTeamActor(request, { league: leagueFromRequest(request) });
+    if (!actor) return teamActorDenied(denial, { unauthenticated: "Not authenticated" });
+    const teamId = actor.teamId;
 
     const body = await request.json();
     const { playerId, gameweek } = body;
@@ -186,6 +185,7 @@ export async function POST(request: NextRequest) {
           playerId: player.id,
           announcedAt: now,
           isValid: true,
+          submittedByUserId: actor.userId,
           updatedAt: new Date(),
         })
         .where(eq(gameweekCaptains.id, existingCaptain.id));
@@ -198,6 +198,7 @@ export async function POST(request: NextRequest) {
         playerId: player.id,
         announcedAt: now,
         isValid: true,
+        submittedByUserId: actor.userId,
       });
     }
 

@@ -79,7 +79,7 @@ function formatCurrency(amount: number): string {
 
 export default function MarketplacePage() {
   useEnforceFormat(["auction"]);
-  const { league } = useLeague();
+  const { league, viewer } = useLeague();
   const isPrimaryTier = isPrimary(league.auctionTier);
   // Derived from league config so this never drifts from the scorer's boundaries.
   const releaseCadence = formatReleaseCycleGws(league.releaseCycleGws);
@@ -115,18 +115,18 @@ export default function MarketplacePage() {
     setIsLoading(true);
     setError(null);
     try {
-      const meRes = await fetch("/api/auth/me");
-      const me = await meRes.json();
-      if (!me.authenticated) {
+      // The viewer, and their team in THIS league, is resolved server-side by the league layout.
+      if (!viewer.authenticated) {
         router.push("/signin");
         return;
       }
-      if (me.type !== "team") {
-        setError("Marketplace is only available to team accounts.");
+      const myTeam = viewer.teamId;
+      if (!myTeam) {
+        setError("Marketplace is only available to teams in this league.");
         setIsLoading(false);
         return;
       }
-      setMyTeamId(me.team.id);
+      setMyTeamId(myTeam);
 
       const leaguesRes = await fetch("/api/leagues");
       const leaguesJson = await leaguesRes.json();
@@ -182,7 +182,7 @@ export default function MarketplacePage() {
       setOwnershipMap(omap);
 
       // My squad
-      const mySquadRes = await fetch(`/api/auction/squad?teamId=${me.team.id}`);
+      const mySquadRes = await fetch(`/api/auction/squad?teamId=${myTeam}`);
       if (mySquadRes.ok) {
         const myJson = await mySquadRes.json();
         setMySquad((myJson.squad ?? []).filter((p: SquadPlayer) => p.status === "active"));
@@ -193,7 +193,7 @@ export default function MarketplacePage() {
     } finally {
       setIsLoading(false);
     }
-  }, [leagueSlug, router]);
+  }, [leagueSlug, router, viewer.authenticated, viewer.teamId]);
 
   useEffect(() => {
     // Skip the fetch when the league is on the Primary tier — the page renders a placeholder

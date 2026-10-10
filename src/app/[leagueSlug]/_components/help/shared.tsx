@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 export type UserRole = "public" | "team" | "admin";
 export type ActiveTab = "faqs" | "scenarios";
@@ -66,17 +67,22 @@ export function ScenarioCard({ number, title, steps }: ScenarioEntry) {
 }
 
 export function PublicSignInPrompt({ message }: { message: string }) {
+  // Come back to this page after signing in.
+  const pathname = usePathname();
   return (
     <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-center">
       <p className="text-gray-400 text-sm">
         <strong className="text-white">Team member?</strong> {message}
       </p>
       <Link
-        href="/signin"
+        href={`/signin?next=${encodeURIComponent(pathname ?? "/")}`}
         className="inline-block mt-3 rounded-full bg-gradient-to-r from-yellow-400 to-orange-500 px-6 py-2 font-semibold text-slate-900 text-sm hover:from-yellow-300 hover:to-orange-400 transition"
       >
-        Sign In
+        Sign in with Google
       </Link>
+      <p className="mt-2 text-xs text-gray-500">
+        <Link href="/help" className="underline hover:text-gray-300">Help with signing in</Link>
+      </p>
     </div>
   );
 }

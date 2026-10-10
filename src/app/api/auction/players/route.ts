@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, teams, leagues } from "@/lib/db";
 import { auctionOwnership } from "@/lib/db/schema";
 import { eq, and, lt, gte, or, isNull } from "drizzle-orm";
-import { verifySession, SESSION_COOKIE_NAME, isSuperAdmin } from "@/lib/auth";
+import { isSuperAdmin } from "@/lib/privilege";
+import { getRequestSession, sessionTeamIdInLeague } from "@/lib/team-actor";
 import { fetchElementInfo, fetchElementGameweekPoints, fetchBootstrapData } from "@/lib/fpl";
 import { fetchClubOwnershipMap } from "@/lib/teams/rename-rows";
 
@@ -15,9 +16,8 @@ import { fetchClubOwnershipMap } from "@/lib/teams/rename-rows";
  * Also returns the league's team list so the client can populate per-team filter options.
  */
 export async function GET(request: NextRequest) {
-  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-  const session = token ? await verifySession(token) : null;
-  const isAdmin = isSuperAdmin(request);
+  const session = await getRequestSession(request);
+  const isAdmin = (await isSuperAdmin(request));
 
   if (!session && !isAdmin) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -110,7 +110,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Determine requesting team's ID for "mine" filter
-    const myTeamId = session?.id ?? null;
+    const myTeamId = leagueId ? await sessionTeamIdInLeague(session, leagueId) : null;
 
     // Build full row set, apply filters
     type PlayerRow = {

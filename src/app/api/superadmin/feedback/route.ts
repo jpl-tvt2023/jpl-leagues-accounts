@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, feedback } from "@/lib/db";
 import { eq, desc } from "drizzle-orm";
-import { isSuperAdmin } from "@/lib/auth";
+import { isSuperAdmin } from "@/lib/privilege";
 
 /**
  * GET /api/superadmin/feedback
  * Returns site-scoped feedback rows (general platform feedback). Superadmin only.
  */
 export async function GET(request: NextRequest) {
-  if (!isSuperAdmin(request)) {
+  if (!(await isSuperAdmin(request))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

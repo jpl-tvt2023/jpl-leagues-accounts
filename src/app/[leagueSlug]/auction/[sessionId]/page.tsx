@@ -332,7 +332,7 @@ function RedeemPenaltyButton({ teamId, onRedeemed }: { teamId: string; onRedeeme
 
 export default function AuctionRoomPage() {
   useEnforceFormat(["auction"]);
-  const { league } = useLeague();
+  const { league, viewer } = useLeague();
   const params = useParams();
   const router = useRouter();
   const leagueSlug = params.leagueSlug as string;
@@ -480,23 +480,23 @@ export default function AuctionRoomPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const [meRes, leaguesRes, bootstrapRes] = await Promise.all([
-        fetch("/api/auth/me"),
-        fetch("/api/leagues"),
-        fetch("/api/fpl/bootstrap"),
-      ]);
-
-      const me = await meRes.json();
-      if (!me.authenticated) {
+      // The viewer, and their team in THIS league, is resolved server-side by the league layout.
+      if (!viewer.authenticated) {
         router.push("/signin");
         return;
       }
-      if (me.type !== "team") {
-        setError("Auction room is only available to team accounts.");
+      const myTeam = viewer.teamId;
+      if (!myTeam) {
+        setError("Auction room is only available to teams in this league.");
         setIsLoading(false);
         return;
       }
-      setMyTeamId(me.team.id);
+      setMyTeamId(myTeam);
+
+      const [leaguesRes, bootstrapRes] = await Promise.all([
+        fetch("/api/leagues"),
+        fetch("/api/fpl/bootstrap"),
+      ]);
 
       const leaguesJson = await leaguesRes.json();
       const league = (leaguesJson.leagues || []).find((l: { slug: string; id: string }) => l.slug === leagueSlug);
@@ -515,9 +515,9 @@ export default function AuctionRoomPage() {
         fetch(`/api/auction/session?leagueId=${league.id}`),
         fetch(`/api/standings?leagueSlug=${encodeURIComponent(leagueSlug)}`),
         fetch(`/api/auction/league-owned?leagueId=${league.id}`),
-        fetch(`/api/auction/economy?teamId=${me.team.id}`),
+        fetch(`/api/auction/economy?teamId=${myTeam}`),
         // Pull my squad's slot status so we can render <SlotStatus> with redeem/unlock costs.
-        fetch(`/api/auction/squad?teamId=${me.team.id}`),
+        fetch(`/api/auction/squad?teamId=${myTeam}`),
         // Tier per PL club — only meaningfully used when this is a club auction, but cheap to fetch once.
         fetch(`/api/auction/club-tiers?leagueId=${league.id}`),
       ]);
@@ -590,7 +590,7 @@ export default function AuctionRoomPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [leagueSlug, routeSessionId, router, playerTag]);
+  }, [leagueSlug, routeSessionId, router, playerTag, viewer.authenticated, viewer.teamId]);
 
   useEffect(() => {
     loadInitial();

@@ -45,16 +45,34 @@ function b64urlDecode(encoded: string): string {
   return new TextDecoder().decode(bytes);
 }
 
+/**
+ * Who a session belongs to.
+ * - "superadmin" | "admin" | "user": a person — `id` is a users.id. "user" is a player.
+ * - "team": a legacy-league team login — `id` is a teams.id.
+ */
+export type SessionType = "superadmin" | "admin" | "user" | "team";
+
 export interface SessionPayload {
   id: string;
-  type: "superadmin" | "admin" | "team";
+  type: SessionType;
   exp: number;
+  /**
+   * users.session_version when the token was minted (person sessions only). Bumping the column
+   * revokes every older token on its next membership or privilege check. Absent means 0, which
+   * keeps tokens minted before this field existed valid.
+   */
+  sv?: number;
 }
 
-/** Create a signed session token encoding id, type, and expiration. */
-export async function createSession(id: string, type: "superadmin" | "admin" | "team"): Promise<string> {
+/** True for sessions that identify a person (a users row) rather than a legacy team login. */
+export function isPersonSession(session: Pick<SessionPayload, "type">): boolean {
+  return session.type === "user" || session.type === "admin" || session.type === "superadmin";
+}
+
+/** Create a signed session token encoding id, type, expiration and (for people) session version. */
+export async function createSession(id: string, type: SessionType, opts: { sv?: number } = {}): Promise<string> {
   const exp = Math.floor(Date.now() / 1000) + SESSION_MAX_AGE;
-  const payload = JSON.stringify({ id, type, exp });
+  const payload = JSON.stringify(opts.sv ? { id, type, exp, sv: opts.sv } : { id, type, exp });
   const encoded = b64urlEncode(payload);
   const sig = await sign(encoded);
   return `${encoded}.${sig}`;
@@ -86,9 +104,8 @@ export async function verifySession(token: string): Promise<SessionPayload | nul
   }
 }
 
-export function isSuperAdmin(request: import("next/server").NextRequest): boolean {
-  return request.headers.get("x-session-type") === "superadmin";
-}
+// isSuperAdmin lives in lib/privilege.ts: it checks the database, and this module must stay
+// database-free because middleware imports it.
 
 export const SESSION_COOKIE_NAME = "session";
 export const SESSION_COOKIE_OPTIONS = {

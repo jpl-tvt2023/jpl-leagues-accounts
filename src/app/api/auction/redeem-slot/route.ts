@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { sessionActsAsTeam } from "@/lib/team-actor";
 import { db, teams, teamPenalties, auctionSessions, auctionBids, leagues } from "@/lib/db";
 import { eq, and, isNull, asc, desc, or, sql } from "drizzle-orm";
-import { verifySession, SESSION_COOKIE_NAME, isSuperAdmin } from "@/lib/auth";
+import { verifySession, SESSION_COOKIE_NAME } from "@/lib/auth";
+import { isSuperAdmin } from "@/lib/privilege";
 import { calculatePurse } from "@/lib/formats/auction/economy";
 import { createNotification } from "@/lib/notifications";
 import { setNominationDeadline } from "@/lib/formats/auction/resolve-bid";
@@ -102,7 +104,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
   const session = token ? await verifySession(token) : null;
-  const admin = isSuperAdmin(request);
+  const admin = (await isSuperAdmin(request));
 
   if (!session && !admin) {
     return NextResponse.json({ error: "Authentication required" }, { status: 401 });
@@ -115,7 +117,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "teamId is required" }, { status: 400 });
   }
 
-  if (!admin && session?.type === "team" && session.id !== teamId) {
+  if (!admin && session && session.type !== "admin" && !(await sessionActsAsTeam(session, teamId))) {
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }
 

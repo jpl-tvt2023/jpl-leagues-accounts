@@ -288,32 +288,47 @@ Sessions are custom HMAC-SHA256 signed tokens (no JWT library dependency):
 token = base64url(JSON payload) + "." + HMAC-SHA256(payload, SESSION_SECRET)
 ```
 
-- Payload: `{ id, type, exp }` — expires after **7 days**
+- Payload: `{ id, type, exp, sv? }` — expires after **7 days**
+  - `type`: `superadmin` | `admin` | `user` (a person, `id` = users.id) or `team` (a legacy team login, `id` = teams.id)
+  - `sv`: the person's `users.session_version` when the token was minted. Bumping the column revokes every older token.
 - Stored in an `HttpOnly; SameSite=Lax` cookie named `session`
 - Verification uses constant-time comparison to prevent timing attacks
 
-### Roles
+Full design: [docs/10-accounts-and-membership.md](docs/10-accounts-and-membership.md).
 
-| Role | Login | Access |
+### Who signs in, and how
+
+| Who | Signs in with | Access |
 |------|-------|--------|
-| `superadmin` | Email + password | Full platform access: create leagues, manage admins, view all data |
-| `admin` | Email + password | League-scoped: manage teams, process scores, override chips/captains |
-| `team` | Team name + password | Team dashboard: submit captain, play chips, view standings/fixtures |
+| `superadmin` | Google (linked by email) — or a password, kept as a break-glass | Full platform access: create leagues, manage admins, view all data |
+| `admin` | Google (linked by email), or a password if created with one | League-scoped: manage teams, process scores, override chips/captains |
+| `user` (player) | Google, then a unique username | Every team they're on, in any number of members-mode leagues |
+| `team` (legacy) | Team key + password from the admin | That one team, in a league created before Google sign-in (until the 2026-27 season ends) |
+
+An admin who also plays has one identity: their membership gives them a team like anyone else's.
 
 ### Middleware
 
 `src/middleware.ts` runs on all `/api/*` routes and:
 
-1. **Rate limits** signin/change-password (5 req/min) and reset-season (1 req/min) per IP via Upstash Redis
-2. **Allows public GET** routes: `/api/standings`, `/api/fixtures`, `/api/playoffs/bracket`, `/api/leagues`, `/api/gameweeks/[gw]`
-3. **Validates session cookie** for all protected routes
-4. **Enforces role** — admin routes require `admin` or `superadmin`; team routes require `team`
-5. **Injects headers** (`x-session-id`, `x-session-type`, `x-league-id`) for route handlers
+1. **Rate limits** signin/change-password (5 req/min), reset-season (1 req/min), the sign-in handoff and joins, and the profile endpoint, per IP, via Upstash Redis
+2. **Allows public GET** routes: `/api/standings`, `/api/fixtures`, `/api/playoffs/bracket`, `/api/leagues`, `/api/gameweeks/[gw]`; all of `/api/auth/*`; and the test-only stubs
+3. **Validates the session cookie** for all protected routes
+4. **Enforces role**:
+   - admin routes require `admin` or `superadmin`;
+   - team routes take any valid session, and **which team** is decided in the route by `resolveTeamActor` (`src/lib/team-actor.ts`): legacy login = its own team; person = their membership in the league named by `?league=`
+5. **Injects headers** (`x-session-id`, `x-session-type`, `x-session-sv`, `x-league-id`) for route handlers
 6. **Cron support** — Vercel cron jobs authenticate via `Authorization: Bearer <CRON_SECRET>`
 
 ### League-Scoped Admin Auth
 
 `src/lib/league-auth.ts` verifies that an admin's session ID corresponds to a user assigned to the requested `leagueId`. Superadmins bypass this check.
+
+Both admins and superadmins are also re-checked against the database on every request (`src/lib/privilege.ts`): the role must still be held and the session not revoked. `isSuperAdmin()` lives there too and is async — always `await` it.
+
+### Allowed databases
+
+This repo only ever talks to a local `file:` database or the **`jpl-leagues-accounts`** Turso database. `src/lib/db/target-guard.ts` refuses anything else, production's included, before connecting.
 
 ---
 

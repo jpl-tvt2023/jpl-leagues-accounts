@@ -89,7 +89,7 @@ function formatPurchasePrice(value: number): string {
 
 export default function PlayersPage() {
   useEnforceFormat(["auction"]);
-  const { league } = useLeague();
+  const { league, viewer } = useLeague();
   const params = useParams();
   const router = useRouter();
   const leagueSlug = params.leagueSlug as string;
@@ -130,18 +130,17 @@ export default function PlayersPage() {
   useEffect(() => {
     async function init() {
       try {
-        const [meRes, leaguesRes, bootstrapRes] = await Promise.all([
-          fetch("/api/auth/me"),
-          fetch("/api/leagues"),
-          fetch("/api/fpl/bootstrap"),
-        ]);
-
-        const me = await meRes.json();
-        if (!me.authenticated) {
+        // The viewer, and their team in THIS league, is resolved server-side by the league layout.
+        if (!viewer.authenticated) {
           router.push("/signin");
           return;
         }
-        if (me.type === "team") setMyTeamId(me.team.id);
+        if (viewer.teamId) setMyTeamId(viewer.teamId);
+
+        const [leaguesRes, bootstrapRes] = await Promise.all([
+          fetch("/api/leagues"),
+          fetch("/api/fpl/bootstrap"),
+        ]);
 
         const leaguesJson = await leaguesRes.json();
         const league = (leaguesJson.leagues || []).find((l: { slug: string }) => l.slug === leagueSlug);
@@ -166,7 +165,7 @@ export default function PlayersPage() {
     }
 
     init();
-  }, [leagueSlug, router]);
+  }, [leagueSlug, router, viewer.authenticated, viewer.teamId]);
 
   const handleSignOut = async () => {
     await fetch("/api/auth/signout", { method: "POST" });

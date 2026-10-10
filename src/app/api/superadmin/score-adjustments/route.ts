@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auctionScores, gameweeks, leagues, teams, auditLogs } from "@/lib/db/schema";
 import { eq, and, desc, asc } from "drizzle-orm";
-import { isSuperAdmin } from "@/lib/auth";
+import { isSuperAdmin } from "@/lib/privilege";
 import { generateId } from "@/lib/id";
 import { assignRanksAndPayouts } from "@/lib/formats/auction/economy";
 
@@ -15,7 +15,7 @@ import { assignRanksAndPayouts } from "@/lib/formats/auction/economy";
  * the filter dropdowns.
  */
 export async function GET(request: NextRequest) {
-  if (!isSuperAdmin(request)) {
+  if (!(await isSuperAdmin(request))) {
     return NextResponse.json({ error: "Superadmin access required" }, { status: 403 });
   }
 
@@ -94,7 +94,7 @@ export async function GET(request: NextRequest) {
  * Audit-logs the change with admin-supplied `reason`.
  */
 export async function PATCH(request: NextRequest) {
-  if (!isSuperAdmin(request)) {
+  if (!(await isSuperAdmin(request))) {
     return NextResponse.json({ error: "Superadmin access required" }, { status: 403 });
   }
 
