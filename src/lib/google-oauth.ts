@@ -6,7 +6,7 @@
  * Google API access token is ever used or stored: the ID token from the code exchange is read
  * once for the person's identity and discarded.
  *
- * Env: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and AUTH_ORIGIN (e.g. https://jpl-leagues-accounts.vercel.app).
+ * Env: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and AUTH_ORIGIN (e.g. https://jpl-india.vercel.app).
  * Google only accepts redirect URIs registered exactly, so AUTH_ORIGIN must match the deployment;
  * without it the request's own origin is used, which suits local development.
  */

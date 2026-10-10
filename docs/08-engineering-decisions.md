@@ -118,7 +118,7 @@ Google sign-in will use the small `arctic` OAuth/PKCE client, wired into the exi
 
 ## 16. One allowed database
 
-[`src/lib/db/target-guard.ts`](../src/lib/db/target-guard.ts) refuses every database except a local `file:` one or the `jpl-leagues-accounts` Turso database. It runs in the app, in `drizzle.config.ts`, and in the 0025 apply script.
+[`src/lib/db/target-guard.ts`](../src/lib/db/target-guard.ts) refuses every database except a local `file:` one or the `jpl-india` Turso database. It runs in the app, in `drizzle.config.ts`, and in the 0025 apply script.
 
 **Why:** this repo carries schema changes production must not receive while they're built and tested. A mis-pasted connection string should fail loudly before connecting, not migrate production.
 

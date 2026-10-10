@@ -113,7 +113,7 @@ npm run db:push              # applies pending migrations to your DATABASE_URL
 
 The latest migration is `drizzle/0025_accounts_membership.sql` (accounts and membership). Migrations from 0021 on are hand-written and applied with idempotent `scripts/apply-*.mjs` scripts rather than `drizzle-kit migrate`.
 
-⚠️ In this repo every database command is limited to a local `file:` database or the `jpl-leagues-accounts` Turso database — see `src/lib/db/target-guard.ts`.
+⚠️ In this repo every database command is limited to a local `file:` database or the `jpl-india` Turso database — see `src/lib/db/target-guard.ts`.
 
 ## See also
 

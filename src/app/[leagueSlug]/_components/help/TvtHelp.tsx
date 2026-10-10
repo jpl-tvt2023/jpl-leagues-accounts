@@ -92,7 +92,7 @@ export function TvtHelp({ userRole, teamSize, enabledChips, leagueStageEnd }: Pr
       question: "What is JPL / TVT format?",
       answer: (
         <p>
-          JPL (JPL Leagues) is a head-to-head FPL league format called <strong className="text-white">TVT (Two Vs Two)</strong>. Each team consists of two FPL managers. Every gameweek, teams compete head-to-head — the combined FPL score of both players determines the winner. The captain system, chip strategy, and playoff bracket make it far more competitive and interactive than standard FPL mini-leagues.
+          JPL (JPL India) is a head-to-head FPL league format called <strong className="text-white">TVT (Two Vs Two)</strong>. Each team consists of two FPL managers. Every gameweek, teams compete head-to-head — the combined FPL score of both players determines the winner. The captain system, chip strategy, and playoff bracket make it far more competitive and interactive than standard FPL mini-leagues.
         </p>
       ),
     },

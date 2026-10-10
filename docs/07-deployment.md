@@ -27,10 +27,10 @@ UPSTASH_REDIS_REST_URL                # https://....upstash.io
 UPSTASH_REDIS_REST_TOKEN              # Upstash REST token
 GOOGLE_CLIENT_ID                      # Google OAuth client (see "Google sign-in" below)
 GOOGLE_CLIENT_SECRET                  # its secret
-AUTH_ORIGIN                           # this deployment's origin, e.g. https://jpl-leagues-accounts.vercel.app
+AUTH_ORIGIN                           # this deployment's origin, e.g. https://jpl-india.vercel.app
 ```
 
-`DATABASE_URL` must be the **`jpl-leagues-accounts`** Turso database or a local `file:` one. `src/lib/db/target-guard.ts` refuses anything else, production's `jpl-leagues` included.
+`DATABASE_URL` must be the **`jpl-india`** Turso database or a local `file:` one. `src/lib/db/target-guard.ts` refuses anything else, production's `jpl-leagues` included.
 
 ### Optional
 
@@ -46,7 +46,7 @@ TEST_AUTH_ENABLED                     # "1" enables POST /api/test-auth/signin. 
 People sign in with Google ([10-accounts-and-membership.md](10-accounts-and-membership.md)). Each environment needs its own OAuth client, because Google only accepts redirect URIs registered exactly.
 
 1. **Google Cloud Console → APIs & Services → OAuth consent screen.**
-   - User type: External. App name "JPL Leagues"; support email; app logo optional.
+   - User type: External. App name "JPL India"; support email; app logo optional.
    - App homepage: your site. **Privacy policy: `https://<your-domain>/privacy`**, which is required before you publish.
    - Scopes: only `openid`, `email` and `profile`. These are non-sensitive scopes, so Google needs no app verification review.
    - Publishing status: **In production**. While it's in Testing, only listed test users can sign in.

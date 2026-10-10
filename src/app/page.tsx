@@ -66,12 +66,12 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900">
-      <AppNav context={{ surface: "public", page: "home" }} activeKey="" brandHref="/" brandLabel="JPL Sports" />
+      <AppNav context={{ surface: "public", page: "home" }} activeKey="" brandHref="/" brandLabel="JPL India" />
 
       {/* Hero */}
       <section className="mx-auto max-w-4xl px-4 sm:px-6 py-12 sm:py-20 text-center">
         <p className="mb-2 sm:mb-3 text-xs sm:text-sm font-semibold uppercase tracking-widest text-yellow-400">
-          JPL Sports
+          JPL India
         </p>
         <h1 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white">
           Fantasy League Hub
@@ -169,7 +169,7 @@ export default function Home() {
 
       {/* Footer */}
       <footer className="border-t border-white/10 bg-slate-900/50 py-8 text-center text-sm text-gray-500">
-        JPL Sports © 2026 &mdash; Multiple fantasy sports, one league platform.
+        JPL India © 2026 &mdash; Multiple fantasy sports, one league platform.
       </footer>
     </div>
   );

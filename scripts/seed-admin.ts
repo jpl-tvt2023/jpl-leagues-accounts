@@ -35,7 +35,7 @@ async function seed() {
     process.exit(1);
   }
 
-  console.log("\n🌱  Seeding JPL Sports platform...\n");
+  console.log("\n🌱  Seeding JPL India platform...\n");
 
   const hashed = await bcrypt.hash(password, 12);
 

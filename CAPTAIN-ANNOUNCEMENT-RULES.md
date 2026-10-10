@@ -1,6 +1,6 @@
 # A. Captain Announcement (Portal Edition)
 
-> Revised for the JPL Leagues portal. Captains are no longer announced in the
+> Revised for the JPL India portal. Captains are no longer announced in the
 > WhatsApp group — all announcements happen on the portal, which enforces the
 > rules automatically. Applies to all TVT formats (8 / 16 / 32 teams).
 

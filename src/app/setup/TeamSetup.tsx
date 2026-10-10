@@ -307,7 +307,7 @@ export function TeamSetup({ leagueSlug }: { leagueSlug?: string } = {}) {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-900 via-purple-900 to-slate-900">
-      <AppNav context={{ surface: "public", page: "flow" }} activeKey="" brandHref="/" brandLabel="JPL Sports" title="Team setup" />
+      <AppNav context={{ surface: "public", page: "flow" }} activeKey="" brandHref="/" brandLabel="JPL India" title="Team setup" />
       <div className="mx-auto max-w-md w-full px-4 py-6 sm:py-8 sm:px-6">
         {/* Header */}
         <div className="text-center mb-6 sm:mb-8">

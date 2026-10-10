@@ -1,4 +1,4 @@
-# JPL Leagues — Engineering Handbook
+# JPL India — Engineering Handbook
 
 This is the technical companion to [`PROJECT.md`](../PROJECT.md). It covers how the platform is built, how its parts fit together, and the engineering decisions worth knowing before changing the code.
 
@@ -40,7 +40,7 @@ A local SQLite file (`dev.db`) is supported as an alternative to Turso for offli
 | Drizzle schema | `src/lib/db/schema.ts` |
 | Auth + sessions | `src/lib/auth.ts`, `src/middleware.ts`, `src/lib/viewer.ts` |
 | Which team a request acts as | `src/lib/team-actor.ts` (see [10-accounts-and-membership.md](10-accounts-and-membership.md)) |
-| Allowed databases | `src/lib/db/target-guard.ts` — local `file:` or the `jpl-leagues-accounts` Turso DB only |
+| Allowed databases | `src/lib/db/target-guard.ts` — local `file:` or the `jpl-india` Turso DB only |
 | FPL client + cache | `src/lib/fpl.ts`, `src/lib/fpl-cache.ts` |
 | Format scoring | `src/lib/formats/tvt/`, `src/lib/formats/continental-championship/`, `src/lib/formats/auction/` |
 | Playoff windows + advance | `src/lib/playoffs/advance-windows.ts`, `src/app/api/admin/[leagueId]/advance-playoffs/route.ts` |

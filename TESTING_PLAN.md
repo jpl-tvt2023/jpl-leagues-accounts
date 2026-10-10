@@ -1,7 +1,7 @@
-# JPL Leagues — Functional QA Testing Plan
+# JPL India — Functional QA Testing Plan
 
 This document is the durable brief for any agent (or human tester) running a project-wide
-functional QA pass on the JPL Leagues codebase. The goal is **discovery only** — produce a ranked
+functional QA pass on the JPL India codebase. The goal is **discovery only** — produce a ranked
 list of bugs. Fixes happen in follow-up PRs.
 
 ## Role
@@ -12,7 +12,7 @@ cosmetic / copy / layout problems. No skip lists; everything is in scope.
 
 ## Conditions / assumptions
 
-- Working directory: `jpl-leagues-accounts/` (this repo; its database is `jpl-leagues-accounts`, never production's)
+- Working directory: `jpl-leagues-accounts/` (this repo; its database is `jpl-india`, never production's)
 - Read-only inspection. Do NOT mutate DB state, run migrations, or invoke production cleanups.
 - Codebase is Next.js (App Router) + Drizzle ORM + libsql/Turso. Tailwind for styling.
 - Reference league: `demo-auction`. Other formats exist (TVT, Triple Crown, classic). Leagues are either legacy (team logins) or members-mode (people join via invite) — see `docs/10-accounts-and-membership.md`.

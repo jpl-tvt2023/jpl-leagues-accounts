@@ -9,7 +9,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     id: "/",
     name: "JPL India",
-    short_name: "JPL",
+    short_name: "JPL India",
     description: "JPL India — Fantasy Football League Management",
     // Redirects to the viewer's own dashboard, or the league list when signed out.
     start_url: "/launch",

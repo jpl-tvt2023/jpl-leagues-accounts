@@ -66,7 +66,7 @@ export function JoinClient({ token, state, selfPath, selfUrl }: { token: string;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-900 via-purple-900 to-slate-900">
-      <AppNav context={{ surface: "public", page: "signin" }} activeKey="" brandHref="/" brandLabel="JPL Sports" title="Join a league" />
+      <AppNav context={{ surface: "public", page: "signin" }} activeKey="" brandHref="/" brandLabel="JPL India" title="Join a league" />
       <main className="mx-auto max-w-md px-4 sm:px-6 py-10 sm:py-16">
         {card && (
           <section aria-labelledby="join-league" className="mb-6 rounded-2xl border border-white/10 bg-white/5 p-5 sm:p-6 text-center backdrop-blur">

@@ -144,7 +144,7 @@
       },
       {
         "id": "BR-ACC-008",
-        "rule": "The repo talks only to a local file: database or the jpl-leagues-accounts Turso database.",
+        "rule": "The repo talks only to a local file: database or the jpl-india Turso database.",
         "sourceRefs": [
           "src/lib/db/target-guard.ts"
         ]
@@ -740,7 +740,7 @@
       "testSteps": [
         "npm run test:unit (db-target-guard)"
       ],
-      "expectedResult": "Only file: and jpl-leagues-accounts are allowed",
+      "expectedResult": "Only file: and jpl-india are allowed",
       "postconditions": "None.",
       "requirementId": "BR-ACC-008",
       "author": "Claude (accounts rebuild)",

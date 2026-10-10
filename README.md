@@ -206,7 +206,7 @@ jpl-leagues-accounts/
 │       ├── accounts.ts               # People: Google find/link/create, sessions
 │       ├── privilege.ts              # Admin/superadmin re-checked against the database
 │       ├── google-oauth.ts           # Google sign-in (arctic, PKCE)
-│       ├── db/target-guard.ts        # Refuses every database but file: / jpl-leagues-accounts
+│       ├── db/target-guard.ts        # Refuses every database but file: / jpl-india
 │       ├── scoring.ts                # TVT scoring engine, getChipSet()
 │       ├── fixtures.ts               # Round-robin fixture generation
 │       ├── chip-validation.ts        # TVT chip rules validation
@@ -348,7 +348,7 @@ Both admins and superadmins are also re-checked against the database on every re
 
 ### Allowed databases
 
-This repo only ever talks to a local `file:` database or the **`jpl-leagues-accounts`** Turso database. `src/lib/db/target-guard.ts` refuses anything else, production's included, before connecting.
+This repo only ever talks to a local `file:` database or the **`jpl-india`** Turso database. `src/lib/db/target-guard.ts` refuses anything else, production's included, before connecting.
 
 ---
 

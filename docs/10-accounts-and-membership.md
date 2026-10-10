@@ -101,7 +101,7 @@ A person whose users row is gone, or whose session version is stale, reads as si
 
 This repo carries schema production must not receive yet. [`src/lib/db/target-guard.ts`](../src/lib/db/target-guard.ts) allows only two kinds of database:
 - local `file:` databases;
-- the **`jpl-leagues-accounts`** Turso database.
+- the **`jpl-india`** Turso database.
 
 It refuses everything else before a connection is opened, in three places:
 

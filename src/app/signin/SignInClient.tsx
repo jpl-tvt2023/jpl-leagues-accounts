@@ -170,7 +170,7 @@ export function SignInClient({ inApp, currentUrl, next, error }: SignInClientPro
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-900 via-purple-900 to-slate-900">
-      <AppNav context={{ surface: "public", page: "signin" }} activeKey="" brandHref="/" brandLabel="JPL Sports" title="Sign in" />
+      <AppNav context={{ surface: "public", page: "signin" }} activeKey="" brandHref="/" brandLabel="JPL India" title="Sign in" />
 
       <div className="mx-auto max-w-md px-4 sm:px-6 py-10 sm:py-24">
         <div className="text-center mb-8 sm:mb-12">
