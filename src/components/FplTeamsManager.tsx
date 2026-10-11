@@ -22,13 +22,24 @@ export function FplTeamsManager() {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const load = async () => {
+  const fetchTeams = async (): Promise<SavedFplTeam[] | null> => {
     const res = await fetch("/api/me/fpl-teams", { cache: "no-store" });
-    if (res.ok) setTeams((await res.json()).fplTeams);
+    return res.ok ? (await res.json()).fplTeams : null;
+  };
+  const load = async () => {
+    const fresh = await fetchTeams();
+    if (fresh) setTeams(fresh);
   };
 
   useEffect(() => {
-    void load();
+    let cancelled = false;
+    (async () => {
+      const fresh = await fetchTeams();
+      if (!cancelled && fresh) setTeams(fresh);
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const act = async (id: string, method: "PATCH" | "DELETE") => {

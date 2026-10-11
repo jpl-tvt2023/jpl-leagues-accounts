@@ -8,7 +8,7 @@
  */
 
 import { randomBytes } from "node:crypto";
-import { and, asc, eq, gt, inArray, isNull, lte, ne, notExists, or, sql } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, isNull, ne, notExists, or, sql } from "drizzle-orm";
 import {
   auditLogs,
   db,
