@@ -9,6 +9,7 @@ import { BottomNav } from "./BottomNav";
 import { NotificationBell } from "./NotificationBell";
 import { NavIcon } from "./icons/NavIcon";
 import { AccountMenu, DrawerAccountSection } from "./AccountSwitcher";
+import { LeagueMenuButton, LeaguePickerSection } from "./LeaguePicker";
 import { buildNavModel, type NavContext, type NavItem } from "@/lib/nav-links";
 import { useAuctionLiveStatus } from "@/lib/use-auction-live-status";
 
@@ -36,6 +37,11 @@ export interface AppNavProps {
   hideBottomNav?: boolean;
   /** Omitted on surfaces whose model resolves `auth` to "none" (e.g. the admin auction room). */
   onSignOut?: () => void;
+  /**
+   * Inside a league, for a signed-in person: the desktop bar's league name becomes a league
+   * switcher (the logo goes home), and the drawer leads with their leagues. Set by `LeagueNav`.
+   */
+  showLeaguePicker?: boolean;
 }
 
 function toneClass(tone: NavItem["tone"]): string {
@@ -69,6 +75,7 @@ export function AppNav({
   title,
   hideBottomNav = false,
   onSignOut,
+  showLeaguePicker = false,
 }: AppNavProps) {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -155,22 +162,34 @@ export function AppNav({
             </button>
           )}
 
-          {/* Brand. Desktop always; phones only when there is no drawer to carry it. */}
-          <Link
-            href={brandHref}
-            className={`${showHamburger ? "hidden lg:flex" : "flex pl-2 lg:pl-0"} min-w-0 items-center gap-2 shrink-0`}
-          >
-            <Logo className="h-8 w-8 lg:h-10 lg:w-10" />
-            <span className="hidden lg:inline text-xl font-bold text-white truncate">{brandLabel}</span>
-            {brandBadge && (
-              <span
-                className={`hidden lg:inline-block text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded ${brandBadge.bgClass} ${brandBadge.textClass}`}
-                title={`Format: ${brandBadge.label}`}
-              >
-                {brandBadge.label}
+          {/* Brand. Desktop always; phones only when there is no drawer to carry it. In a league,
+              for a signed-in person, the logo goes home and the league name switches leagues. */}
+          {showLeaguePicker ? (
+            <div className={`${showHamburger ? "hidden lg:flex" : "flex pl-2 lg:pl-0"} min-w-0 items-center gap-1 shrink-0`}>
+              <Link href="/" aria-label="My leagues" title="My leagues" className="shrink-0 rounded-full">
+                <Logo className="h-8 w-8 lg:h-10 lg:w-10" />
+              </Link>
+              <span className="hidden lg:block min-w-0">
+                <LeagueMenuButton label={brandLabel} badge={brandBadge} />
               </span>
-            )}
-          </Link>
+            </div>
+          ) : (
+            <Link
+              href={brandHref}
+              className={`${showHamburger ? "hidden lg:flex" : "flex pl-2 lg:pl-0"} min-w-0 items-center gap-2 shrink-0`}
+            >
+              <Logo className="h-8 w-8 lg:h-10 lg:w-10" />
+              <span className="hidden lg:inline text-xl font-bold text-white truncate">{brandLabel}</span>
+              {brandBadge && (
+                <span
+                  className={`hidden lg:inline-block text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded ${brandBadge.bgClass} ${brandBadge.textClass}`}
+                  title={`Format: ${brandBadge.label}`}
+                >
+                  {brandBadge.label}
+                </span>
+              )}
+            </Link>
+          )}
 
           {/* Phone/tablet title block (Material top app bar). */}
           <div className="min-w-0 flex-1 px-2 lg:hidden">
@@ -234,6 +253,7 @@ export function AppNav({
         activeTextClass={activeTextClass}
         onSignOut={signedIn ? onSignOut : undefined}
         accountSection={signedIn ? <DrawerAccountSection onNavigate={closeDrawer} /> : undefined}
+        leaguesSection={signedIn || showLeaguePicker ? <LeaguePickerSection onNavigate={closeDrawer} /> : undefined}
         onClose={closeDrawer}
       />
 

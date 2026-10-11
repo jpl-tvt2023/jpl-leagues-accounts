@@ -81,8 +81,10 @@ export function Scoreboard({
           : "border-white/10 bg-white/5"
       }`}
     >
-      {/* Teams and score */}
-      <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 sm:gap-6">
+      {/* Teams and score. Phones: the two pickers share the first row as full-width controls and
+          the score gets its own row, so neither picker is squeezed beside it. sm and up: one row,
+          score in the middle. */}
+      <div className="grid grid-cols-2 items-start gap-x-2 gap-y-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:items-center sm:gap-6">
         <SideTitle
           side={a}
           label="First team"
@@ -94,8 +96,9 @@ export function Scoreboard({
           margin={margin}
           group={fixture?.group ?? null}
           align="left"
+          accentClass="border-sky-400/40"
         />
-        <div className="flex flex-col items-center gap-1">
+        <div className="col-span-2 row-start-2 flex flex-col items-center gap-1 sm:col-span-1 sm:row-start-auto">
           <StatusPill status={status} deadline={data.gameweek.deadline} now={now} />
           {status === "upcoming" ? (
             <span className="text-sm font-medium text-gray-500">VS</span>
@@ -118,6 +121,7 @@ export function Scoreboard({
           margin={margin}
           group={fixture?.group ?? null}
           align="right"
+          accentClass="border-rose-400/40"
         />
       </div>
 
@@ -222,6 +226,7 @@ function SideTitle({
   margin,
   group,
   align,
+  accentClass,
 }: {
   side: MatchCenterSide;
   label: string;
@@ -233,6 +238,8 @@ function SideTitle({
   margin: number;
   group: string | null;
   align: "left" | "right";
+  /** Phone-only border colour, matching that team's squad table below. */
+  accentClass: string;
 }) {
   const visible = teams.filter((t) => t.id !== exclude && (!t.isGhost || t.id === side.teamId));
   const groups = [...new Set(visible.map((t) => t.group))];
@@ -245,16 +252,18 @@ function SideTitle({
   const right = align === "right";
 
   return (
-    <div className={`min-w-0 ${right ? "text-right" : ""}`}>
-      <div className={`flex items-center gap-1 ${right ? "justify-end" : ""}`}>
-        {right && <span aria-hidden className="text-xs text-gray-500">▾</span>}
+    <div className={`min-w-0 ${right ? "sm:text-right" : ""}`}>
+      {/* Phones: a bordered, full-width control with its caret inside. sm and up: the team's name
+          as a heading-sized picker, caret beside it. */}
+      <div className={`relative flex items-center gap-1 ${right ? "sm:justify-end" : ""}`}>
+        {right && <span aria-hidden className="hidden text-xs text-gray-500 sm:inline">▾</span>}
         <select
           aria-label={label}
           value={side.teamId}
           disabled={disabled}
           onChange={(e) => onSelect(e.target.value)}
-          className={`min-w-0 max-w-full cursor-pointer appearance-none truncate rounded-md bg-transparent px-1 py-0.5 text-base sm:text-xl font-bold text-white hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-sky-400/50 ${
-            right ? "text-right [text-align-last:right]" : ""
+          className={`w-full min-w-0 max-w-full cursor-pointer appearance-none truncate rounded-lg border ${accentClass} bg-white/5 py-2 pl-3 pr-7 text-sm font-bold text-white hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-sky-400/50 sm:w-auto sm:rounded-md sm:border-transparent sm:bg-transparent sm:px-1 sm:py-0.5 sm:text-xl ${
+            right ? "sm:text-right sm:[text-align-last:right]" : ""
           }`}
         >
           {hasGroups
@@ -265,9 +274,10 @@ function SideTitle({
               ))
             : visible.map(option)}
         </select>
-        {!right && <span aria-hidden className="text-xs text-gray-500">▾</span>}
+        <span aria-hidden className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 sm:hidden">▾</span>
+        {!right && <span aria-hidden className="hidden text-xs text-gray-500 sm:inline">▾</span>}
       </div>
-      <div className={`mt-0.5 flex flex-wrap items-center gap-1 px-1 ${right ? "justify-end" : ""}`}>
+      <div className={`mt-1 flex flex-wrap items-center gap-1 px-1 sm:mt-0.5 ${right ? "sm:justify-end" : ""}`}>
         {side.group && <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-gray-300">Group {side.group}</span>}
         {side.tvtChip && (
           <span

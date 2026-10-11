@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { leagueFromRequest, resolveTeamActor, teamActorDenied } from "@/lib/team-actor";
-import { db, teams, players, groups, fixtures, results, gameweeks, gameweekCaptains, gameweekChips, settings, leagues } from "@/lib/db";
+import { db, teams, players, groups, results, gameweeks, gameweekCaptains, gameweekChips, settings, leagues } from "@/lib/db";
 import { eq, and, gt, asc, desc, or, inArray } from "drizzle-orm";
 import { fplEntryUrl } from "@/lib/fpl-links";
 import { fetchBootstrapData } from "@/lib/fpl";
@@ -18,7 +18,7 @@ import {
   type LeagueCaptainRow,
 } from "@/lib/dashboard/league-captains";
 import type { ChallengeMatch } from "@/lib/formats/tvt/challenge-match";
-import { computeCupGroupStandings } from "@/lib/formats/continental-championship/standings";
+import { cupGroupPosition } from "@/lib/formats/continental-championship/cup-progress";
 import { auctionOwnership, auctionScores, auctionSessions } from "@/lib/db/schema";
 import { calculatePurse, calculateRefund, calculateFMV } from "@/lib/formats/auction/economy";
 import { fetchClubOwnershipMap } from "@/lib/teams/rename-rows";
@@ -1024,31 +1024,8 @@ export async function GET(request: NextRequest) {
 
     if (leagueFormat === "continental-championship" && team.groupId) {
       try {
-        const cupGroupTeams = await db.select().from(teams).where(eq(teams.groupId, team.groupId));
-        const cupGroupFixtures = await db.query.fixtures.findMany({
-          where: and(eq(fixtures.groupId, team.groupId), eq(fixtures.competitionType, "cup-group")),
-          with: {
-            result: true,
-            homeTeam: true,
-            awayTeam: true,
-          },
-        });
-        const fixtureResults = cupGroupFixtures.filter(f => f.result).map(f => ({
-          fixtureId: f.id,
-          homeTeamId: f.homeTeamId,
-          awayTeamId: f.awayTeamId,
-          homeScore: f.result!.homeScore,
-          awayScore: f.result!.awayScore,
-          homeMatchPoints: f.result!.homeMatchPoints,
-          awayMatchPoints: f.result!.awayMatchPoints,
-        }));
-        const standings = computeCupGroupStandings(
-          cupGroupTeams.map(t => ({ id: t.id, name: t.name, isGhost: t.isGhost ?? false })),
-          fixtureResults
-        );
-        const humanStandings = standings.filter(s => !s.isGhost);
-        const myStandingIdx = humanStandings.findIndex(s => s.teamId === teamId);
-        const cupGroupRank = myStandingIdx >= 0 ? myStandingIdx + 1 : humanStandings.length;
+        // Shared with the home page, so both always agree on the cup group rank.
+        const { rank: cupGroupRank, standings: humanStandings } = await cupGroupPosition(teamId, team.groupId);
 
         // Last cup result
         const lastCupF = cupTeamFixtures

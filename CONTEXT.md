@@ -40,16 +40,17 @@ CRON_SECRET                 # Bearer token for Vercel Cron endpoints (optional)
 ```
 src/
 ├── app/
-│   ├── page.tsx                        # Home (league browsing)
+│   ├── page.tsx                        # Home: signed in → your leagues (_home/PlayerHome); else league list (_home/PublicHome)
 │   ├── layout.tsx                      # Root layout
 │   ├── signin/page.tsx                 # Google sign-in (the only sign-in)
-│   ├── dashboard/page.tsx              # Redirects to /[league]/dashboard (TeamDashboard.tsx lives here)
+│   ├── dashboard/page.tsx              # Redirects to / (TeamDashboard.tsx lives here; served at /[league]/dashboard)
 │   ├── standings/page.tsx              # Global standings view
 │   ├── fixtures/page.tsx               # Global fixtures (supports ?adminLeague=slug)
 │   ├── playoffs/page.tsx               # Global playoffs (supports ?adminLeague=slug)
 │   ├── rules/page.tsx
 │   ├── [leagueSlug]/
-│   │   ├── fixtures/page.tsx           # League public fixtures
+│   │   ├── fixtures/page.tsx           # League public fixtures (fixtures/[fixtureId] = Match Center)
+│   │   ├── match-center/page.tsx       # Nav entry: redirects to your own match (or the GW's first) in the Match Center
 │   │   ├── standings/page.tsx          # League public standings
 │   │   ├── playoffs/page.tsx           # League public playoffs
 │   │   ├── rules/page.tsx

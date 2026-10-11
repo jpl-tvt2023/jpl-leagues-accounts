@@ -99,9 +99,9 @@ export default function NotificationsPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-900 via-purple-900 to-slate-900">
       <AppNav
-        context={{ surface: "account", backHref: "/dashboard" }}
+        context={{ surface: "account", backHref: "/" }}
         activeKey="notifications"
-        brandHref="/dashboard"
+        brandHref="/"
         brandLabel="Notifications"
         onSignOut={handleSignOut}
       />

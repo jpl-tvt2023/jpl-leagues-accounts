@@ -494,16 +494,42 @@ test.describe.serial("members-mode leagues", () => {
     await expect(page.getByText("How do I join this league?")).toBeVisible();
     await expect(page.getByText("How do I sign in? (team ID)")).toHaveCount(0);
 
+    // Home: her leagues under Football with their status, and a league she isn't in below them.
     await page.goto("/");
-    const hub = page.getByRole("region", { name: "Your leagues" });
-    await expect(hub.getByText(`Members TVT ${run}`)).toBeVisible();
-    await expect(hub.getByText(`Members Auction ${run}`)).toBeVisible();
+    const football = page.getByRole("region", { name: "Football" });
+    const mine = football.getByRole("region", { name: "Your leagues" });
+    await expect(mine.getByText(`Members TVT ${run}`)).toBeVisible();
+    await expect(mine.getByText(`Members Auction ${run}`)).toBeVisible();
+    await expect(mine.getByText("Open dashboard →").first()).toBeVisible();
+    await expect(football.getByRole("region", { name: "Other leagues" }).getByText(`Lock TVT ${run}`)).toBeVisible();
+    await expect(mine.getByText(`Lock TVT ${run}`)).toHaveCount(0);
 
-    // Visiting a league's dashboard remembers it; /dashboard then lands there.
+    // /dashboard no longer jumps into the last league: there's no one dashboard, so it's home.
     await page.goto(`/${tvt.slug}/dashboard`);
-    await expect.poll(async () => (await page.context().cookies()).find((c) => c.name === "jpl_last_league")?.value).toBe(tvt.slug);
     await page.goto("/dashboard");
-    await page.waitForURL(`**/${tvt.slug}/dashboard`);
+    await page.waitForURL((url) => url.pathname === "/");
+
+    // In a league, the league name in the desktop bar switches leagues; the Account menu no
+    // longer lists them.
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto(`/${tvt.slug}/standings`);
+    await page.getByRole("button", { name: "Account", exact: true }).click();
+    await expect(page.getByText("All my leagues")).toHaveCount(0);
+    await page.keyboard.press("Escape");
+    await page.getByRole("button", { name: /switch league/ }).click();
+    await expect(page.getByRole("link", { name: /All my leagues/ })).toBeVisible();
+    await page.getByRole("link", { name: new RegExp(`Members Auction ${run}`) }).click();
+    await page.waitForURL(`**/${auction.slug}/**`);
+  });
+
+  // Fixtures exist by now: the backup test above generated them.
+  test("Match Center is a nav destination: it opens on your own match", async ({ page }) => {
+    await apiSignInUser(page.request, { email: email("alice"), username: uname("alice") });
+    const aliceTeam = (await myTeamIn(email("alice"), tvt.id))!;
+    await page.goto(`/${tvt.slug}/match-center`);
+    await page.waitForURL(new RegExp(`/${tvt.slug}/fixtures/[^/?]+`));
+    const ids = [await page.getByLabel("First team").inputValue(), await page.getByLabel("Second team").inputValue()];
+    expect(ids).toContain(aliceTeam);
   });
 
   test("public help and privacy load signed out", async ({ page }) => {

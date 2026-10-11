@@ -32,6 +32,13 @@ const GLYPHS: Record<IconName, ReactNode> = {
     </>
   ),
   results: <path d="M4 20h16M7 16.5V11M12 16.5V6.5M17 16.5V9" />,
+  // Two squads side by side.
+  "match-center": (
+    <>
+      <rect x="3.5" y="4.5" width="17" height="15" rx="2" />
+      <path d="M12 4.5v15M6.5 9h2.5M6.5 12h2.5M6.5 15h2.5M15 9h2.5M15 12h2.5M15 15h2.5" />
+    </>
+  ),
   teams: (
     <>
       <circle cx="9" cy="8" r="3.5" />

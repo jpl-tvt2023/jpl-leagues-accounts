@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 import { NavIcon } from "./icons/NavIcon";
-import { LeagueSwitcher } from "./LeagueSwitcher";
 import { signOutAccounts, switchAccount, useDeviceAccounts, type DeviceAccount } from "@/lib/accounts-client";
 
 const AVATAR_COLOURS = ["bg-sky-600", "bg-emerald-600", "bg-violet-600", "bg-amber-600", "bg-rose-600", "bg-indigo-600"];
@@ -161,9 +160,6 @@ export function DrawerAccountSection({ onNavigate }: { onNavigate?: () => void }
           <AccountActions accounts={accounts} active={active} onNavigate={onNavigate} />
         </div>
       )}
-      <div className="border-t border-white/10 p-1">
-        <LeagueSwitcher onNavigate={onNavigate} />
-      </div>
     </div>
   );
 }
@@ -224,8 +220,6 @@ export function AccountMenu({ onSignOut, className = "" }: { onSignOut?: () => v
                 <AccountAvatar account={active} />
                 <AccountText account={active} />
               </div>
-              <div className="my-1 border-t border-white/10" />
-              <LeagueSwitcher onNavigate={() => setOpen(false)} />
               <div className="my-1 border-t border-white/10" />
               <AccountActions accounts={accounts} active={active} onNavigate={() => setOpen(false)} />
             </>

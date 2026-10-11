@@ -8,6 +8,7 @@ export interface MyLeagues {
     leagueId: string;
     slug: string;
     leagueName: string;
+    sport: string;
     format: string;
     season: string;
     isActive: boolean;
@@ -19,7 +20,9 @@ export interface MyLeagues {
     needsSetup: boolean;
     role: "owner" | "member";
   }>;
-  adminOf: Array<{ leagueId: string; slug: string; leagueName: string; format: string; season: string }>;
+  adminOf: Array<{ leagueId: string; slug: string; leagueName: string; sport: string; format: string; season: string }>;
+  /** FPL Classic leagues one of the person's saved FPL teams is entered in (no accounts there). */
+  classic: Array<{ leagueId: string; slug: string; leagueName: string; sport: string; entryName: string }>;
   allLeagues: boolean;
   pending: Array<{ requestId: string; leagueId: string; slug: string; leagueName: string }>;
 }
