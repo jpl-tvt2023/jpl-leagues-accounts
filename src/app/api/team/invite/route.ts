@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { and, asc, desc, eq, gt, isNull, or } from "drizzle-orm";
 import { db, leagueInvites, leagues, teamMembers, teams, users } from "@/lib/db";
 import { leagueFromRequest, resolveTeamActor, teamActorDenied } from "@/lib/team-actor";
-import { createPartnerInvite, maxMembersFor, needsSetup, revokeInvite, teamSlots } from "@/lib/membership";
+import { createPartnerInvite, leagueFplLock, maxMembersFor, needsSetup, revokeInvite, teamSlots } from "@/lib/membership";
 
 export const dynamic = "force-dynamic";
 
@@ -25,8 +25,8 @@ async function activeInvite(teamId: string) {
 
 /**
  * GET /api/team/invite?league=<slug> — your team's members (with the FPL slot each has filled in),
- * how many it can have, whether every slot is filled, and (for the owner) the live teammate invite
- * and any partner details they entered themselves.
+ * how many it can have, whether every slot is filled, when the league's FPL teams get fixed, and
+ * (for the owner) the live teammate invite and any partner details they entered themselves.
  */
 export async function GET(request: NextRequest) {
   const ctx = await context(request);
@@ -43,6 +43,7 @@ export async function GET(request: NextRequest) {
   const me = members.find((m) => m.isMe);
   const isOwner = actor.memberRole === "owner";
   const invite = isOwner ? await activeInvite(actor.teamId) : null;
+  const fplLock = await leagueFplLock(actor.leagueId);
   // A slot nobody is linked to: the partner the owner entered (or a past teammate's details).
   const partnerSlot = isOwner && me?.playerId ? (slots.find((s) => !s.userId) ?? null) : null;
   return NextResponse.json({
@@ -58,6 +59,7 @@ export async function GET(request: NextRequest) {
     invite: invite ? { token: invite.token, expiresAt: invite.expiresAt?.toISOString() ?? null } : null,
     partnerSlot: partnerSlot ? { name: partnerSlot.name, fplId: partnerSlot.fplId } : null,
     slotsFilled: slots.length,
+    fplLock: fplLock ? { gw: fplLock.gw, deadline: fplLock.deadline.toISOString() } : null,
   });
 }
 

@@ -181,6 +181,44 @@ test("a superadmin can never be put on a team, by any route", async () => {
   assert.equal((await d.db.select().from(d.teamMembers).where(eq(d.teamMembers.userId, "sa"))).length, 0);
 });
 
+const THIRD = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+const code = (c: string) => (e: Error & { code?: string }) => e.code === c;
+
+test("one FPL team plays for one team per league, but in any number of leagues", async () => {
+  await d.db.insert(d.leagues).values({ id: THIRD, slug: "unit-third", name: "Third", sport: "fpl", format: "tvt", season: "2026-27", teamSize: 2, authMode: "members" });
+  await d.db.insert(d.teams).values([
+    { id: "x1", leagueId: THIRD, name: "X1", teamLoginId: "unit-x1", password: "" },
+    { id: "x2", leagueId: THIRD, name: "X2", teamLoginId: "unit-x2", password: "" },
+  ]);
+  await d.db.insert(d.users).values(["v1", "v2"].map((id) => ({ id, email: `${id}@unit.test`, password: "", name: id, role: "user", username: id })));
+  await m.assignToTeam(THIRD, "x1", "v1", null);
+  await m.assignToTeam(THIRD, "x2", "v2", null);
+
+  await m.saveOwnPlayer("x1", "v1", { name: "V1", fplId: "900" });
+  await assert.rejects(m.saveOwnPlayer("x2", "v2", { name: "V2", fplId: "900" }), (e: Error & { code?: string }) => e.code === "duplicate-fpl-id" && /X1/.test(e.message));
+  // The owner can't enter it as their partner either.
+  await assert.rejects(m.savePartnerByOwner("x1", "v1", { name: "Mate", fplId: "900" }), code("duplicate-fpl-id"));
+  // Another league is fine (o1 is in OTHER, owned by u3 since the transfer above).
+  await m.saveOwnPlayer("o1", "u3", { name: "U3", fplId: "900" });
+});
+
+test("FPL teams are fixed at the league's first fixture deadline; empty slots can still be filled", async () => {
+  assert.equal(await m.leagueFplLock(THIRD), null); // no fixtures yet: not started
+  const future = new Date(Date.now() + 7 * 864e5);
+  await d.db.insert(d.gameweeks).values({ id: "g-third-1", leagueId: THIRD, number: 1, deadline: future });
+  await d.db.insert(d.fixtures).values({ id: "f-third-1", gameweekId: "g-third-1", homeTeamId: "x1", awayTeamId: "x2" });
+  assert.equal(await m.leagueFplLock(THIRD), null); // first deadline still ahead
+  await m.saveOwnPlayer("x1", "v1", { name: "V1", fplId: "901" }); // switching is fine until then
+
+  await d.db.update(d.gameweeks).set({ deadline: new Date(Date.now() - 60_000) }).where(eq(d.gameweeks.id, "g-third-1"));
+  assert.equal((await m.leagueFplLock(THIRD))?.gw, 1);
+  await assert.rejects(m.saveOwnPlayer("x1", "v1", { name: "V1", fplId: "902" }), code("fpl-locked"));
+  await m.saveOwnPlayer("x1", "v1", { name: "V One", fplId: "901" }); // same FPL team: fine (a name change)
+  await m.saveOwnPlayer("x2", "v2", { name: "V2", fplId: "903" }); // an empty slot: filling it is fine
+  await m.savePartnerByOwner("x1", "v1", { name: "Mate", fplId: "904" }); // so is the owner filling theirs
+  await assert.rejects(m.savePartnerByOwner("x1", "v1", { name: "Mate", fplId: "905" }), code("fpl-locked")); // but not changing it
+});
+
 test("superadmins skip onboarding; everyone else picks a username first", async () => {
   const { postSignInPath } = await import("../../src/lib/accounts");
   assert.equal(postSignInPath({ username: null, role: "superadmin" }, "/"), "/superadmin");

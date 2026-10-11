@@ -24,6 +24,8 @@ export interface TeamInfo {
   /** Partner details the owner entered themselves (no one is linked to them yet). */
   partnerSlot: { name: string; fplId: string } | null;
   slotsFilled: number;
+  /** Set once the league's FPL teams are fixed (its first gameweek deadline has passed). */
+  fplLock: { gw: number; deadline: string } | null;
 }
 
 export async function fetchTeamInfo(leagueSlug: string): Promise<{ info: TeamInfo } | { error: string }> {

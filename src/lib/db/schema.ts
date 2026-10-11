@@ -24,7 +24,8 @@ export const users = sqliteTable("users", {
   // Unique handle, stored lowercase. Null until the person finishes onboarding.
   username: text("username"),
   avatarUrl: text("avatar_url"),
-  // The person's own FPL entry id, used to prefill team setup. Text, like players.fplId.
+  // Replaced by user_fpl_teams (a person may run several FPL teams). No longer written; migration
+  // 0026 copied every value into that table.
   fplEntryId: text("fpl_entry_id"),
   lastLoginAt: integer("last_login_at", { mode: "timestamp" }),
   // Bumped to revoke every session at once (demotion, sign out everywhere, account replaced).
@@ -756,6 +757,27 @@ export const userIdentities = sqliteTable("user_identities", {
 }));
 
 /**
+ * The FPL teams a person runs. They pick one of these for each league they play in (team setup
+ * copies its id into their `players` row); a league keeps playing with that id even if it is later
+ * removed from this list. One is their primary, which setup picks for them by default. Team and
+ * manager names are cached from FPL for display only.
+ */
+export const userFplTeams = sqliteTable("user_fpl_teams", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  fplEntryId: text("fpl_entry_id").notNull(),
+  teamName: text("team_name"),
+  managerName: text("manager_name"),
+  // At most one per person (partial unique index below); their first one starts as primary.
+  isPrimary: integer("is_primary", { mode: "boolean" }).notNull().default(false),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+}, (table) => ({
+  userEntryUnique: uniqueIndex("user_fpl_teams_user_entry_unique").on(table.userId, table.fplEntryId),
+  userIdx: index("user_fpl_teams_user").on(table.userId),
+  onePrimary: uniqueIndex("user_fpl_teams_one_primary").on(table.userId).where(sql`is_primary = 1`),
+}));
+
+/**
  * Who is on which team. `leagueId` is denormalised from the team so the one-team-per-league rule
  * is a plain unique index — which is also what makes (user, league) → team unambiguous, the
  * lookup every team-scoped API resolves through (lib/team-actor.ts).
@@ -1031,6 +1053,11 @@ export const usersRelations = relations(users, ({ many }) => ({
   adminOf: many(leagueAdmins),
   identities: many(userIdentities),
   memberships: many(teamMembers),
+  fplTeams: many(userFplTeams),
+}));
+
+export const userFplTeamsRelations = relations(userFplTeams, ({ one }) => ({
+  user: one(users, { fields: [userFplTeams.userId], references: [users.id] }),
 }));
 
 export const userIdentitiesRelations = relations(userIdentities, ({ one }) => ({
@@ -1401,3 +1428,5 @@ export type NewPLStandingsConfig = typeof plStandingsConfig.$inferInsert;
 
 // Tier discriminator for PL Club Auction
 export type ClubTier = "top8" | "mid" | "promoted";
+
+export type UserFplTeam = typeof userFplTeams.$inferSelect;

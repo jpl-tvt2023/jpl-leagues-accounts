@@ -182,9 +182,20 @@ export function accountFaqs(authMode: "legacy" | "members", opts: { twoPlayer: b
               <p>
                 The team owner gets a team link at the end of team setup, or any time from{" "}
                 <strong className={STRONG}>Settings → Your team</strong> (one use, valid 7 days), and sends it to their partner. When
-                the partner opens it and signs in, they join that exact team and add their own name and FPL ID. If your partner
+                the partner opens it and signs in, they join that exact team and pick their own FPL team. If your partner
                 won&apos;t sign in, the owner can enter their details there instead. The team shows as pending until both FPL
                 IDs are in.
+              </p>
+            ),
+          },
+          {
+            question: "Which of my FPL teams plays in this league?",
+            answer: (
+              <p>
+                The one you pick when you join. Keep all your FPL teams on your <strong className={STRONG}>Account</strong> page;
+                your primary one is picked for you. You can switch to another from{" "}
+                <strong className={STRONG}>Settings → Your team</strong> until the league&apos;s first gameweek deadline; after that
+                it&apos;s fixed, and only your league admin can change it. An FPL team can play for only one team in a league.
               </p>
             ),
           },

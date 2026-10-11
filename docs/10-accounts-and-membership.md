@@ -183,12 +183,20 @@ The logic lives in [`src/lib/membership.ts`](../src/lib/membership.ts). Every mu
   - Joining claims the first open, non-ghost team as its owner, then lands on `/{slug}/setup`.
   - With approval on, it files a `join_requests` row instead.
 - **Team setup** (`/{slug}/setup`). Each person sets up only their own part; no login ID to choose (the team key is internal).
-  - TVT / Continental owner: team name → their own name and FPL ID (prefilled from their profile) → invite their partner.
-  - Partner: one step, their own name and FPL ID.
+  - TVT / Continental owner: team name → pick one of their saved FPL teams → invite their partner.
+  - Partner: one step, pick one of their saved FPL teams.
   - Auction: the name only.
+  - A player plays under their display name (`users.name`); setup asks for no name.
   - Saving links the person to *their* FPL slot (`team_members.playerId`), via `saveOwnPlayer`. It uses their existing slot; else the unlinked slot they pick (one the owner entered for them, or a past teammate's); else a new slot if there's room. Nobody else's slot is written, and only the owner's `teamName` counts.
   - "Has setup to do" is per person (`needsSetup`): unlinked to a slot in TVT / Continental, team not named in auction. Join landings, My Leagues and the dashboard redirect all use it.
   - `teams.isProfileComplete` means every FPL slot is filled (`refreshTeamComplete`, 2 for TVT / Continental). Until then the team shows as pending (admin: "Setup Pending"; dashboard: "Waiting for your partner"), though the owner can use the dashboard and the filled slot still scores.
+- **Saved FPL teams** (`user_fpl_teams`, [`src/lib/fpl-teams.ts`](../src/lib/fpl-teams.ts), `/api/me/fpl-teams`). A person keeps every FPL team they run on `/account`, and each is checked against FPL when it's added (at most 10).
+  - FPL teams are optional: onboarding's field can be skipped, and auction leagues never ask. Only joining a TVT / Continental league needs one, and setup's picker can add one on the spot.
+  - One is **primary** (the first one saved, until they choose another; a partial unique index keeps it to one). Setup picks it by default, unless it already plays for another team in that league.
+  - Setup copies the picked id into the person's `players` row. Removing an FPL team from the list doesn't touch a league already playing with it.
+  - **One FPL team per league:** the same FPL id can't play for two teams in one league (`assertFplIdFree` checks the whole league). It can play in any number of leagues.
+  - **Fixed once the league starts:** `leagueFplLock` returns the deadline of the league's first gameweek with a fixture. After it, a slot's FPL id can't be changed by its player (`POST /api/team/fpl-team`) or by the owner's partner entry. It uses fixtures because TVT seeds gameweek rows from GW1 even for mid-season leagues. Filling an empty slot is still allowed (late joiners), and admins can always change it from the team editor.
+  - `users.fpl_entry_id` is no longer written; migration 0026 copied it into `user_fpl_teams` as each person's primary.
 - **Teammates** (TVT / Continental). The owner's team link is single-use and lasts 7 days (`/api/team/invite`). It's offered in setup's last step and on `/{slug}/team` (`PartnerInvitePanel`), and it carries the team id. So the partner lands on that exact team as `member`, unlinked, and adds their own details in setup.
   - Joining never guesses a slot: `joinAsPartner` and `assignToTeam` leave `playerId` null until the person's setup.
   - A partner who won't sign in: the owner enters their details (`POST /api/team/partner`, `savePartnerByOwner`) into an unlinked slot. If the partner joins later, they take that slot over in their setup.

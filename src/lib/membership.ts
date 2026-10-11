@@ -8,10 +8,12 @@
  */
 
 import { randomBytes } from "node:crypto";
-import { and, asc, eq, gt, inArray, isNull, notExists, or, sql } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, isNull, lte, ne, notExists, or, sql } from "drizzle-orm";
 import {
   auditLogs,
   db,
+  fixtures,
+  gameweeks,
   joinRequests,
   leagueAdmins,
   leagueInvites,
@@ -470,9 +472,51 @@ export function readPlayerDetails(input: { name?: unknown; fplId?: unknown }, wh
   return { name, fplId };
 }
 
-function assertFplIdFree(slots: PlayerSlot[], fplId: string, exceptSlotId: string | null): void {
+/**
+ * One FPL team plays for at most one team per league (it can play in any number of leagues).
+ * `exceptSlotId` is the slot being written, which may already hold that id.
+ */
+async function assertFplIdFree(dbx: Db, leagueId: string, slots: PlayerSlot[], fplId: string, exceptSlotId: string | null): Promise<void> {
   if (slots.some((s) => s.id !== exceptSlotId && s.fplId === fplId)) {
     throw new MembershipError("That FPL ID is already on your team.", 409, "duplicate-fpl-id");
+  }
+  const [elsewhere] = await dbx
+    .select({ teamName: teams.name })
+    .from(players)
+    .innerJoin(teams, eq(teams.id, players.teamId))
+    .where(and(eq(teams.leagueId, leagueId), eq(players.fplId, fplId), exceptSlotId ? ne(players.id, exceptSlotId) : undefined))
+    .limit(1);
+  if (elsewhere) {
+    throw new MembershipError(`That FPL team already plays for ${elsewhere.teamName} in this league.`, 409, "duplicate-fpl-id");
+  }
+}
+
+/**
+ * When a league's FPL teams were fixed: the deadline of its first gameweek with a fixture, once
+ * that has passed. Null until then, and for a league with no fixtures yet. After this, people
+ * can't switch which FPL team plays for them (only league admins can, from the team editor),
+ * though an empty slot can still be filled by someone joining late.
+ *
+ * Fixtures, not gameweek rows, mark the start: TVT seeds rows from GW1 even for a league created
+ * mid-season, and some admin tools insert rows with made-up deadlines.
+ */
+export async function leagueFplLock(leagueId: string, dbx: Db = db): Promise<{ gw: number; deadline: Date } | null> {
+  const [first] = await dbx
+    .select({ gw: gameweeks.number, deadline: gameweeks.deadline })
+    .from(fixtures)
+    .innerJoin(gameweeks, eq(gameweeks.id, fixtures.gameweekId))
+    .where(eq(gameweeks.leagueId, leagueId))
+    .orderBy(asc(gameweeks.number))
+    .limit(1);
+  return first && first.deadline <= new Date() ? first : null;
+}
+
+/** Refuse to change an FPL id a slot already plays with, once the league's FPL teams are fixed. */
+async function assertFplChangeAllowed(dbx: Db, leagueId: string, current: string | null | undefined, next: string): Promise<void> {
+  if (!current || current === next) return;
+  const lock = await leagueFplLock(leagueId, dbx);
+  if (lock) {
+    throw new MembershipError(`FPL teams were fixed at the GW${lock.gw} deadline. Ask your league admin to change it.`, 409, "fpl-locked");
   }
 }
 
@@ -494,7 +538,7 @@ export async function saveOwnPlayer(
       .where(and(eq(teamMembers.teamId, teamId), eq(teamMembers.userId, userId)))
       .limit(1);
     if (!me) throw new MembershipError("You're not on this team.", 403, "not-member");
-    const { format } = await teamLeague(tx, teamId);
+    const { leagueId, format } = await teamLeague(tx, teamId);
     if (!hasPlayerSlots(format)) throw new MembershipError("Teams in this format don't have FPL slots.");
     const slots = await teamSlots(teamId, tx);
 
@@ -507,7 +551,8 @@ export async function saveOwnPlayer(
     if (!target && slots.length >= maxMembersFor(format)) {
       throw new MembershipError("Pick which of your team's FPL slots is yours.", 409, "pick-slot");
     }
-    assertFplIdFree(slots, details.fplId, target?.id ?? null);
+    await assertFplChangeAllowed(tx, leagueId, target?.fplId, details.fplId);
+    await assertFplIdFree(tx, leagueId, slots, details.fplId, target?.id ?? null);
 
     const playerId = target?.id ?? generateId();
     if (target) await tx.update(players).set({ ...details, updatedAt: new Date() }).where(eq(players.id, playerId));
@@ -537,7 +582,8 @@ export async function savePartnerByOwner(teamId: string, ownerUserId: string, de
     const slots = await teamSlots(teamId, tx);
     const open = slots.find((s) => !s.userId) ?? null;
     if (!open && slots.length >= maxMembersFor(format)) throw new MembershipError("Your team already has its full line-up.", 409, "team-full");
-    assertFplIdFree(slots, details.fplId, open?.id ?? null);
+    await assertFplChangeAllowed(tx, leagueId, open?.fplId, details.fplId);
+    await assertFplIdFree(tx, leagueId, slots, details.fplId, open?.id ?? null);
 
     const playerId = open?.id ?? generateId();
     if (open) await tx.update(players).set({ ...details, updatedAt: new Date() }).where(eq(players.id, playerId));
