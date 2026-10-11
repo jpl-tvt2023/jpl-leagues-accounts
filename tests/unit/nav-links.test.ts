@@ -230,3 +230,11 @@ test("public pages: home offers Sign In, sign-in links back to the leagues, mid-
   assert.deepEqual(flow.flat, []);
   assert.deepEqual(flow.auth, { kind: "none" });
 });
+
+test("public home: a signed-in person gets their account menu, and nothing shows while checking", () => {
+  assert.deepEqual(buildNavModel({ surface: "public", page: "home", signedIn: true }).auth, { kind: "signOut" });
+  assert.deepEqual(buildNavModel({ surface: "public", page: "home", signedIn: false }).auth, { kind: "signIn", href: "/signin" });
+  assert.deepEqual(buildNavModel({ surface: "public", page: "home", signedIn: null }).auth, { kind: "none" });
+  // Only the home page reads it: other public pages stay as they are.
+  assert.deepEqual(buildNavModel({ surface: "public", page: "flow", signedIn: true }).auth, { kind: "none" });
+});
