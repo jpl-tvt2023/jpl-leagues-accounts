@@ -62,7 +62,10 @@ The agent **must** touch every domain. For domains where the agent finds nothing
      bumping `users.session_version` revokes access on the very next request; every team-scoped route goes
      through `resolveTeamActor` / `sessionActsAsTeam` / `sessionTeamIdInLeague` (`tests/unit/team-actor-guard.test.ts`).
    - Planned (Phases 2–3): Google sign-in and email auto-link, username rules, invite expiry / max uses /
-     revoke, approval mode, partner invites, the iOS home-screen handoff, account replacement and transfer.
+     revoke, approval mode, the iOS home-screen handoff, account replacement and transfer.
+   - Partner setup (`tests/accounts/members-leagues.spec.ts`): owner and partner each enter only their own FPL
+     details; the team stays pending until both slots are filled; the owner can enter a partner who won't sign
+     in, whom the partner later takes over; a teammate can't rename the team or enter the partner.
 2. **Dashboard** — per-format dashboards. Cross-format consistency. Rank/points math.
    - `src/app/dashboard/page.tsx`, `src/app/api/team/dashboard/route.ts`.
 3. **Standings** — classic + auction + cup; live-cache invalidation; tie-breakers.

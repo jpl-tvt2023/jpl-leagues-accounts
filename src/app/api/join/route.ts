@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { eq } from "drizzle-orm";
-import { db, leagues, teams } from "@/lib/db";
+import { db, leagues } from "@/lib/db";
 import { getRequestPerson } from "@/lib/accounts";
 import {
   MembershipError,
@@ -9,6 +9,7 @@ import {
   fileJoinRequest,
   joinAsPartner,
   loadInvite,
+  teamLanding,
   teamOfUserInLeague,
   INVITE_PROBLEM_MESSAGES,
   SUPERADMIN_CANNOT_JOIN,
@@ -16,15 +17,9 @@ import {
 
 export const dynamic = "force-dynamic";
 
-/** Setup first if the team hasn't been set up yet, otherwise the team's dashboard. */
-async function landingFor(slug: string, teamId: string): Promise<string> {
-  const [team] = await db.select({ done: teams.isProfileComplete }).from(teams).where(eq(teams.id, teamId)).limit(1);
-  return team?.done ? `/${slug}/dashboard` : `/${slug}/setup`;
-}
-
 /**
  * POST /api/join { token } — use an invite link.
- * - Teammate invite: join that team, in the free FPL slot.
+ * - Teammate invite: join that team; setup then asks for their own FPL details.
  * - League invite with approval on: file a request for the league's admins.
  * - League invite: claim the first open team, as its owner.
  * Responds { status: "joined" | "pending" | "already-member", redirectTo }.
@@ -42,7 +37,7 @@ export async function POST(request: NextRequest) {
 
   const existing = await teamOfUserInLeague(person.id, league.id);
   if (existing) {
-    return NextResponse.json({ status: "already-member", redirectTo: await landingFor(league.slug, existing.teamId) });
+    return NextResponse.json({ status: "already-member", redirectTo: await teamLanding(person.id, league.id, league.slug) });
   }
   if (loaded.problem) {
     return NextResponse.json({ error: INVITE_PROBLEM_MESSAGES[loaded.problem], code: loaded.problem }, { status: 410 });
@@ -50,15 +45,15 @@ export async function POST(request: NextRequest) {
 
   try {
     if (invite.teamId) {
-      const teamId = await joinAsPartner(invite, person.id);
-      return NextResponse.json({ status: "joined", redirectTo: await landingFor(league.slug, teamId) });
+      await joinAsPartner(invite, person.id);
+      return NextResponse.json({ status: "joined", redirectTo: await teamLanding(person.id, league.id, league.slug) });
     }
     if (invite.requiresApproval) {
       await fileJoinRequest(league.id, person.id, invite.id);
       return NextResponse.json({ status: "pending", redirectTo: `/join/${encodeURIComponent(invite.token)}` });
     }
-    const teamId = await claimOpenSlot(league.id, person.id, invite.id);
-    return NextResponse.json({ status: "joined", redirectTo: await landingFor(league.slug, teamId) });
+    await claimOpenSlot(league.id, person.id, invite.id);
+    return NextResponse.json({ status: "joined", redirectTo: await teamLanding(person.id, league.id, league.slug) });
   } catch (err) {
     if (err instanceof MembershipError) return NextResponse.json({ error: err.message, code: err.code }, { status: err.status });
     throw err;

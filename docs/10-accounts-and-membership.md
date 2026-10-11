@@ -182,12 +182,18 @@ The logic lives in [`src/lib/membership.ts`](../src/lib/membership.ts). Every mu
   - or "already in this league", or a clear message for a broken link.
   - Joining claims the first open, non-ghost team as its owner, then lands on `/{slug}/setup`.
   - With approval on, it files a `join_requests` row instead.
-- **Team setup** (`/{slug}/setup`).
-  - No login ID to choose: the team key is internal.
-  - Player 1 is prefilled from the person's profile.
-  - On save, each member is linked to an FPL slot: owner = player 1, teammate = player 2.
-- **Teammates** (TVT / Continental). From `/{slug}/team`, the owner creates a single-use, 7-day link (`/api/team/invite`). The partner joins as `member` in the free FPL slot.
-  - The team can be complete without the partner ever having an account.
+- **Team setup** (`/{slug}/setup`). Each person sets up only their own part; no login ID to choose (the team key is internal).
+  - TVT / Continental owner: team name → their own name and FPL ID (prefilled from their profile) → invite their partner.
+  - Partner: one step, their own name and FPL ID.
+  - Auction: the name only.
+  - Saving links the person to *their* FPL slot (`team_members.playerId`), via `saveOwnPlayer`. It uses their existing slot; else the unlinked slot they pick (one the owner entered for them, or a past teammate's); else a new slot if there's room. Nobody else's slot is written, and only the owner's `teamName` counts.
+  - "Has setup to do" is per person (`needsSetup`): unlinked to a slot in TVT / Continental, team not named in auction. Join landings, My Leagues and the dashboard redirect all use it.
+  - `teams.isProfileComplete` means every FPL slot is filled (`refreshTeamComplete`, 2 for TVT / Continental). Until then the team shows as pending (admin: "Setup Pending"; dashboard: "Waiting for your partner"), though the owner can use the dashboard and the filled slot still scores.
+- **Teammates** (TVT / Continental). The owner's team link is single-use and lasts 7 days (`/api/team/invite`). It's offered in setup's last step and on `/{slug}/team` (`PartnerInvitePanel`), and it carries the team id. So the partner lands on that exact team as `member`, unlinked, and adds their own details in setup.
+  - Joining never guesses a slot: `joinAsPartner` and `assignToTeam` leave `playerId` null until the person's setup.
+  - A partner who won't sign in: the owner enters their details (`POST /api/team/partner`, `savePartnerByOwner`) into an unlinked slot. If the partner joins later, they take that slot over in their setup.
+  - Admins can also fill a missing player 2 from the team edit modal (`update-team` inserts it).
+  - League invite links in two-manager formats warn that they make a team of your own, so partners use the team link instead.
 - **Dashboard** at `/{slug}/dashboard`. Every team API call carries `?league=`.
   - `/dashboard` redirects to the league used last (`jpl_last_league` cookie, also used by the PWA `/launch`), else the viewer's home.
 - **Switching.**

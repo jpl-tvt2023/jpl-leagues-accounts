@@ -333,6 +333,11 @@ function DeadlineTimer({ deadline, gameweek, serverTime, label, expiredLabel }: 
 // (with its own "Enter Room" link), so this card only covers a genuinely different case — a
 // scheduled-but-not-yet-started auction's countdown — to avoid showing two links to the same room.
 // Returns null when there's no scheduled auction so the card collapses.
+/** The team's FPL slots for the captain picker. A team still waiting for its partner has just one. */
+function captainSlots(c: DashboardData["captaincyStatus"]) {
+  return [c.player1, c.player2].filter((p) => p.id);
+}
+
 function NextDeadlineContent({ data }: { data: AuctionDashboardData }) {
   // Scheduled upcoming auction
   if (data.nextAuction) {
@@ -892,6 +897,8 @@ export function TeamDashboard({ routeSlug }: { routeSlug: string }) {
   const [leagueSlug, setLeagueSlug] = useState<string>("");
   const [leagueFormat, setLeagueFormat] = useState<string>("tvt");
   const [leagueTeamSize, setLeagueTeamSize] = useState<number | null>(null);
+  // TVT / Continental: you've added your details but your partner hasn't (the team is pending).
+  const [partnerPending, setPartnerPending] = useState(false);
   // Shared JPL / Cup toggle for Continental Championship — governs both the Last Result
   // card and the Standings card so switching "which competition am I looking at" is one
   // consistent action instead of two separately-scrolled cards.
@@ -1041,7 +1048,7 @@ export function TeamDashboard({ routeSlug }: { routeSlug: string }) {
     // Check auth status and profile completion before loading dashboard
     const checkAuth = async () => {
       try {
-        // The setup API says whose team this is in this league, and whether it's set up.
+        // The setup API says whose team this is in this league, and whether you've set up your part.
         const setupRes = await fetch(withLeague("/api/team/setup"));
         if (setupRes.status === 401) {
           router.push(`/signin?next=${encodeURIComponent(`/${routeSlug}/dashboard`)}`);
@@ -1051,10 +1058,12 @@ export function TeamDashboard({ routeSlug }: { routeSlug: string }) {
           router.push(`/${routeSlug}`); // not on a team in this league
           return;
         }
-        if (!(await setupRes.json()).isProfileComplete) {
+        const setup = await setupRes.json();
+        if (setup.needsSetup) {
           router.push(`/${routeSlug}/setup`);
           return;
         }
+        setPartnerPending(setup.maxMembers > 1 && !setup.isProfileComplete);
         document.cookie = `${LAST_LEAGUE_COOKIE}=${encodeURIComponent(routeSlug)}; path=/; max-age=31536000; samesite=lax`;
         fetchDashboard();
       } catch (err) {
@@ -1606,6 +1615,18 @@ export function TeamDashboard({ routeSlug }: { routeSlug: string }) {
           </p>
         </div>
 
+        {partnerPending && (
+          <Link
+            href={`/${routeSlug}/team`}
+            className="mb-6 block rounded-2xl border border-yellow-500/40 bg-yellow-500/10 p-4 text-sm text-yellow-100 transition hover:bg-yellow-500/20"
+          >
+            <span className="block font-semibold text-yellow-200">Waiting for your partner</span>
+            <span className="mt-1 block text-yellow-100/80">
+              Your team is pending until your partner adds their FPL details. Send them your team link, or enter their details yourself →
+            </span>
+          </Link>
+        )}
+
         <InstallBanner className="mb-6" />
 
         {/* Main Grid. Below `lg` the two column wrappers are `display: contents`, so their cards
@@ -1767,20 +1788,12 @@ export function TeamDashboard({ routeSlug }: { routeSlug: string }) {
                         onChange={setSelectedCaptain}
                         disabled={isSubmitting || data.submission.state !== "open"}
                         placeholder="Select captain..."
-                        options={[
-                          {
-                            value: data.captaincyStatus.player1.id,
-                            label: `${data.captaincyStatus.player1.name} (${data.captaincyStatus.player1.chipsRemaining >= 999 ? "unlimited" : `${data.captaincyStatus.player1.chipsRemaining} left`})`,
-                            disabled: data.captaincyStatus.player1.chipsRemaining <= 0,
-                            reason: data.captaincyStatus.player1.reason,
-                          },
-                          {
-                            value: data.captaincyStatus.player2.id,
-                            label: `${data.captaincyStatus.player2.name} (${data.captaincyStatus.player2.chipsRemaining >= 999 ? "unlimited" : `${data.captaincyStatus.player2.chipsRemaining} left`})`,
-                            disabled: data.captaincyStatus.player2.chipsRemaining <= 0,
-                            reason: data.captaincyStatus.player2.reason,
-                          },
-                        ]}
+                        options={captainSlots(data.captaincyStatus).map((p) => ({
+                          value: p.id,
+                          label: `${p.name} (${p.chipsRemaining >= 999 ? "unlimited" : `${p.chipsRemaining} left`})`,
+                          disabled: p.chipsRemaining <= 0,
+                          reason: p.reason,
+                        }))}
                       />
                     </div>
                     <button
@@ -1791,14 +1804,12 @@ export function TeamDashboard({ routeSlug }: { routeSlug: string }) {
                       {isSubmitting ? "Submitting..." : data.upcomingCaptain ? "Switch Captain" : "Announce Captain"}
                     </button>
                     <div className="mt-4 grid sm:grid-cols-2 gap-3 max-w-md text-sm text-gray-400">
-                      <div className="flex justify-between p-2 rounded-lg bg-white/5">
-                        <span>{data.captaincyStatus.player1.name}</span>
-                        <span>{data.captaincyStatus.player1.chipsRemaining >= 999 ? "unlimited" : `${data.captaincyStatus.player1.chipsRemaining}/${data.captaincyStatus.cap} left`}</span>
-                      </div>
-                      <div className="flex justify-between p-2 rounded-lg bg-white/5">
-                        <span>{data.captaincyStatus.player2.name}</span>
-                        <span>{data.captaincyStatus.player2.chipsRemaining >= 999 ? "unlimited" : `${data.captaincyStatus.player2.chipsRemaining}/${data.captaincyStatus.cap} left`}</span>
-                      </div>
+                      {captainSlots(data.captaincyStatus).map((p) => (
+                        <div key={p.id} className="flex justify-between p-2 rounded-lg bg-white/5">
+                          <span>{p.name}</span>
+                          <span>{p.chipsRemaining >= 999 ? "unlimited" : `${p.chipsRemaining}/${data.captaincyStatus.cap} left`}</span>
+                        </div>
+                      ))}
                     </div>
                   </>
                 )}
@@ -1893,20 +1904,12 @@ export function TeamDashboard({ routeSlug }: { routeSlug: string }) {
                           onChange={setSelectedCaptain}
                           disabled={isSubmitting || data.submission.state !== "open"}
                           placeholder="Select captain..."
-                          options={[
-                            {
-                              value: data.captaincyStatus.player1.id,
-                              label: `${data.captaincyStatus.player1.name} (${data.captaincyStatus.player1.chipsRemaining >= 999 ? "unlimited" : `${data.captaincyStatus.player1.chipsRemaining} chips left`})`,
-                              disabled: data.captaincyStatus.player1.chipsRemaining <= 0,
-                              reason: data.captaincyStatus.player1.reason,
-                            },
-                            {
-                              value: data.captaincyStatus.player2.id,
-                              label: `${data.captaincyStatus.player2.name} (${data.captaincyStatus.player2.chipsRemaining >= 999 ? "unlimited" : `${data.captaincyStatus.player2.chipsRemaining} chips left`})`,
-                              disabled: data.captaincyStatus.player2.chipsRemaining <= 0,
-                              reason: data.captaincyStatus.player2.reason,
-                            },
-                          ]}
+                          options={captainSlots(data.captaincyStatus).map((p) => ({
+                            value: p.id,
+                            label: `${p.name} (${p.chipsRemaining >= 999 ? "unlimited" : `${p.chipsRemaining} chips left`})`,
+                            disabled: p.chipsRemaining <= 0,
+                            reason: p.reason,
+                          }))}
                         />
                       </div>
                       <button
@@ -1919,14 +1922,12 @@ export function TeamDashboard({ routeSlug }: { routeSlug: string }) {
                     </>
                   )}
                   <div className="mt-3 text-sm text-gray-400">
-                    <div className="flex justify-between">
-                      <span>{data.captaincyStatus.player1.name}</span>
-                      <span>{data.captaincyStatus.player1.chipsRemaining >= 999 ? "unlimited" : `${data.captaincyStatus.player1.chipsRemaining}/${data.captaincyStatus.cap} chips left`}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>{data.captaincyStatus.player2.name}</span>
-                      <span>{data.captaincyStatus.player2.chipsRemaining >= 999 ? "unlimited" : `${data.captaincyStatus.player2.chipsRemaining}/${data.captaincyStatus.cap} chips left`}</span>
-                    </div>
+                    {captainSlots(data.captaincyStatus).map((p) => (
+                      <div key={p.id} className="flex justify-between">
+                        <span>{p.name}</span>
+                        <span>{p.chipsRemaining >= 999 ? "unlimited" : `${p.chipsRemaining}/${data.captaincyStatus.cap} chips left`}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
 

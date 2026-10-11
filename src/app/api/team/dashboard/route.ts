@@ -123,7 +123,8 @@ export async function GET(request: NextRequest) {
       where: eq(teams.id, teamId),
       with: {
         group: true,
-        players: true,
+        // Same order as team setup: player 1 is the first slot filled.
+        players: { orderBy: (p, { asc }) => [asc(p.createdAt), asc(p.id)] },
         homeFixtures: {
           with: {
             result: true,

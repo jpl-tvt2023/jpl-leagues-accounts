@@ -162,7 +162,8 @@ export async function GET(request: NextRequest) {
     const [allTeams, clubByTeamId] = await Promise.all([
       db.query.teams.findMany({
         where: and(eq(teams.leagueId, leagueId), eq(teams.isGhost, false)),
-        with: { players: true, group: true },
+        // Same player order as team setup: player 1 is the first slot filled.
+        with: { players: { orderBy: (p, { asc }) => [asc(p.createdAt), asc(p.id)] }, group: true },
       }),
       fetchClubOwnershipMap(leagueId),
     ]);

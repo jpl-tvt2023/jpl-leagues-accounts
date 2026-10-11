@@ -180,9 +180,11 @@ export function accountFaqs(authMode: "legacy" | "members", opts: { twoPlayer: b
             question: "How do I add my teammate?",
             answer: (
               <p>
-                From <strong className={STRONG}>Settings → Your team</strong>, the team owner creates a teammate invite (one use, valid
-                7 days) and sends it to them. You can enter their FPL ID in team setup straight away — the team plays either way;
-                the invite just gives them their own sign-in.
+                The team owner gets a team link at the end of team setup, or any time from{" "}
+                <strong className={STRONG}>Settings → Your team</strong> (one use, valid 7 days), and sends it to their partner. When
+                the partner opens it and signs in, they join that exact team and add their own name and FPL ID. If your partner
+                won&apos;t sign in, the owner can enter their details there instead. The team shows as pending until both FPL
+                IDs are in.
               </p>
             ),
           },

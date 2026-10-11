@@ -347,16 +347,10 @@ async function alreadyInLeague(dbx: Db, userId: string, leagueId: string): Promi
   return !!row;
 }
 
-/** The team's FPL slot no member is linked to yet — where a new teammate goes. */
-async function freePlayerSlot(dbx: Db, teamId: string): Promise<string | null> {
-  const teamPlayers = await dbx.select({ id: players.id }).from(players).where(eq(players.teamId, teamId)).orderBy(asc(players.createdAt), asc(players.id));
-  const taken = new Set(
-    (await dbx.select({ playerId: teamMembers.playerId }).from(teamMembers).where(eq(teamMembers.teamId, teamId))).map((r) => r.playerId),
-  );
-  return teamPlayers.find((p) => !taken.has(p.id))?.id ?? null;
-}
-
-/** Join a specific team as its owner's teammate, through a partner invite. */
+/**
+ * Join a specific team as its owner's teammate, through a partner invite. They aren't linked to an
+ * FPL slot yet: team setup asks for their own details (or which slot is theirs) next.
+ */
 export async function joinAsPartner(invite: LeagueInvite, userId: string): Promise<string> {
   if (!invite.teamId) throw new MembershipError("Not a teammate invite.");
   const teamId = invite.teamId;
@@ -369,7 +363,7 @@ export async function joinAsPartner(invite: LeagueInvite, userId: string): Promi
       if (Number(n) >= maxMembersFor(league?.format ?? "")) throw new MembershipError("This team already has its full line-up.", 409, "team-full");
       if (!(await spendInvite(tx, invite.id))) throw new MembershipError("This invite has already been used.", 410, "used-up");
       const role = Number(n) === 0 ? "owner" : "member";
-      await tx.insert(teamMembers).values({ id: generateId(), teamId, leagueId: invite.leagueId, userId, role, playerId: await freePlayerSlot(tx, teamId) });
+      await tx.insert(teamMembers).values({ id: generateId(), teamId, leagueId: invite.leagueId, userId, role });
       await audit(tx, "MEMBER_JOINED", "Joined as teammate via invite", { userId, leagueId: invite.leagueId, teamId });
       return teamId;
     });
@@ -377,6 +371,180 @@ export async function joinAsPartner(invite: LeagueInvite, userId: string): Promi
     if (isUniqueViolation(err)) throw new MembershipError("You're already in this league.", 409, "already-member");
     throw err;
   }
+}
+
+// ─── FPL slots (team setup) ──────────────────────────────────────────────────
+
+/** Formats where each person on a team is one of its FPL managers (one `players` row each). */
+export function hasPlayerSlots(format: string): boolean {
+  return maxMembersFor(format) >= 2;
+}
+
+/**
+ * Whether a person still has team setup to do. In TVT and Continental everyone enters their own
+ * FPL details, so that's until they're linked to one of the team's FPL slots; in auction leagues
+ * it's until the team is named.
+ */
+export function needsSetup(t: { format: string; isProfileComplete: boolean; playerId: string | null }): boolean {
+  return hasPlayerSlots(t.format) ? !t.playerId : !t.isProfileComplete;
+}
+
+/** Where a person's link to their team goes: setup while they have some to do, else the dashboard. */
+export async function teamLanding(userId: string, leagueId: string, slug: string): Promise<string> {
+  const [row] = await db
+    .select({ format: leagues.format, isProfileComplete: teams.isProfileComplete, playerId: teamMembers.playerId })
+    .from(teamMembers)
+    .innerJoin(teams, eq(teams.id, teamMembers.teamId))
+    .innerJoin(leagues, eq(leagues.id, teamMembers.leagueId))
+    .where(and(eq(teamMembers.userId, userId), eq(teamMembers.leagueId, leagueId)))
+    .limit(1);
+  if (!row) return `/${slug}`;
+  return needsSetup(row) ? `/${slug}/setup` : `/${slug}/dashboard`;
+}
+
+export interface PlayerSlot {
+  id: string;
+  name: string;
+  fplId: string;
+  /** The person linked to this slot, if anyone is. */
+  userId: string | null;
+  role: "owner" | "member" | null;
+}
+
+/** A team's FPL slots in a stable order, each with the person linked to it (if any). */
+export async function teamSlots(teamId: string, dbx: Db = db): Promise<PlayerSlot[]> {
+  const rows = await dbx
+    .select({ id: players.id, name: players.name, fplId: players.fplId })
+    .from(players)
+    .where(eq(players.teamId, teamId))
+    .orderBy(asc(players.createdAt), asc(players.id));
+  const links = await dbx
+    .select({ playerId: teamMembers.playerId, userId: teamMembers.userId, role: teamMembers.role })
+    .from(teamMembers)
+    .where(eq(teamMembers.teamId, teamId));
+  return rows.map((p) => {
+    const link = links.find((l) => l.playerId === p.id);
+    return { ...p, userId: link?.userId ?? null, role: link?.role ?? null };
+  });
+}
+
+async function teamLeague(dbx: Db, teamId: string): Promise<{ leagueId: string; format: string }> {
+  const [row] = await dbx.select({ leagueId: teams.leagueId, format: leagues.format }).from(teams).innerJoin(leagues, eq(leagues.id, teams.leagueId)).where(eq(teams.id, teamId)).limit(1);
+  if (!row) throw new MembershipError("Team not found", 404);
+  return row;
+}
+
+/**
+ * A two-manager team is set up once every FPL slot is filled: each partner entered their own
+ * details, or the owner entered a partner who won't sign in. Call after writing a team's player
+ * rows. Auction teams are left alone; setup marks those itself once they're named.
+ */
+export async function refreshTeamComplete(teamId: string, dbx: Db = db): Promise<boolean> {
+  const [team] = await dbx
+    .select({ format: leagues.format, done: teams.isProfileComplete })
+    .from(teams)
+    .innerJoin(leagues, eq(leagues.id, teams.leagueId))
+    .where(eq(teams.id, teamId))
+    .limit(1);
+  if (!team) return false;
+  if (!hasPlayerSlots(team.format)) return team.done;
+  const [{ n }] = await dbx.select({ n: sql<number>`count(*)` }).from(players).where(eq(players.teamId, teamId));
+  const done = Number(n) >= maxMembersFor(team.format);
+  if (done !== team.done) await dbx.update(teams).set({ isProfileComplete: done, updatedAt: new Date() }).where(eq(teams.id, teamId));
+  return done;
+}
+
+export interface PlayerDetails {
+  name: string;
+  fplId: string;
+}
+
+/** A name and FPL ID from a form, cleaned up, or what's wrong with them. `who` starts the error ("Your", "Your partner's"). */
+export function readPlayerDetails(input: { name?: unknown; fplId?: unknown }, who = "Your"): PlayerDetails | { error: string } {
+  const name = typeof input.name === "string" ? input.name.trim() : "";
+  const fplId = typeof input.fplId === "string" || typeof input.fplId === "number" ? String(input.fplId).trim() : "";
+  if (!name) return { error: `${who} name is required` };
+  if (name.length > 60) return { error: `${who} name is too long (60 characters at most)` };
+  if (!fplId) return { error: `${who} FPL ID is required` };
+  if (!/^\d{1,10}$/.test(fplId)) return { error: `${who} FPL ID must be a number` };
+  return { name, fplId };
+}
+
+function assertFplIdFree(slots: PlayerSlot[], fplId: string, exceptSlotId: string | null): void {
+  if (slots.some((s) => s.id !== exceptSlotId && s.fplId === fplId)) {
+    throw new MembershipError("That FPL ID is already on your team.", 409, "duplicate-fpl-id");
+  }
+}
+
+/**
+ * Save a person's own FPL details on their team and link them to that slot: the slot they're
+ * already linked to; else the unlinked slot they picked (one the owner filled in for them, or a
+ * past teammate's); else a new slot if the team has room. Never writes anyone else's slot.
+ */
+export async function saveOwnPlayer(
+  teamId: string,
+  userId: string,
+  details: PlayerDetails,
+  pickedSlotId: string | null = null,
+): Promise<{ playerId: string; teamComplete: boolean }> {
+  return writeTx(async (tx) => {
+    const [me] = await tx
+      .select({ id: teamMembers.id, playerId: teamMembers.playerId })
+      .from(teamMembers)
+      .where(and(eq(teamMembers.teamId, teamId), eq(teamMembers.userId, userId)))
+      .limit(1);
+    if (!me) throw new MembershipError("You're not on this team.", 403, "not-member");
+    const { format } = await teamLeague(tx, teamId);
+    if (!hasPlayerSlots(format)) throw new MembershipError("Teams in this format don't have FPL slots.");
+    const slots = await teamSlots(teamId, tx);
+
+    let target = me.playerId ? (slots.find((s) => s.id === me.playerId) ?? null) : null;
+    if (!target && pickedSlotId) {
+      target = slots.find((s) => s.id === pickedSlotId) ?? null;
+      if (!target) throw new MembershipError("That FPL slot isn't on your team.", 400, "bad-slot");
+      if (target.userId) throw new MembershipError("That FPL slot belongs to your teammate.", 409, "slot-taken");
+    }
+    if (!target && slots.length >= maxMembersFor(format)) {
+      throw new MembershipError("Pick which of your team's FPL slots is yours.", 409, "pick-slot");
+    }
+    assertFplIdFree(slots, details.fplId, target?.id ?? null);
+
+    const playerId = target?.id ?? generateId();
+    if (target) await tx.update(players).set({ ...details, updatedAt: new Date() }).where(eq(players.id, playerId));
+    else await tx.insert(players).values({ id: playerId, teamId, ...details });
+    if (me.playerId !== playerId) await tx.update(teamMembers).set({ playerId }).where(eq(teamMembers.id, me.id));
+    return { playerId, teamComplete: await refreshTeamComplete(teamId, tx) };
+  });
+}
+
+/**
+ * The owner fills in a partner who won't sign in: an FPL slot nobody is linked to, which the
+ * partner takes over in their own setup if they do join later. Saving again edits that slot.
+ */
+export async function savePartnerByOwner(teamId: string, ownerUserId: string, details: PlayerDetails): Promise<{ playerId: string; teamComplete: boolean }> {
+  return writeTx(async (tx) => {
+    const members = await tx
+      .select({ userId: teamMembers.userId, role: teamMembers.role, playerId: teamMembers.playerId })
+      .from(teamMembers)
+      .where(eq(teamMembers.teamId, teamId));
+    const me = members.find((m) => m.userId === ownerUserId);
+    if (me?.role !== "owner") throw new MembershipError("Only the team owner can do that.", 403, "not-owner");
+    if (!me.playerId) throw new MembershipError("Add your own details first.", 409, "needs-own-slot");
+    if (members.some((m) => m.userId !== ownerUserId && m.playerId)) {
+      throw new MembershipError("Your partner has already added their own details.", 409, "partner-joined");
+    }
+    const { leagueId, format } = await teamLeague(tx, teamId);
+    const slots = await teamSlots(teamId, tx);
+    const open = slots.find((s) => !s.userId) ?? null;
+    if (!open && slots.length >= maxMembersFor(format)) throw new MembershipError("Your team already has its full line-up.", 409, "team-full");
+    assertFplIdFree(slots, details.fplId, open?.id ?? null);
+
+    const playerId = open?.id ?? generateId();
+    if (open) await tx.update(players).set({ ...details, updatedAt: new Date() }).where(eq(players.id, playerId));
+    else await tx.insert(players).values({ id: playerId, teamId, ...details });
+    await audit(tx, "PARTNER_ENTERED", `Owner entered teammate ${details.name} (FPL ${details.fplId})`, { userId: ownerUserId, leagueId, teamId });
+    return { playerId, teamComplete: await refreshTeamComplete(teamId, tx) };
+  });
 }
 
 // ─── Approval mode ───────────────────────────────────────────────────────────
@@ -445,7 +613,10 @@ export async function findUserByUsername(username: string) {
   return u ?? null;
 }
 
-/** Put a person on a team: owner if the team has none, else teammate (up to the format's limit). */
+/**
+ * Put a person on a team: owner if the team has none, else teammate (up to the format's limit).
+ * Like any joiner, they say which FPL slot is theirs in team setup.
+ */
 export async function assignToTeam(leagueId: string, teamId: string, userId: string, adminUserId: string | null): Promise<void> {
   try {
     await writeTx(async (tx) => {
@@ -461,7 +632,7 @@ export async function assignToTeam(leagueId: string, teamId: string, userId: str
       const current = await tx.select({ role: teamMembers.role }).from(teamMembers).where(eq(teamMembers.teamId, teamId));
       if (current.length >= maxMembersFor(team.format)) throw new MembershipError("That team already has its full line-up.", 409, "team-full");
       const role = current.some((m) => m.role === "owner") ? "member" : "owner";
-      await tx.insert(teamMembers).values({ id: generateId(), teamId, leagueId, userId, role, playerId: role === "member" ? await freePlayerSlot(tx, teamId) : null });
+      await tx.insert(teamMembers).values({ id: generateId(), teamId, leagueId, userId, role });
       await audit(tx, "MEMBER_ASSIGNED", `Assigned to ${team.name} by admin ${adminUserId ?? "(system)"}`, { userId, leagueId, teamId });
     });
   } catch (err) {

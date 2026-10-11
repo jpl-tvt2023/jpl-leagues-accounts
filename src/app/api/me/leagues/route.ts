@@ -3,12 +3,13 @@ import { and, asc, eq } from "drizzle-orm";
 import { db, joinRequests, leagueAdmins, leagues, teamMembers, teams } from "@/lib/db";
 import { getRequestPerson } from "@/lib/accounts";
 import { jsonNoStore } from "@/lib/http/no-store";
+import { needsSetup } from "@/lib/membership";
 
 export const dynamic = "force-dynamic";
 
 /**
  * GET /api/me/leagues — everything the My Leagues hub and the league switcher list:
- * - `teams`: leagues the person plays in, with their team there;
+ * - `teams`: leagues the person plays in, with their team there (and whether they have setup to do);
  * - `adminOf`: leagues they administer (superadmins: `allLeagues: true`, they manage everything);
  * - `pending`: join requests still waiting for an admin.
  */
@@ -28,6 +29,7 @@ export async function GET(request: NextRequest) {
         teamId: teams.id,
         teamName: teams.name,
         isProfileComplete: teams.isProfileComplete,
+        playerId: teamMembers.playerId,
         role: teamMembers.role,
       })
       .from(teamMembers)
@@ -51,7 +53,7 @@ export async function GET(request: NextRequest) {
   ]);
 
   return jsonNoStore({
-    teams: memberships,
+    teams: memberships.map(({ playerId, ...t }) => ({ ...t, needsSetup: needsSetup({ ...t, playerId }) })),
     adminOf: adminRows,
     allLeagues: user.role === "superadmin",
     pending: pendingRows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() })),

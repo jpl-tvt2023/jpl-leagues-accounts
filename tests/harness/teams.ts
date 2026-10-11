@@ -18,20 +18,21 @@ export interface TeamHandle {
   name: string;
 }
 
-async function completeSetup(request: APIRequestContext, slug: string, data: Record<string, string>, who: string) {
-  const setup = await request.post(`/api/team/setup?league=${encodeURIComponent(slug)}`, {
+async function completeSetup(request: APIRequestContext, slug: string, data: Record<string, string>, who: string, path = "/api/team/setup") {
+  const setup = await request.post(`${path}?league=${encodeURIComponent(slug)}`, {
     data,
     failOnStatusCode: false,
   });
   if (!setup.ok()) {
     const body = await setup.json().catch(() => ({}));
-    throw new Error(`${who}: setup failed: ${setup.status()} ${body?.error ?? ""}`);
+    throw new Error(`${who}: ${path} failed: ${setup.status()} ${body?.error ?? ""}`);
   }
 }
 
 /**
- * For a TVT or Continental Championship team: sign in as its owner and complete setup with
- * deterministic FPL IDs.
+ * For a TVT or Continental Championship team: sign in as its owner, complete setup with their own
+ * FPL ID, then enter the partner's (as an owner does for a partner who won't sign in), so the team
+ * is complete with deterministic FPL IDs.
  *
  * `fplBase` is the starting FPL element ID; team i gets (fplBase + 2i, fplBase + 2i + 1)
  * so every team in a league has a unique pair without colliding across teams.
@@ -50,14 +51,15 @@ export async function setupTvtTeam(
   await completeSetup(
     request,
     slug,
-    {
-      teamName,
-      player1Name: `${teamName} P1`,
-      player1FplId: String(fplBase + index * 2),
-      player2Name: `${teamName} P2`,
-      player2FplId: String(fplBase + index * 2 + 1),
-    },
+    { teamName, name: `${teamName} P1`, fplId: String(fplBase + index * 2) },
     `setupTvtTeam(${loginId})`,
+  );
+  await completeSetup(
+    request,
+    slug,
+    { name: `${teamName} P2`, fplId: String(fplBase + index * 2 + 1) },
+    `setupTvtTeam(${loginId})`,
+    "/api/team/partner",
   );
 
   await apiSignOut(request);
@@ -81,8 +83,8 @@ export async function setupAuctionTeam(
   await completeSetup(
     request,
     slug,
-    // Auction setup ignores player fields; pass empty strings to match real client.
-    { teamName, player1Name: "", player1FplId: "", player2Name: "", player2FplId: "" },
+    // Auction setup is the name alone (squads come from bidding).
+    { teamName },
     `setupAuctionTeam(${loginId})`,
   );
 
