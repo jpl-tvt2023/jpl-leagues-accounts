@@ -6,20 +6,14 @@ import { LeagueNav } from "@/components/LeagueNav";
 import { LoadingScreen } from "@/components/LoadingScreen";
 import { useLeague } from "@/lib/league-context";
 import { signOutAccounts } from "@/lib/accounts-client";
-
-interface TeamInfo {
-  teamName: string;
-  role: "owner" | "member";
-  maxMembers: number;
-  members: Array<{ id: string; role: "owner" | "member"; username: string | null; name: string; isMe: boolean }>;
-  invite: { token: string; expiresAt: string | null } | null;
-}
+import { PartnerInvitePanel, fetchTeamInfo, type TeamInfo } from "@/components/PartnerInvitePanel";
 
 const CARD = "rounded-2xl border border-white/10 bg-white/5 p-5 sm:p-6 backdrop-blur";
 
 /**
- * /[leagueSlug]/team — your team in a members-mode league: who's on it, its name, and (for the
- * owner) the teammate invite. Legacy team logins manage their team at /settings.
+ * /[leagueSlug]/team — your team in a members-mode league: who's on it (and the FPL details each
+ * has added), its name, and (for the owner) the partner invite or the partner's details entered by
+ * hand. Legacy team logins manage their team at /settings.
  */
 export default function TeamPage() {
   const { league, viewer } = useLeague();
@@ -29,7 +23,6 @@ export default function TeamPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [teamName, setTeamName] = useState("");
   const [busy, setBusy] = useState(false);
-  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (!viewer.authenticated) {
@@ -38,12 +31,11 @@ export default function TeamPage() {
     }
     let cancelled = false;
     (async () => {
-      const res = await fetch(`/api/team/invite?league=${encodeURIComponent(league.slug)}`, { cache: "no-store" });
-      const body = await res.json().catch(() => ({}));
+      const result = await fetchTeamInfo(league.slug);
       if (cancelled) return;
-      if (!res.ok) return setError(body.error ?? "You're not on a team in this league.");
-      setInfo(body);
-      setTeamName(body.teamName);
+      if ("error" in result) return setError(result.error);
+      setInfo(result.info);
+      setTeamName(result.info.teamName);
     })();
     return () => {
       cancelled = true;
@@ -51,8 +43,8 @@ export default function TeamPage() {
   }, [league.slug, viewer.authenticated]);
 
   const reload = async () => {
-    const res = await fetch(api("/api/team/invite"), { cache: "no-store" });
-    if (res.ok) setInfo(await res.json());
+    const result = await fetchTeamInfo(league.slug);
+    if ("info" in result) setInfo(result.info);
   };
 
   const rename = async (e: React.FormEvent) => {
@@ -68,30 +60,6 @@ export default function TeamPage() {
     setBusy(false);
     setNotice(res.ok ? "Team name saved." : body.error ?? "Couldn't save.");
     if (res.ok) await reload();
-  };
-
-  const makeInvite = async () => {
-    setBusy(true);
-    setNotice(null);
-    const res = await fetch(api("/api/team/invite"), { method: "POST" });
-    const body = await res.json().catch(() => ({}));
-    setBusy(false);
-    if (!res.ok) return setNotice(body.error ?? "Couldn't create the invite.");
-    await reload();
-  };
-
-  const revokeInvite = async () => {
-    setBusy(true);
-    await fetch(api("/api/team/invite"), { method: "DELETE" });
-    setBusy(false);
-    await reload();
-  };
-
-  const inviteUrl = info?.invite ? `${window.location.origin}/join/${info.invite.token}` : null;
-  const copy = async () => {
-    if (!inviteUrl) return;
-    await navigator.clipboard.writeText(inviteUrl).catch(() => {});
-    setCopied(true);
   };
 
   const signOut = async () => {
@@ -128,6 +96,17 @@ export default function TeamPage() {
               <p className="mt-1 text-sm text-gray-400">{league.name} · {info.role === "owner" ? "You own this team" : "You're on this team"}</p>
             </div>
 
+            {info.needsSetup && (
+              <Link href={`/${league.slug}/setup`} className="block rounded-lg border border-yellow-500/40 bg-yellow-500/10 p-3 text-sm text-yellow-200">
+                Add your own name and FPL ID to finish setting up →
+              </Link>
+            )}
+            {!info.needsSetup && info.maxMembers > 1 && !info.isProfileComplete && (
+              <p className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-3 text-sm text-yellow-200">
+                Setup pending: your team needs both partners&apos; FPL details.
+              </p>
+            )}
+
             {notice && <p role="status" className="rounded-lg border border-white/10 bg-white/5 p-3 text-sm text-gray-200">{notice}</p>}
 
             <section aria-labelledby="members" className={CARD}>
@@ -140,32 +119,20 @@ export default function TeamPage() {
                     <span className="min-w-0">
                       <span className="block truncate font-semibold text-white">{m.name}{m.isMe && <span className="text-gray-400"> (you)</span>}</span>
                       {m.username && <span className="block truncate text-xs text-gray-400">@{m.username}</span>}
+                      {info.maxMembers > 1 && (
+                        <span className="block truncate text-xs text-gray-400">
+                          {m.player ? `Plays as ${m.player.name} · FPL ${m.player.fplId}` : "Hasn't added their FPL details yet"}
+                        </span>
+                      )}
                     </span>
                     <span className="text-xs text-gray-400">{m.role === "owner" ? "Owner" : "Teammate"}</span>
                   </li>
                 ))}
               </ul>
 
-              {info.role === "owner" && info.members.length < info.maxMembers && (
+              {info.role === "owner" && info.maxMembers > 1 && !info.needsSetup && (
                 <div className="mt-4 border-t border-white/10 pt-4">
-                  <h3 className="text-sm font-semibold text-white">Invite your teammate</h3>
-                  <p className="mt-1 text-xs text-gray-400">
-                    One link, one teammate, valid for 7 days. You can enter their FPL ID yourself in team setup — the team plays
-                    either way; the link just gives them their own sign-in.
-                  </p>
-                  {inviteUrl ? (
-                    <div className="mt-3 space-y-2">
-                      <input readOnly value={inviteUrl} onFocus={(e) => e.target.select()} aria-label="Teammate invite link" className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200" />
-                      <div className="flex gap-2">
-                        <button type="button" onClick={copy} className="rounded-lg bg-yellow-500 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-yellow-400">{copied ? "Copied" : "Copy link"}</button>
-                        <button type="button" onClick={revokeInvite} disabled={busy} className="rounded-lg border border-white/20 px-4 py-2 text-sm font-semibold text-white hover:bg-white/10 disabled:opacity-50">Turn off</button>
-                      </div>
-                    </div>
-                  ) : (
-                    <button type="button" onClick={makeInvite} disabled={busy} className="mt-3 rounded-lg bg-yellow-500 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-yellow-400 disabled:opacity-50">
-                      Create invite link
-                    </button>
-                  )}
+                  <PartnerInvitePanel leagueSlug={league.slug} info={info} onChanged={reload} />
                 </div>
               )}
             </section>

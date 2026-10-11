@@ -30,7 +30,7 @@ export function MyLeaguesHub() {
               <span className="block truncate text-base font-bold text-white">{t.leagueName}</span>
               <span className="block truncate text-sm text-gray-300">{t.teamName}</span>
               <span className="mt-2 block text-xs text-gray-400">
-                {t.isProfileComplete ? "Open your dashboard →" : "Finish setting up your team →"}
+                {t.needsSetup ? "Finish setting up your team →" : t.isProfileComplete ? "Open your dashboard →" : "Waiting for your partner · Open your dashboard →"}
               </span>
             </Link>
           ))}

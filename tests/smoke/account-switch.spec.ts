@@ -67,7 +67,12 @@ test.describe.serial("Account switcher", () => {
     await accountMenu(page).click();
     const switchTo1 = page.getByRole("button", { name: new RegExp(owner(1)) });
     await expect(switchTo1).toBeVisible();
-    await switchTo1.click();
+    // Switching reloads the page onto the account's landing page (a full navigation, by design).
+    // Let it land before navigating, or our goto races it and is interrupted.
+    await Promise.all([
+      page.waitForURL((url) => url.pathname !== `/${league.slug}/dashboard`, { timeout: 20_000 }),
+      switchTo1.click(),
+    ]);
 
     await expect.poll(() => whoAmI(page), { timeout: 20_000 }).toBe(owner(1));
     await page.goto(`/${league.slug}/dashboard`);

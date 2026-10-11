@@ -4,6 +4,7 @@ import { eq, and, sql } from "drizzle-orm";
 import { generateId } from "@/lib/id";
 import { getAuthorizedLeagueId } from "@/lib/league-auth";
 import { invalidateLeaguePageCache } from "@/lib/fpl-cache";
+import { maxMembersFor, refreshTeamComplete } from "@/lib/membership";
 
 /**
  * PUT /api/admin/[leagueId]/update-team
@@ -171,6 +172,28 @@ export async function PUT(request: NextRequest) {
         name: player2Name,
         fplId: player2FplId,
       }).where(eq(players.id, player2Id));
+    }
+
+    // A slot with no player yet (a team still waiting for its partner): filling it in adds the
+    // player, up to the format's line-up. Nobody is linked to it; a partner who joins later takes
+    // it over in their own setup.
+    if (!isAuction) {
+      const missing = [
+        { id: player1Id, name: player1Name, fplId: player1FplId },
+        { id: player2Id, name: player2Name, fplId: player2FplId },
+      ].filter((p) => !p.id && typeof p.name === "string" && p.name.trim() && typeof p.fplId === "string" && p.fplId.trim());
+      if (missing.length > 0) {
+        if (missing.some((p) => !/^\d{1,10}$/.test(p.fplId.trim()))) {
+          return NextResponse.json({ error: "FPL IDs must be numbers" }, { status: 400 });
+        }
+        const existing = await db.select({ id: players.id }).from(players).where(eq(players.teamId, teamId));
+        const room = maxMembersFor(leagueRow[0]?.format ?? "") - existing.length;
+        const toAdd = missing.slice(0, Math.max(0, room));
+        if (toAdd.length > 0) {
+          await db.insert(players).values(toAdd.map((p) => ({ id: generateId(), teamId, name: p.name.trim(), fplId: p.fplId.trim() })));
+        }
+      }
+      await refreshTeamComplete(teamId);
     }
 
     await invalidateLeaguePageCache(leagueId);

@@ -82,16 +82,42 @@ test("regenerating a league invite revokes the old one", async () => {
   assert.notEqual((await m.loadInvite(second.token))?.problem, "revoked");
 });
 
-test("a teammate takes the free FPL slot; the team then refuses a third person", async () => {
-  // u1 owns t1; give them the first slot as team setup would.
-  await d.db.update(d.teamMembers).set({ playerId: "p1" }).where(eq(d.teamMembers.userId, "u1"));
+test("a teammate joins unlinked, then claims only a free FPL slot; the team then refuses a third person", async () => {
+  // u1 owns t1 (which already has two FPL slots) and says in setup that p1 is theirs.
+  await m.saveOwnPlayer("t1", "u1", { name: "P1", fplId: "1" }, "p1");
   const invite = await m.createPartnerInvite("t1", "u1");
   assert.equal(await m.joinAsPartner(invite, "u6"), "t1");
   const [row] = await d.db.select().from(d.teamMembers).where(eq(d.teamMembers.userId, "u6"));
   assert.equal(row.role, "member");
-  assert.equal(row.playerId, "p2");
+  assert.equal(row.playerId, null); // no guessing: setup asks
+  assert.equal(m.needsSetup({ format: "tvt", isProfileComplete: true, playerId: row.playerId }), true);
+
+  const code = (c: string) => (e: Error & { code?: string }) => e.code === c;
+  await assert.rejects(m.saveOwnPlayer("t1", "u6", { name: "Six", fplId: "6" }), code("pick-slot")); // team is full of slots
+  await assert.rejects(m.saveOwnPlayer("t1", "u6", { name: "Six", fplId: "6" }, "p1"), code("slot-taken"));
+  await assert.rejects(m.saveOwnPlayer("t1", "u6", { name: "Six", fplId: "1" }, "p2"), code("duplicate-fpl-id"));
+  const saved = await m.saveOwnPlayer("t1", "u6", { name: "Six", fplId: "6" }, "p2");
+  assert.deepEqual(saved, { playerId: "p2", teamComplete: true });
+  const slots = await m.teamSlots("t1");
+  assert.deepEqual(slots.map((s) => `${s.id}:${s.fplId}:${s.userId}`), ["p1:1:u1", "p2:6:u6"]);
+
   const again = await m.createPartnerInvite("t1", "u1");
   await assert.rejects(m.joinAsPartner(again, "u7"), (e: Error & { code?: string }) => e.code === "team-full" || e.code === "already-member");
+});
+
+test("an owner enters a partner who won't sign in; the team is complete once every slot is filled", async () => {
+  const code = (c: string) => (e: Error & { code?: string }) => e.code === c;
+  await assert.rejects(m.savePartnerByOwner("t2", "u2", { name: "Mate", fplId: "21" }), code("needs-own-slot"));
+  assert.equal((await m.saveOwnPlayer("t2", "u2", { name: "Two", fplId: "20" })).teamComplete, false);
+  await assert.rejects(m.savePartnerByOwner("t2", "u5", { name: "Mate", fplId: "21" }), code("not-owner"));
+  const first = await m.savePartnerByOwner("t2", "u2", { name: "Mate", fplId: "21" });
+  assert.equal(first.teamComplete, true);
+  const edited = await m.savePartnerByOwner("t2", "u2", { name: "Mate B", fplId: "22" });
+  assert.equal(edited.playerId, first.playerId); // the same slot, edited
+  const [t2] = await d.db.select().from(d.teams).where(eq(d.teams.id, "t2"));
+  assert.equal(t2.isProfileComplete, true);
+  const slots = await m.teamSlots("t2");
+  assert.deepEqual(slots.map((s) => [s.fplId, s.userId]).sort(), [["20", "u2"], ["22", null]]);
 });
 
 test("removing the owner promotes the teammate (one owner per team)", async () => {

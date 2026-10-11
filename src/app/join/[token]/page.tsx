@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { eq } from "drizzle-orm";
-import { db, teams, users } from "@/lib/db";
-import { INVITE_PROBLEM_MESSAGES, SUPERADMIN_CANNOT_JOIN, loadInvite, pendingRequestFor, teamOfUserInLeague } from "@/lib/membership";
+import { db, users } from "@/lib/db";
+import { INVITE_PROBLEM_MESSAGES, SUPERADMIN_CANNOT_JOIN, hasPlayerSlots, loadInvite, pendingRequestFor, teamLanding, teamOfUserInLeague } from "@/lib/membership";
 import { resolveViewer } from "@/lib/viewer";
 import { detectInAppBrowser } from "@/lib/in-app-browser";
 import { getFormatPalette } from "@/lib/format-palette";
@@ -46,6 +46,8 @@ export default async function JoinPage({ params }: { params: Promise<{ token: st
       teamName: team?.name ?? null,
       openSlots: loaded.openSlots,
       requiresApproval: invite.requiresApproval,
+      // A league link gives you a team of your own; a partner needs their teammate's team link.
+      partnerHint: !invite.teamId && hasPlayerSlots(league.format),
     };
 
     if (!viewer.authenticated) {
@@ -54,8 +56,7 @@ export default async function JoinPage({ params }: { params: Promise<{ token: st
       const [me] = await db.select({ username: users.username, role: users.role }).from(users).where(eq(users.id, viewer.userId!)).limit(1);
       const mine = await teamOfUserInLeague(viewer.userId!, league.id);
       if (mine) {
-        const [t] = await db.select({ done: teams.isProfileComplete }).from(teams).where(eq(teams.id, mine.teamId)).limit(1);
-        state = { kind: "member", card, href: t?.done ? `/${league.slug}/dashboard` : `/${league.slug}/setup` };
+        state = { kind: "member", card, href: await teamLanding(viewer.userId!, league.id, league.slug) };
       } else if (me?.role === "superadmin") {
         state = { kind: "invalid", message: SUPERADMIN_CANNOT_JOIN, card };
       } else if (loaded.problem) {

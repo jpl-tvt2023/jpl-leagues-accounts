@@ -175,8 +175,11 @@ export function FplClassicStandings() {
                       // same "Top N% cutoff" line once per tied row. Only the LAST row still at
                       // or before the cut rank (i.e. the next row's rank has moved past it, or
                       // this is the final row) draws it.
+                      // Compared with <=, not ===: a tie can straddle the cut (two rows at T35
+                      // leave no rank 36), and an exact match would then draw no line at all.
+                      const cut = data.standings.winnerCutRank;
                       const nextRank = data.standings.rows[i + 1]?.rank;
-                      const isLastAtCut = row.rank === data.standings.winnerCutRank && nextRank !== data.standings.winnerCutRank;
+                      const isLastAtCut = row.rank <= cut && (nextRank === undefined || nextRank > cut);
                       return (
                         <Fragment key={row.entrantId}>
                           <tr

@@ -10,6 +10,7 @@
 import { and, eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { testDb, schema } from "./db";
+import { invalidateLeagueCache } from "./gameweek";
 
 interface ScoreInput {
   fixtureId: string;
@@ -78,6 +79,9 @@ export async function scoreGameweek(
       homeTeamId: fxs[i].homeTeamId,
     });
   }
+  // The scoring pipeline busts the league's cached pages after writing results; these direct
+  // writes must too, or with a test Redis configured the standings stay on the pre-score table.
+  await invalidateLeagueCache(leagueId);
   return fxs.length;
 }
 
@@ -136,4 +140,5 @@ export async function setAuctionScore(input: {
         payout: input.payout ?? 0,
       },
     });
+  await invalidateLeagueCache(input.leagueId);
 }

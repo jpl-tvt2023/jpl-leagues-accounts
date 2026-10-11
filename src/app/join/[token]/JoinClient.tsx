@@ -18,6 +18,8 @@ export interface JoinCard {
   teamName: string | null;
   openSlots: number;
   requiresApproval: boolean;
+  /** League invite in a two-manager format: warn partners that this link makes a team of their own. */
+  partnerHint: boolean;
 }
 
 export type JoinState =
@@ -82,6 +84,12 @@ export function JoinClient({ token, state, selfPath, selfUrl }: { token: string;
               )}
             </p>
             {card.requiresApproval && !card.teamName && <p className="mt-3 text-xs text-gray-400">The league admin approves each new player.</p>}
+            {card.teamName && <p className="mt-3 text-xs text-gray-400">You&apos;ll add your own name and FPL ID after joining.</p>}
+            {card.partnerHint && (
+              <p className="mt-3 text-xs text-gray-400">
+                Joining a friend&apos;s team? Ask them for their team link instead. This link gives you a team of your own.
+              </p>
+            )}
           </section>
         )}
 

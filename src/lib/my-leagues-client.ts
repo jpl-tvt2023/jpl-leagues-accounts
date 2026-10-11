@@ -13,7 +13,10 @@ export interface MyLeagues {
     isActive: boolean;
     teamId: string;
     teamName: string;
+    /** Every FPL slot on the team is filled. */
     isProfileComplete: boolean;
+    /** This person hasn't done their own part of team setup yet. */
+    needsSetup: boolean;
     role: "owner" | "member";
   }>;
   adminOf: Array<{ leagueId: string; slug: string; leagueName: string; format: string; season: string }>;
@@ -21,9 +24,9 @@ export interface MyLeagues {
   pending: Array<{ requestId: string; leagueId: string; slug: string; leagueName: string }>;
 }
 
-/** Where a team entry goes: its dashboard, or setup until the team is set up. */
+/** Where a team entry goes: setup until the person has done their part of it, then the dashboard. */
 export function teamHref(t: MyLeagues["teams"][number]): string {
-  return t.isProfileComplete ? `/${t.slug}/dashboard` : `/${t.slug}/setup`;
+  return t.needsSetup ? `/${t.slug}/setup` : `/${t.slug}/dashboard`;
 }
 
 /**

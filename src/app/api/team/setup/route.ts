@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, teams, players, leagues, teamMembers, users } from "@/lib/db";
-import { eq, and, sql, asc } from "drizzle-orm";
+import { db, teams, leagues, teamMembers, users } from "@/lib/db";
+import { eq, and, sql } from "drizzle-orm";
 import { leagueFromRequest, resolveTeamActor, teamActorDenied } from "@/lib/team-actor";
-import { generateId } from "@/lib/id";
 import { invalidateLeaguePageCache } from "@/lib/fpl-cache";
+import { MembershipError, maxMembersFor, needsSetup, readPlayerDetails, saveOwnPlayer, teamSlots } from "@/lib/membership";
 
 /** Check if a league uses the auction format (no FPL player IDs needed at setup) */
 async function isAuctionLeague(leagueId: string): Promise<boolean> {
@@ -13,7 +13,8 @@ async function isAuctionLeague(leagueId: string): Promise<boolean> {
 
 /**
  * GET /api/team/setup
- * Returns current team setup info (for prefilling) or checks team name uniqueness
+ * What this person's setup needs: the team, its FPL slots (theirs and any nobody is linked to),
+ * and their profile for prefilling. With ?checkName=, whether a team name is free in the league.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -48,24 +49,38 @@ export async function GET(request: NextRequest) {
       .from(leagues)
       .where(eq(leagues.id, team.leagueId))
       .limit(1);
-    const teamPlayers = await db
-      .select({ name: players.name, fplId: players.fplId })
-      .from(players)
-      .where(eq(players.teamId, teamId))
-      .orderBy(asc(players.createdAt), asc(players.id));
-    // Player 1 defaults to the person themselves.
+    const format = league?.format ?? "tvt";
+    const maxMembers = maxMembersFor(format);
+    const slots = await teamSlots(teamId);
+    const members = await db
+      .select({ userId: teamMembers.userId, role: teamMembers.role, playerId: teamMembers.playerId, name: users.name })
+      .from(teamMembers)
+      .innerJoin(users, eq(users.id, teamMembers.userId))
+      .where(eq(teamMembers.teamId, teamId));
+    const mine = members.find((m) => m.userId === actor.userId);
+    const mySlot = slots.find((s) => s.id === mine?.playerId) ?? null;
+    // Your own details default to your profile.
     const [me] = await db.select({ name: users.name, fplEntryId: users.fplEntryId }).from(users).where(eq(users.id, actor.userId)).limit(1);
+    const slotView = (s: (typeof slots)[number]) => ({ id: s.id, name: s.name, fplId: s.fplId });
 
     return NextResponse.json({
       teamId: team.id,
       currentLoginId: team.teamLoginId,
       currentName: team.name,
       isProfileComplete: team.isProfileComplete,
+      needsSetup: needsSetup({ format, isProfileComplete: team.isProfileComplete, playerId: mine?.playerId ?? null }),
+      role: actor.memberRole,
       leagueSlug: league?.slug ?? null,
-      leagueFormat: league?.format ?? "tvt",
+      leagueFormat: format,
       clubAuctionEnabled: league?.clubAuctionEnabled ?? false,
-      players: teamPlayers,
-      defaults: me ? { player1Name: me.name, player1FplId: me.fplEntryId ?? "" } : null,
+      maxMembers,
+      memberCount: members.length,
+      ownerName: members.find((m) => m.role === "owner")?.name ?? null,
+      mySlot: mySlot ? slotView(mySlot) : null,
+      // FPL slots nobody is linked to: one the owner filled in for a partner, or a past member's.
+      openSlots: slots.filter((s) => !s.userId).map(slotView),
+      canAddSlot: slots.length < maxMembers,
+      defaults: me ? { name: me.name, fplId: me.fplEntryId ?? "" } : null,
     });
   } catch (error) {
     console.error("Setup GET error:", error);
@@ -74,62 +89,51 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * POST /api/team/setup
- * Completes team profile setup: updates team name, creates 2 players
+ * POST /api/team/setup { teamName?, name, fplId, slotId? }
+ * Each person sets up their own part of the team. The owner names the team (a teammate's
+ * teamName is ignored). In TVT and Continental everyone then enters only their own FPL details,
+ * into their own slot, the unlinked slot they pick (`slotId`), or a new one, and the team is
+ * complete once every slot is filled. Auction: just the name.
  */
 export async function POST(request: NextRequest) {
   try {
     const { actor, denial } = await resolveTeamActor(request, { league: leagueFromRequest(request) });
     if (!actor) return teamActorDenied(denial, { unauthenticated: "Unauthorized" });
     const teamId = actor.teamId;
+    const isOwner = actor.memberRole === "owner";
 
-    const body = await request.json();
-    const {
-      teamName,
-      player1Name,
-      player1FplId,
-      player2Name,
-      player2FplId,
-    } = body;
+    const body = (await request.json().catch(() => ({}))) as { teamName?: unknown; name?: unknown; fplId?: unknown; slotId?: unknown };
 
-    // ============= Validations =============
-    // The team keeps its internal team key; setup only names the team and its players.
-
-    // Team name: non-empty, unique within league
-    if (!teamName || typeof teamName !== "string" || !teamName.trim()) {
-      return NextResponse.json(
-        { error: "Team name is required" },
-        { status: 400 }
-      );
-    }
-
-    const trimmedTeamName = teamName.trim();
-
-    // Get current team to check league
-    const teamList = await db.select().from(teams).where(eq(teams.id, teamId));
-    const team = teamList[0];
-
+    const [team] = await db.select().from(teams).where(eq(teams.id, teamId)).limit(1);
     if (!team) {
       return NextResponse.json({ error: "Team not found" }, { status: 404 });
     }
-
     const leagueId = team.leagueId;
     const isAuction = await isAuctionLeague(leagueId);
 
-    // Check per-league uniqueness (name must be unique within the league, unless it's the current team's name) - case-insensitive
-    const existingName = await db
-      .select()
-      .from(teams)
-      .where(and(eq(teams.leagueId, leagueId), sql`LOWER(REPLACE(${teams.name}, ' ', '')) = LOWER(REPLACE(${trimmedTeamName}, ' ', ''))`));
-    if (existingName.length > 0 && existingName[0].id !== teamId) {
-      return NextResponse.json(
-        { error: "Team name is already taken in this league" },
-        { status: 400 }
-      );
+    // ============= Team name (owner only) =============
+    // The team keeps its internal team key; setup only names it.
+    let trimmedTeamName: string | null = null;
+    if (isOwner) {
+      trimmedTeamName = typeof body.teamName === "string" ? body.teamName.trim() : "";
+      if (!trimmedTeamName) {
+        return NextResponse.json({ error: "Team name is required" }, { status: 400 });
+      }
+      // Unique within the league (case- and space-insensitive), unless it's this team's own name.
+      const existingName = await db
+        .select({ id: teams.id })
+        .from(teams)
+        .where(and(eq(teams.leagueId, leagueId), sql`LOWER(REPLACE(${teams.name}, ' ', '')) = LOWER(REPLACE(${trimmedTeamName}, ' ', ''))`));
+      if (existingName.length > 0 && existingName[0].id !== teamId) {
+        return NextResponse.json({ error: "Team name is already taken in this league" }, { status: 400 });
+      }
     }
 
     // Auction format: only needs team name (players acquired via auction)
     if (isAuction) {
+      if (!trimmedTeamName) {
+        return NextResponse.json({ error: "Only the team owner can set up this team." }, { status: 403 });
+      }
       // Update team: name, isProfileComplete = true
       // Also initialize purse from league's initial budget on first-time setup only
       const updateSet: Partial<typeof teams.$inferInsert> = {
@@ -157,134 +161,25 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // TVT / Continental Championship: require 2 FPL player IDs
-
-    // Player 1: name and FPL ID
-    if (!player1Name || typeof player1Name !== "string" || !player1Name.trim()) {
-      return NextResponse.json(
-        { error: "Player 1 name is required" },
-        { status: 400 }
-      );
+    // ============= TVT / Continental: your own FPL details =============
+    const details = readPlayerDetails(body);
+    if ("error" in details) {
+      return NextResponse.json({ error: details.error }, { status: 400 });
     }
 
-    if (!player1FplId || typeof player1FplId !== "string" || !player1FplId.trim()) {
-      return NextResponse.json(
-        { error: "Player 1 FPL ID is required" },
-        { status: 400 }
-      );
+    const slotId = typeof body.slotId === "string" && body.slotId ? body.slotId : null;
+    const { teamComplete } = await saveOwnPlayer(teamId, actor.userId, details, slotId);
+    if (trimmedTeamName && trimmedTeamName !== team.name) {
+      await db.update(teams).set({ name: trimmedTeamName, updatedAt: new Date() }).where(eq(teams.id, teamId));
     }
 
-    if (!/^\d+$/.test(player1FplId.trim())) {
-      return NextResponse.json(
-        { error: "Player 1 FPL ID must be numeric" },
-        { status: 400 }
-      );
-    }
-
-    // Player 2: name and FPL ID
-    if (!player2Name || typeof player2Name !== "string" || !player2Name.trim()) {
-      return NextResponse.json(
-        { error: "Player 2 name is required" },
-        { status: 400 }
-      );
-    }
-
-    if (!player2FplId || typeof player2FplId !== "string" || !player2FplId.trim()) {
-      return NextResponse.json(
-        { error: "Player 2 FPL ID is required" },
-        { status: 400 }
-      );
-    }
-
-    if (!/^\d+$/.test(player2FplId.trim())) {
-      return NextResponse.json(
-        { error: "Player 2 FPL ID must be numeric" },
-        { status: 400 }
-      );
-    }
-
-    // ============= Update Team =============
-
-    // Update team: name, isProfileComplete = true
-    await db
-      .update(teams)
-      .set({
-        name: trimmedTeamName,
-        isProfileComplete: true,
-        updatedAt: new Date(),
-      })
-      .where(eq(teams.id, teamId));
-
-    // ============= Create/Update Players =============
-
-    // Check if players already exist for this team. Deterministic order so
-    // re-submitting the wizard always maps player1 input -> first row and
-    // player2 input -> second row; without orderBy the DB is free to swap
-    // the rows and re-submit would silently switch the two players' FPL IDs.
-    const existingPlayers = await db
-      .select()
-      .from(players)
-      .where(eq(players.teamId, teamId))
-      .orderBy(asc(players.createdAt), asc(players.id));
-
-    if (existingPlayers.length >= 2) {
-      // Update existing players
-      await Promise.all([
-        db
-          .update(players)
-          .set({
-            name: player1Name.trim(),
-            fplId: player1FplId.trim(),
-            updatedAt: new Date(),
-          })
-          .where(eq(players.id, existingPlayers[0].id)),
-        db
-          .update(players)
-          .set({
-            name: player2Name.trim(),
-            fplId: player2FplId.trim(),
-            updatedAt: new Date(),
-          })
-          .where(eq(players.id, existingPlayers[1].id)),
-      ]);
-    } else {
-      // Create new players
-      await db.insert(players).values([
-        {
-          id: generateId(),
-          name: player1Name.trim(),
-          fplId: player1FplId.trim(),
-          teamId: teamId,
-        },
-        {
-          id: generateId(),
-          name: player2Name.trim(),
-          fplId: player2FplId.trim(),
-          teamId: teamId,
-        },
-      ]);
-    }
-
-    // Tie each person to their FPL slot — the owner is player 1, a teammate player 2. Lets captain
-    // picks and chips be attributed, and a teammate who joins later lands in the free slot.
-    {
-      const slots = await db.select({ id: players.id }).from(players).where(eq(players.teamId, teamId)).orderBy(asc(players.createdAt), asc(players.id));
-      const members = await db.select({ id: teamMembers.id, role: teamMembers.role, playerId: teamMembers.playerId }).from(teamMembers).where(eq(teamMembers.teamId, teamId));
-      const ordered = [...members].sort((a, b) => (a.role === b.role ? 0 : a.role === "owner" ? -1 : 1));
-      for (const [i, m] of ordered.entries()) {
-        const slot = slots[i]?.id ?? null;
-        if (slot && m.playerId !== slot) await db.update(teamMembers).set({ playerId: slot }).where(eq(teamMembers.id, m.id));
-      }
-    }
-
-    // Invalidate cache for this league
     await invalidateLeaguePageCache(leagueId);
 
-    return NextResponse.json({
-      success: true,
-      message: "Profile setup completed",
-    });
+    return NextResponse.json({ success: true, teamComplete });
   } catch (error) {
+    if (error instanceof MembershipError) {
+      return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });
+    }
     console.error("Setup POST error:", error);
     return NextResponse.json(
       { error: "Failed to complete setup" },

@@ -95,15 +95,25 @@ test.describe.serial("members-mode leagues", () => {
     expect(await myTeamIn(email("alice"), tvt.id)).toBeTruthy();
   });
 
-  test("team setup through ?league=, then the dashboard works for that league", async ({ playwright }) => {
+  test("team setup through ?league=: the owner adds only their own details; the team waits for the partner", async ({ playwright }) => {
     const alice = await person(playwright, "alice");
     const setup = await alice.get(`/api/team/setup?league=${tvt.slug}`).then((r) => r.json());
     expect(setup.isProfileComplete).toBe(false);
+    expect(setup.needsSetup).toBe(true);
+    expect(setup.role).toBe("owner");
 
     const done = await alice.post(`/api/team/setup?league=${tvt.slug}`, {
-      data: { teamName: `Alice FC ${run}`.slice(0, 30), player1Name: "Alice", player1FplId: "5001", player2Name: "Bob", player2FplId: "5002" },
+      data: { teamName: `Alice FC ${run}`.slice(0, 30), name: "Alice", fplId: "5001" },
     });
     expect(done.status(), await done.text()).toBe(200);
+    expect((await done.json()).teamComplete).toBe(false);
+
+    const after = await alice.get(`/api/team/setup?league=${tvt.slug}`).then((r) => r.json());
+    expect(after.needsSetup).toBe(false); // her part is done: the dashboard opens
+    expect(after.isProfileComplete).toBe(false); // the team is pending until the partner is in
+    expect(after.mySlot).toMatchObject({ name: "Alice", fplId: "5001" });
+    const mine = (await (await alice.get("/api/me/leagues")).json()).teams.find((t: { slug: string }) => t.slug === tvt.slug);
+    expect(mine).toMatchObject({ needsSetup: false, isProfileComplete: false });
 
     const dash = await alice.get(`/api/team/dashboard?league=${tvt.slug}`);
     expect(dash.status()).toBe(200);
@@ -113,7 +123,7 @@ test.describe.serial("members-mode leagues", () => {
     await alice.dispose();
   });
 
-  test("teammate invite: the partner joins the same team in the free FPL slot", async ({ playwright }) => {
+  test("teammate invite: the partner joins the same team and adds only their own details", async ({ playwright }) => {
     const alice = await person(playwright, "alice");
     const created = await alice.post(`/api/team/invite?league=${tvt.slug}`);
     expect(created.status()).toBe(200);
@@ -123,18 +133,80 @@ test.describe.serial("members-mode leagues", () => {
     const joined = await join(bob, invite.token);
     expect(joined.status).toBe(200);
     expect(joined.body.status).toBe("joined");
-    expect(joined.body.redirectTo).toBe(`/${tvt.slug}/dashboard`); // team already set up
+    expect(joined.body.redirectTo).toBe(`/${tvt.slug}/setup`); // his own details next
 
     const aliceTeam = await myTeamIn(email("alice"), tvt.id);
     expect(await myTeamIn(email("bob"), tvt.id)).toBe(aliceTeam);
+    const setup = await (await bob.get(`/api/team/setup?league=${tvt.slug}`)).json();
+    expect(setup).toMatchObject({ role: "member", needsSetup: true, ownerName: "Alice", openSlots: [], canAddSlot: true });
+
+    // A teammate can't rename the team (ignored) or enter the partner (owner only).
+    const saved = await bob.post(`/api/team/setup?league=${tvt.slug}`, { data: { teamName: "Hijacked", name: "Bob", fplId: "5002" } });
+    expect(saved.status(), await saved.text()).toBe(200);
+    expect((await saved.json()).teamComplete).toBe(true);
+    expect((await bob.post(`/api/team/partner?league=${tvt.slug}`, { data: { name: "X", fplId: "1" } })).status()).toBe(403);
+
+    const [team] = await testDb().select().from(schema.teams).where(eq(schema.teams.id, aliceTeam!));
+    expect(team.name).toBe(`Alice FC ${run}`.slice(0, 30));
+    expect(team.isProfileComplete).toBe(true);
     const info = await (await bob.get(`/api/team/invite?league=${tvt.slug}`)).json();
     expect(info.role).toBe("member");
-    expect(info.members.map((m: { role: string }) => m.role).sort()).toEqual(["member", "owner"]);
+    // Each person is linked to their own FPL slot.
+    const fplIdByName = Object.fromEntries(info.members.map((m: { name: string; player: { fplId: string } | null }) => [m.name, m.player?.fplId]));
+    expect(fplIdByName).toEqual({ Alice: "5001", Bob: "5002" });
 
     // The link was single-use.
     const carol = await person(playwright, "carol");
     expect((await join(carol, invite.token)).status).toBe(410);
     await Promise.all([alice.dispose(), bob.dispose(), carol.dispose()]);
+  });
+
+  test("a partner who won't sign in: the owner enters them, and they can take the slot over later", async ({ playwright }) => {
+    const mia = await person(playwright, "mia");
+    expect((await join(mia, tvt.inviteToken)).body.status).toBe("joined");
+    const partner = (data: object) => mia.post(`/api/team/partner?league=${tvt.slug}`, { data });
+
+    expect((await partner({ name: "Ned", fplId: "6002" })).status()).toBe(409); // own details first
+    await mia.post(`/api/team/setup?league=${tvt.slug}`, { data: { teamName: `Mia FC ${run}`.slice(0, 30), name: "Mia", fplId: "6001" } });
+    expect((await partner({ name: "Ned", fplId: "6001" })).status()).toBe(409); // that FPL ID is already on the team
+    const entered = await partner({ name: "Ned", fplId: "6002" });
+    expect(entered.status(), await entered.text()).toBe(200);
+    expect((await entered.json()).teamComplete).toBe(true);
+    expect((await partner({ name: "Ned P", fplId: "6003" })).status()).toBe(200); // edits the same slot
+
+    const miaTeam = (await myTeamIn(email("mia"), tvt.id))!;
+    const rows = () => testDb().select().from(schema.players).where(eq(schema.players.teamId, miaTeam));
+    expect(await rows()).toHaveLength(2);
+    expect((await (await mia.get(`/api/team/invite?league=${tvt.slug}`)).json()).partnerSlot).toEqual({ name: "Ned P", fplId: "6003" });
+
+    // Ned turns up after all, with the team link, and takes over the slot Mia filled in.
+    const { invite } = await (await mia.post(`/api/team/invite?league=${tvt.slug}`)).json();
+    const ned = await person(playwright, "ned");
+    expect((await join(ned, invite.token)).body.redirectTo).toBe(`/${tvt.slug}/setup`);
+    const setup = await (await ned.get(`/api/team/setup?league=${tvt.slug}`)).json();
+    expect(setup.canAddSlot).toBe(false);
+    expect(setup.openSlots).toHaveLength(1);
+    expect((await ned.post(`/api/team/setup?league=${tvt.slug}`, { data: { name: "Ned", fplId: "6004" } })).status()).toBe(409); // which slot?
+    const took = await ned.post(`/api/team/setup?league=${tvt.slug}`, { data: { name: "Ned", fplId: "6004", slotId: setup.openSlots[0].id } });
+    expect(took.status(), await took.text()).toBe(200);
+    expect((await rows()).map((r) => r.fplId).sort()).toEqual(["6001", "6004"]); // updated, not added
+    expect((await partner({ name: "Ned", fplId: "6005" })).status()).toBe(409); // he's in now
+    await Promise.all([mia.dispose(), ned.dispose()]);
+  });
+
+  test("admin: filling in a missing player 2 completes a pending team", async ({ request, playwright }) => {
+    const pat = await person(playwright, "pat");
+    expect((await join(pat, tvt.inviteToken)).body.status).toBe("joined");
+    await pat.post(`/api/team/setup?league=${tvt.slug}`, { data: { teamName: `Pat FC ${run}`.slice(0, 30), name: "Pat", fplId: "7001" } });
+    const patTeam = (await myTeamIn(email("pat"), tvt.id))!;
+
+    await apiSignInSuperadmin(request);
+    const res = await request.put(`/api/admin/${tvt.id}/update-team`, { data: { teamId: patTeam, player2Id: "", player2Name: "Quin", player2FplId: "7002" } });
+    expect(res.status(), await res.text()).toBe(200);
+    const [team] = await testDb().select().from(schema.teams).where(eq(schema.teams.id, patTeam));
+    expect(team.isProfileComplete).toBe(true);
+    expect(await testDb().select().from(schema.players).where(eq(schema.players.teamId, patTeam))).toHaveLength(2);
+    await pat.dispose();
   });
 
   test("one person, two leagues: captain and wishlist each land on the right team", async ({ playwright }) => {
