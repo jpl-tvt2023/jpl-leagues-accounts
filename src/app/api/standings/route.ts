@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse, after } from "next/server";
-import { db, teams, gameweeks, leagues, settings, auctionScores, auctionOwnership } from "@/lib/db";
+import { db, gameweeks, leagues, settings } from "@/lib/db";
 import { dailyTick } from "@/lib/cron/daily-tick";
 import { eq, and } from "drizzle-orm";
 import { getCachedStandings, setCachedStandings } from "@/lib/fpl-cache";
-import { computeAuctionStandings } from "@/lib/formats/auction/standings";
-import { calculateFMV } from "@/lib/formats/auction/economy";
+import { loadAuctionStandings } from "@/lib/formats/auction/standings-load";
 import { getClubOwnershipsByTeam, computeClubResultBonus } from "@/lib/formats/auction/club-auction";
 import { backfillClubSummaries } from "@/lib/formats/auction/club-summary-backfill";
 import { computeLeagueStageStandings, rankAndZone, type LeagueStageRow } from "@/lib/standings/league-stage";
@@ -165,46 +164,8 @@ export async function GET(request: NextRequest) {
     // JPL AUCTION FORMAT — separate standings computation
     // ============================================
     if (leagueFormat === "auction") {
-      const leagueTeams = await db
-        .select({ id: teams.id, name: teams.name, teamLoginId: teams.teamLoginId, purse: teams.purse })
-        .from(teams)
-        .where(and(eq(teams.leagueId, leagueId), eq(teams.isGhost, false)));
-
-      const scores = await db
-        .select()
-        .from(auctionScores)
-        .where(eq(auctionScores.leagueId, leagueId));
-
-      // Build gameweekId -> gwNumber map
-      const gwRows = await db
-        .select({ id: gameweeks.id, number: gameweeks.number })
-        .from(gameweeks)
-        .where(eq(gameweeks.leagueId, leagueId));
-      const gwNumbers = new Map(gwRows.map((g) => [g.id, g.number]));
-
-      // Calculate squad value (sum of FMV) per team
-      const allOwnership = await db
-        .select()
-        .from(auctionOwnership)
-        .where(and(eq(auctionOwnership.leagueId, leagueId), eq(auctionOwnership.status, "active")));
-
-      const squadValues = new Map<string, number>();
-      for (const owned of allOwnership) {
-        // FMV uses RAW points only (per locked spec — synergy never compounds into FMV).
-        // Legacy breakdown rows carry `points` (no `rawPoints`); we tolerate both shapes.
-        const playerTotalPoints = scores
-          .filter((s) => s.teamId === owned.teamId)
-          .reduce((sum, s) => {
-            const breakdown = JSON.parse(s.playerBreakdown || "[]") as Array<{ elementId: number; points?: number; rawPoints?: number }>;
-            const match = breakdown.find((p) => p.elementId === owned.fplElementId);
-            const playerPts = match?.rawPoints ?? match?.points ?? 0;
-            return sum + playerPts;
-          }, 0);
-        const fmv = calculateFMV(owned.purchasePrice, playerTotalPoints);
-        squadValues.set(owned.teamId, (squadValues.get(owned.teamId) ?? 0) + fmv);
-      }
-
-      const standings = computeAuctionStandings(leagueTeams, scores, gwNumbers, squadValues);
+      // Shared with the home page, so a team's rank reads the same on both.
+      const { leagueTeams, scores, gwNumbers, standings } = await loadAuctionStandings(leagueId);
       const clubByTeamId = await getClubOwnershipsByTeam(leagueId);
 
       // On-the-fly backfill for legacy rows where clubResultBonus > 0 but clubResultSummary is null

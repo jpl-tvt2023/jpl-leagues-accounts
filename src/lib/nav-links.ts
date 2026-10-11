@@ -30,6 +30,7 @@ export type NavIconName =
   | "standings"
   | "fixtures"
   | "results"
+  | "match-center"
   | "teams"
   | "auction"
   | "wishlist"
@@ -64,6 +65,7 @@ const ICON_BY_KEY: Record<string, NavIconName> = {
   settings: "settings",
   notifications: "notifications",
   "gw-results": "results",
+  "match-center": "match-center",
   teams: "teams",
   auction: "auction",
   wishlist: "wishlist",
@@ -133,6 +135,11 @@ export type NavContext =
       dashboardHref: string;
       /** Team settings: /[league]/team for someone on a team there, else /account. */
       settingsHref?: string;
+      /**
+       * Signed in, but not on a team in this league: there's no dashboard here, so the home link
+       * is "My leagues" → `/` (their home, every league they're part of).
+       */
+      homeIsHub?: boolean;
     }
   | {
       surface: "admin-league";
@@ -203,18 +210,19 @@ function when(cond: boolean, ...items: NavItem[]): NavItem[] {
 }
 
 function buildLeague(ctx: Extract<NavContext, { surface: "league" }>, runtime: NavRuntime): NavModel {
-  const { leagueSlug, format, auctionTier, isLoggedIn, dashboardHref, settingsHref = "/account" } = ctx;
+  const { leagueSlug, format, auctionTier, isLoggedIn, dashboardHref, settingsHref = "/account", homeIsHub = false } = ctx;
   const auctionLive = runtime.auctionLive ?? false;
   const p = (path: string) => `/${leagueSlug}/${path}`;
 
-  // Dashboard / All Leagues — the one link whose label and target depend on auth.
-  const home: NavItem = {
-    key: "dashboard",
-    label: isLoggedIn ? "Dashboard" : "All Leagues",
-    href: isLoggedIn ? dashboardHref : "/",
-    icon: isLoggedIn ? "home" : "leagues",
-    shortLabel: isLoggedIn ? "Home" : "Leagues",
-  };
+  // Dashboard / My leagues / All Leagues — the one link whose label and target depend on auth.
+  const home: NavItem = !isLoggedIn
+    ? { key: "dashboard", label: "All Leagues", href: "/", icon: "leagues", shortLabel: "Leagues" }
+    : homeIsHub
+      ? { key: "dashboard", label: "My leagues", href: "/", icon: "leagues", shortLabel: "Leagues" }
+      : { key: "dashboard", label: "Dashboard", href: dashboardHref, icon: "home", shortLabel: "Home" };
+  // Two teams' squads side by side for a gameweek. Opens on the viewer's own match (or the
+  // gameweek's first) and can then compare any two teams.
+  const matchCenter: NavItem = { key: "match-center", label: "Match Center", href: p("match-center"), shortLabel: "Match" };
   const settings: NavItem[] = when(isLoggedIn, { key: "settings", label: "Settings", href: settingsHref });
   const feedback: NavItem[] = when(isLoggedIn, { key: "feedback", label: "Feedback", href: p("feedback") });
 
@@ -279,6 +287,7 @@ function buildLeague(ctx: Extract<NavContext, { surface: "league" }>, runtime: N
             home,
             { key: "standings", label: "JPL Standings", href: p("standings"), shortLabel: "Standings" },
             { key: "fixtures", label: "JPL Fixtures", href: p("fixtures"), shortLabel: "Fixtures" },
+            matchCenter,
           ],
         },
         {
@@ -346,6 +355,7 @@ function buildLeague(ctx: Extract<NavContext, { surface: "league" }>, runtime: N
           home,
           { key: "standings", label: "Standings", href: p("standings") },
           { key: "fixtures", label: "Fixtures", href: p("fixtures") },
+          matchCenter,
           { key: "fpl-league", label: "FPL League", href: p("fpl-league") },
         ],
       },
@@ -509,7 +519,7 @@ export function buildNavModel(ctx: NavContext, runtime: NavRuntime = {}): NavMod
             id: "account",
             heading: "Account",
             items: [
-              { key: "dashboard", label: "← Back to Dashboard", href: ctx.backHref, tone: "back" },
+              { key: "dashboard", label: "← My leagues", href: ctx.backHref, tone: "back" },
               { key: "settings", label: "Your account", href: "/account" },
               { key: "notifications", label: "Notifications", href: "/notifications" },
             ],

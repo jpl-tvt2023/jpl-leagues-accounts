@@ -32,6 +32,8 @@ export interface NavDrawerProps {
   onSignOut?: () => void;
   /** Account switcher slotted under the header (signed-in surfaces only). */
   accountSection?: ReactNode;
+  /** The person's leagues, under the account switcher and above the page links. */
+  leaguesSection?: ReactNode;
   onClose: () => void;
 }
 
@@ -69,6 +71,7 @@ export function NavDrawer({
   activeTextClass = "text-white",
   onSignOut,
   accountSection,
+  leaguesSection,
   onClose,
 }: NavDrawerProps) {
   const isClient = useIsClient();
@@ -154,6 +157,7 @@ export function NavDrawer({
         </header>
 
         {accountSection}
+        {leaguesSection}
 
         <div className="flex-1 px-3 py-1">
           {groups.map((group, gi) => (

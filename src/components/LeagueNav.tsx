@@ -63,6 +63,7 @@ export function LeagueNav({
         isLoggedIn,
         dashboardHref: effectiveDashboardHref,
         settingsHref,
+        homeIsHub: isPerson && !hasTeamHere,
       }}
       activeKey={currentPage}
       brandHref="/"
@@ -73,6 +74,7 @@ export function LeagueNav({
       title={title}
       hideBottomNav={hideBottomNav}
       onSignOut={onSignOut}
+      showLeaguePicker={isPerson}
     />
   );
 }

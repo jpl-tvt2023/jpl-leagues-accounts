@@ -128,7 +128,7 @@ export default function MatchCenterPage() {
       <LeagueNav
         leagueSlug={leagueSlug}
         leagueName={league.name}
-        currentPage="fixtures"
+        currentPage="match-center"
         format={isContinental ? "continental-championship" : "tvt"}
         teamSize={league.teamSize}
         isLoggedIn={viewer.authenticated}

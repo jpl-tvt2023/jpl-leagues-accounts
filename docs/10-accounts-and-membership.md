@@ -163,7 +163,8 @@ sequenceDiagram
 | `/onboarding` | Pick a username (and optionally your FPL ID) after first sign-in |
 | `/account` | Profile, your leagues, sign out of all other devices, accounts on this device, delete account |
 | `GET/PATCH /api/me/profile` | Profile, live username check, FPL entry preview |
-| `GET /api/me/leagues` | Teams, admin leagues, pending join requests |
+| `GET /api/me/leagues` | Teams, admin leagues, FPL Classic entries, pending join requests (each with its `sport`) |
+| `GET /api/me/overview` | The home page: one status card per league, summary tiles, to-dos, other leagues, grouped by sport |
 | `POST /api/me/sessions` | Sign out of all other devices |
 | `DELETE /api/me` | Delete account (teams stay; a shared team passes to the teammate) |
 | `POST /api/auth/handoff` + `/auth/handoff` | iOS home-screen handoff (only with `NEXT_PUBLIC_IOS_HANDOFF=1`) |
@@ -188,7 +189,7 @@ The logic lives in [`src/lib/membership.ts`](../src/lib/membership.ts). Every mu
   - Auction: the name only.
   - A player plays under their display name (`users.name`); setup asks for no name.
   - Saving links the person to *their* FPL slot (`team_members.playerId`), via `saveOwnPlayer`. It uses their existing slot; else the unlinked slot they pick (one the owner entered for them, or a past teammate's); else a new slot if there's room. Nobody else's slot is written, and only the owner's `teamName` counts.
-  - "Has setup to do" is per person (`needsSetup`): unlinked to a slot in TVT / Continental, team not named in auction. Join landings, My Leagues and the dashboard redirect all use it.
+  - "Has setup to do" is per person (`needsSetup`): unlinked to a slot in TVT / Continental, team not named in auction. Join landings, the home page and the league picker all use it.
   - `teams.isProfileComplete` means every FPL slot is filled (`refreshTeamComplete`, 2 for TVT / Continental). Until then the team shows as pending (admin: "Setup Pending"; dashboard: "Waiting for your partner"), though the owner can use the dashboard and the filled slot still scores.
 - **Saved FPL teams** (`user_fpl_teams`, [`src/lib/fpl-teams.ts`](../src/lib/fpl-teams.ts), `/api/me/fpl-teams`). A person keeps every FPL team they run on `/account`, and each is checked against FPL when it's added (at most 10).
   - FPL teams are optional: onboarding's field can be skipped, and auction leagues never ask. Only joining a TVT / Continental league needs one, and setup's picker can add one on the spot.
@@ -202,12 +203,17 @@ The logic lives in [`src/lib/membership.ts`](../src/lib/membership.ts). Every mu
   - A partner who won't sign in: the owner enters their details (`POST /api/team/partner`, `savePartnerByOwner`) into an unlinked slot. If the partner joins later, they take that slot over in their setup.
   - Admins can also fill a missing player 2 from the team edit modal (`update-team` inserts it).
   - League invite links in two-manager formats warn that they make a team of your own, so partners use the team link instead.
-- **Dashboard** at `/{slug}/dashboard`. Every team API call carries `?league=`.
-  - `/dashboard` redirects to the league used last (`jpl_last_league` cookie, also used by the PWA `/launch`), else the viewer's home.
-- **Switching.**
-  - `LeagueSwitcher` sits in the drawer (always visible) and in the desktop account menu.
-  - `/` shows "Your leagues" above the public list.
-  - Inside a league, `LeagueNav` points Dashboard and Settings at that league's pages.
+- **Home** (`/` when signed in, [`src/app/_home/PlayerHome.tsx`](../src/app/_home/PlayerHome.tsx)). Where sign-in, `/dashboard` and the PWA `/launch` land (a superadmin's `/launch` goes to platform admin). No league's dashboard opens until the person picks that league.
+  - Summary tiles (leagues, next deadline, last gameweek's head-to-head record, to-do count), then **Needs your attention**: finish setup, invite your partner, pick your captain before the deadline, a live or upcoming auction, join requests waiting for an admin, your own pending request.
+  - Then one section per sport (Football first, [`src/lib/sports.ts`](../src/lib/sports.ts)): **Your leagues** as status cards, then **Other leagues** (active leagues you're not in, browse only — joining is still by invite link).
+  - Cards: TVT (group rank, zone, W-D-L, last and next match, captain), Continental (JPL table rank, cup group rank, matches, captain), Auction (rank, purse, squad, auction status), FPL Classic (rank by season points), leagues you run (join requests waiting). The last league opened (`jpl_last_league` cookie) comes first.
+  - Data: [`src/lib/dashboard/league-summary.ts`](../src/lib/dashboard/league-summary.ts) reads each league through the helper its own pages use (`computeLeagueStageStandings`, `resolveSubmissionWindow`, `loadAuctionStandings`, `cupGroupPosition`), so the home page can't disagree with them. [`overview.ts`](../src/lib/dashboard/overview.ts) is the pure step (to-dos, order, tiles, sport sections), unit-tested in `tests/unit/overview.test.ts`. A league that fails to load shows an error card; the rest still render.
+  - **FPL Classic** leagues have no accounts: a person counts as in one when an FPL team saved on their account is an active entrant ([`src/lib/fpl-classic/my-entries.ts`](../src/lib/fpl-classic/my-entries.ts)).
+- **Dashboard** at `/{slug}/dashboard`. Every team API call carries `?league=`. `/dashboard` redirects to `/`.
+- **Switching** ([`src/components/LeaguePicker.tsx`](../src/components/LeaguePicker.tsx)).
+  - Inside a league, for a signed-in person, the desktop bar's league name is the league picker (the logo goes home). On phones, "Your leagues" is the drawer's first section. Both list "All my leagues", then your leagues by sport.
+  - The account menu no longer lists leagues.
+  - Inside a league, `LeagueNav` points Dashboard and Settings at that league's pages. A signed-in person with no team there gets "My leagues" → `/` instead of Dashboard.
 - **Admin Members tab** (`/api/admin/[leagueId]/members` and `/invites`):
   - slot states (Open / Claimed / Set up);
   - invite link: copy / new link / turn off / approval toggle;

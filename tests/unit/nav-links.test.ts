@@ -29,18 +29,39 @@ const labels = (ctx: NavContext, runtime = {}) => buildNavModel(ctx, runtime).fl
 
 /* ── flat order matches the pre-refactor LeagueNav, format by format ────── */
 
-test("tvt flat order matches the old LeagueNav", () => {
+// Match Center (after Fixtures) is the one deliberate addition since the refactor: feedback asked
+// for it to be reachable from the nav, not only from a fixture.
+test("tvt flat order matches the old LeagueNav, plus Match Center", () => {
   assert.deepEqual(labels(league({ format: "tvt" })), [
-    "Dashboard", "Standings", "Fixtures", "FPL League", "Playoffs", "Winners",
+    "Dashboard", "Standings", "Fixtures", "Match Center", "FPL League", "Playoffs", "Winners",
     "Rules", "Help", "Feedback", "Settings",
   ]);
 });
 
-test("continental-championship flat order matches the old LeagueNav", () => {
+test("continental-championship flat order matches the old LeagueNav, plus Match Center", () => {
   assert.deepEqual(labels(league({ format: "continental-championship" })), [
-    "Dashboard", "JPL Standings", "JPL Fixtures", "JPL Cup Standings", "JPL Cup Fixtures",
+    "Dashboard", "JPL Standings", "JPL Fixtures", "Match Center", "JPL Cup Standings", "JPL Cup Fixtures",
     "Playoffs", "Winners", "Rules", "Help", "Feedback", "Settings",
   ]);
+});
+
+test("Match Center is offered only where it exists (TVT and Continental)", () => {
+  for (const format of ["tvt", "continental-championship"] as const) {
+    const item = buildNavModel(league({ format })).flat.find((i) => i.key === "match-center");
+    assert.equal(item?.href, "/demo/match-center");
+  }
+  for (const format of ["auction", "fpl-classic"] as const) {
+    assert.ok(!buildNavModel(league({ format })).flat.some((i) => i.key === "match-center"), `${format} has no Match Center`);
+  }
+});
+
+test("signed in without a team in this league: the home link is My leagues → /", () => {
+  const home = buildNavModel(league({ format: "tvt", homeIsHub: true })).flat[0];
+  assert.deepEqual([home.key, home.label, home.href], ["dashboard", "My leagues", "/"]);
+  const member = buildNavModel(league({ format: "tvt", dashboardHref: "/demo/dashboard" })).flat[0];
+  assert.deepEqual([member.label, member.href], ["Dashboard", "/demo/dashboard"]);
+  const signedOut = buildNavModel(league({ format: "tvt", isLoggedIn: false, homeIsHub: true })).flat[0];
+  assert.equal(signedOut.label, "All Leagues", "signed out wins over homeIsHub");
 });
 
 test("auction flat order matches the old LeagueNav", () => {
