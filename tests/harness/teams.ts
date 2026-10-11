@@ -30,9 +30,10 @@ async function completeSetup(request: APIRequestContext, slug: string, data: Rec
 }
 
 /**
- * For a TVT or Continental Championship team: sign in as its owner, complete setup with their own
- * FPL ID, then enter the partner's (as an owner does for a partner who won't sign in), so the team
- * is complete with deterministic FPL IDs.
+ * For a TVT or Continental Championship team: sign in as its owner, save their FPL team to their
+ * list and pick it in setup (it plays under the owner's display name, "Team N owner"), then enter
+ * the partner's (as an owner does for a partner who won't sign in), so the team is complete with
+ * deterministic FPL IDs.
  *
  * `fplBase` is the starting FPL element ID; team i gets (fplBase + 2i, fplBase + 2i + 1)
  * so every team in a league has a unique pair without colliding across teams.
@@ -48,12 +49,10 @@ export async function setupTvtTeam(
   const fplBase = opts.fplBase ?? 1000;
 
   await apiSignInTeam(request, slug, index);
-  await completeSetup(
-    request,
-    slug,
-    { teamName, name: `${teamName} P1`, fplId: String(fplBase + index * 2) },
-    `setupTvtTeam(${loginId})`,
-  );
+  const ownerFplId = String(fplBase + index * 2);
+  // Setup picks from the person's saved FPL teams (the test FPL stub answers any entry id).
+  await completeSetup(request, slug, { fplEntryId: ownerFplId }, `setupTvtTeam(${loginId})`, "/api/me/fpl-teams");
+  await completeSetup(request, slug, { teamName, fplId: ownerFplId }, `setupTvtTeam(${loginId})`);
   await completeSetup(
     request,
     slug,

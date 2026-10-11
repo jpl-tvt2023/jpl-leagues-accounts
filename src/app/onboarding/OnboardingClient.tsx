@@ -40,7 +40,6 @@ export function OnboardingClient({ next }: { next: string }) {
       }
       setEmail(me.user?.email ?? "");
       setName(me.user?.name ?? "");
-      setFplEntryId(me.user?.fplEntryId ?? "");
       setLoading(false);
     })();
   }, [next]);
@@ -87,10 +86,23 @@ export function OnboardingClient({ next }: { next: string }) {
     setSaving(true);
     setError(null);
     try {
+      // The optional FPL team goes on the person's list of FPL teams (it becomes their primary).
+      if (fplEntryId.trim()) {
+        const added = await fetch("/api/me/fpl-teams", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fplEntryId: fplEntryId.trim() }),
+        });
+        if (!added.ok) {
+          const body = await added.json().catch(() => ({}));
+          setError(body.error ?? "Couldn't save that FPL team ID.");
+          return;
+        }
+      }
       const res = await fetch("/api/me/profile", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, name, fplEntryId: fplEntryId.trim() || null }),
+        body: JSON.stringify({ username, name }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -159,7 +171,7 @@ export function OnboardingClient({ next }: { next: string }) {
 
           <div>
             <label htmlFor="onb-fpl" className="block text-sm font-medium text-gray-300 mb-2">
-              Your FPL team ID <span className="text-gray-500">(optional)</span>
+              Your FPL team ID <span className="text-gray-500">(optional, FPL leagues only)</span>
             </label>
             <input
               id="onb-fpl"
@@ -172,7 +184,8 @@ export function OnboardingClient({ next }: { next: string }) {
               aria-describedby="onb-fpl-help"
             />
             <p id="onb-fpl-help" className="mt-1 text-xs text-gray-500">
-              {fplPreview ?? "The number in your FPL team's web address. We'll fill it in when you set up a team."}
+              {fplPreview ??
+                "Only needed for FPL leagues (Team vs Team, Continental). Here for auction or other leagues? Skip it: you can add FPL teams any time from your account, or when you join an FPL league."}
             </p>
           </div>
 

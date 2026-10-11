@@ -3,7 +3,8 @@ import { db, teams, leagues, teamMembers, users } from "@/lib/db";
 import { eq, and, sql } from "drizzle-orm";
 import { leagueFromRequest, resolveTeamActor, teamActorDenied } from "@/lib/team-actor";
 import { invalidateLeaguePageCache } from "@/lib/fpl-cache";
-import { MembershipError, maxMembersFor, needsSetup, readPlayerDetails, saveOwnPlayer, teamSlots } from "@/lib/membership";
+import { MembershipError, leagueFplLock, maxMembersFor, needsSetup, readPlayerDetails, saveOwnPlayer, teamSlots } from "@/lib/membership";
+import { fplIdsTakenInLeague, hasFplTeam, listFplTeams } from "@/lib/fpl-teams";
 
 /** Check if a league uses the auction format (no FPL player IDs needed at setup) */
 async function isAuctionLeague(leagueId: string): Promise<boolean> {
@@ -14,7 +15,8 @@ async function isAuctionLeague(leagueId: string): Promise<boolean> {
 /**
  * GET /api/team/setup
  * What this person's setup needs: the team, its FPL slots (theirs and any nobody is linked to),
- * and their profile for prefilling. With ?checkName=, whether a team name is free in the league.
+ * their saved FPL teams to pick from (each marked if it already plays for another team here), and
+ * when the league's FPL teams get fixed. With ?checkName=, whether a team name is free.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -59,9 +61,9 @@ export async function GET(request: NextRequest) {
       .where(eq(teamMembers.teamId, teamId));
     const mine = members.find((m) => m.userId === actor.userId);
     const mySlot = slots.find((s) => s.id === mine?.playerId) ?? null;
-    // Your own details default to your profile.
-    const [me] = await db.select({ name: users.name, fplEntryId: users.fplEntryId }).from(users).where(eq(users.id, actor.userId)).limit(1);
+    const [me] = await db.select({ name: users.name }).from(users).where(eq(users.id, actor.userId)).limit(1);
     const slotView = (s: (typeof slots)[number]) => ({ id: s.id, name: s.name, fplId: s.fplId });
+    const [saved, taken, lock] = await Promise.all([listFplTeams(actor.userId), fplIdsTakenInLeague(team.leagueId), leagueFplLock(team.leagueId)]);
 
     return NextResponse.json({
       teamId: team.id,
@@ -80,7 +82,21 @@ export async function GET(request: NextRequest) {
       // FPL slots nobody is linked to: one the owner filled in for a partner, or a past member's.
       openSlots: slots.filter((s) => !s.userId).map(slotView),
       canAddSlot: slots.length < maxMembers,
-      defaults: me ? { name: me.name, fplId: me.fplEntryId ?? "" } : null,
+      // Your name in the league is your display name.
+      myName: me?.name ?? "",
+      fplTeams: saved.map((t) => {
+        const holder = taken.get(t.fplEntryId);
+        return {
+          id: t.id,
+          fplEntryId: t.fplEntryId,
+          teamName: t.teamName,
+          managerName: t.managerName,
+          isPrimary: t.isPrimary,
+          // Already playing for another team in this league, so it can't be picked here.
+          takenBy: holder && holder.teamId !== teamId ? holder.teamName : null,
+        };
+      }),
+      lock: lock ? { gw: lock.gw, deadline: lock.deadline.toISOString() } : null,
     });
   } catch (error) {
     console.error("Setup GET error:", error);
@@ -89,11 +105,11 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * POST /api/team/setup { teamName?, name, fplId, slotId? }
+ * POST /api/team/setup { teamName?, fplId, slotId? }
  * Each person sets up their own part of the team. The owner names the team (a teammate's
- * teamName is ignored). In TVT and Continental everyone then enters only their own FPL details,
- * into their own slot, the unlinked slot they pick (`slotId`), or a new one, and the team is
- * complete once every slot is filled. Auction: just the name.
+ * teamName is ignored). In TVT and Continental everyone then picks one of their saved FPL teams
+ * (`fplId`), which plays under their display name in their own slot, the unlinked slot they pick
+ * (`slotId`), or a new one; the team is complete once every slot is filled. Auction: just the name.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -102,7 +118,7 @@ export async function POST(request: NextRequest) {
     const teamId = actor.teamId;
     const isOwner = actor.memberRole === "owner";
 
-    const body = (await request.json().catch(() => ({}))) as { teamName?: unknown; name?: unknown; fplId?: unknown; slotId?: unknown };
+    const body = (await request.json().catch(() => ({}))) as { teamName?: unknown; fplId?: unknown; slotId?: unknown };
 
     const [team] = await db.select().from(teams).where(eq(teams.id, teamId)).limit(1);
     if (!team) {
@@ -161,10 +177,14 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // ============= TVT / Continental: your own FPL details =============
-    const details = readPlayerDetails(body);
+    // ============= TVT / Continental: one of your saved FPL teams, under your display name =============
+    const [me] = await db.select({ name: users.name }).from(users).where(eq(users.id, actor.userId)).limit(1);
+    const details = readPlayerDetails({ name: me?.name ?? "", fplId: body.fplId }, "Your");
     if ("error" in details) {
       return NextResponse.json({ error: details.error }, { status: 400 });
+    }
+    if (!(await hasFplTeam(actor.userId, details.fplId))) {
+      return NextResponse.json({ error: "Add that FPL team to your list first.", code: "not-saved" }, { status: 400 });
     }
 
     const slotId = typeof body.slotId === "string" && body.slotId ? body.slotId : null;

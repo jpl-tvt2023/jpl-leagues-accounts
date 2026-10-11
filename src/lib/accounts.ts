@@ -116,7 +116,6 @@ export function publicProfile(user: User) {
     name: user.name,
     username: user.username,
     avatarUrl: user.avatarUrl,
-    fplEntryId: user.fplEntryId,
     role: user.role,
   };
 }

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { LoadingScreen } from "@/components/LoadingScreen";
 import { AppNav } from "@/components/AppNav";
 import { PartnerInvitePanel, fetchTeamInfo, type TeamInfo } from "@/components/PartnerInvitePanel";
+import { FplTeamPicker, defaultFplPick, type FplTeamOption } from "@/components/FplTeamPicker";
 
 interface Slot {
   id: string;
@@ -25,12 +26,16 @@ interface SetupInfo {
   mySlot: Slot | null;
   openSlots: Slot[];
   canAddSlot: boolean;
-  defaults: { name: string; fplId: string } | null;
+  /** Your name in the league: your display name. */
+  myName: string;
+  /** Your saved FPL teams, each marked if it already plays for another team in this league. */
+  fplTeams: FplTeamOption[];
+  /** Set once the league's FPL teams are fixed (its first gameweek deadline has passed). */
+  lock: { gw: number; deadline: string } | null;
 }
 
 interface Errors {
   teamName?: string;
-  name?: string;
   fplId?: string;
   global?: string;
 }
@@ -44,12 +49,13 @@ const INPUT = "w-full rounded-lg border border-white/20 bg-black/40 px-4 py-3 te
 
 /**
  * Team setup at /[leagueSlug]/setup: each person sets up only their own part of the team.
- * - TVT / Continental owner: team name → your own name and FPL ID → invite your partner (or,
- *   for a partner who won't sign in, enter their details).
- * - TVT / Continental partner (joined with the team link, or added by an admin): your own name and
- *   FPL ID, taking over the slot the owner filled in for you if there is one.
+ * - TVT / Continental owner: team name → pick which of your saved FPL teams plays here → invite
+ *   your partner (or, for a partner who won't sign in, enter their details).
+ * - TVT / Continental partner (joined with the team link, or added by an admin): pick your FPL
+ *   team, taking over the slot the owner filled in for you if there is one.
  * - Auction: the name only.
- * Every API call names the league. There is no login ID to choose; the team key is internal.
+ * You play under your display name. Your primary FPL team is picked by default; you can add one
+ * here without leaving. Every API call names the league; the team key is internal.
  */
 export function TeamSetup({ leagueSlug }: { leagueSlug: string }) {
   const router = useRouter();
@@ -63,10 +69,9 @@ export function TeamSetup({ leagueSlug }: { leagueSlug: string }) {
   const [errors, setErrors] = useState<Errors>({});
   const [nameCheckLoading, setNameCheckLoading] = useState(false);
   const [teamName, setTeamName] = useState("");
-  const [myName, setMyName] = useState("");
-  const [myFplId, setMyFplId] = useState("");
+  const [fplTeams, setFplTeams] = useState<FplTeamOption[]>([]);
+  const [pickedFpl, setPickedFpl] = useState<string | null>(null);
   const [slotChoice, setSlotChoice] = useState<string>(NEW_SLOT);
-  const [fplPreview, setFplPreview] = useState<string | null>(null);
   const [teamInfo, setTeamInfo] = useState<TeamInfo | null>(null);
 
   const isAuction = info?.leagueFormat === "auction";
@@ -77,12 +82,11 @@ export function TeamSetup({ leagueSlug }: { leagueSlug: string }) {
   const steps: Step[] = !info ? ["team"] : isAuction ? ["team"] : !isOwner ? ["me"] : info.memberCount < info.maxMembers ? ["team", "me", "partner"] : ["team", "me"];
   const stepIndex = Math.max(0, steps.indexOf(step));
 
-  /** Your details for a slot choice: the slot's, unless your profile has a different FPL ID (you know your own ID best). */
-  const prefillFor = (s: SetupInfo, choice: string) => {
+  /** The FPL team to pick for a slot choice: the slot's own, if it's one of yours; else your primary. */
+  const pickFor = (s: SetupInfo, teams: FplTeamOption[], choice: string) => {
     const slot = s.openSlots.find((o) => o.id === choice);
-    const profile = s.defaults ?? { name: "", fplId: "" };
-    if (slot && !(profile.fplId && profile.fplId !== slot.fplId)) return { name: slot.name, fplId: slot.fplId };
-    return { name: profile.name, fplId: profile.fplId };
+    if (slot && teams.some((t) => t.fplEntryId === slot.fplId)) return slot.fplId;
+    return defaultFplPick(teams);
   };
 
   // Load this person's setup state.
@@ -106,14 +110,14 @@ export function TeamSetup({ leagueSlug }: { leagueSlug: string }) {
         setInfo(s);
         setTeamName(s.currentName);
         setStep(s.leagueFormat !== "auction" && s.role !== "owner" ? "me" : "team");
-        // Which slot is yours: the unlinked one with your FPL ID; else a new one if there's room;
-        // else the first unlinked one (e.g. the details your owner entered for you).
-        const match = s.openSlots.find((o) => !!s.defaults?.fplId && o.fplId === s.defaults.fplId);
+        setFplTeams(s.fplTeams);
+        // Which slot is yours: an unlinked one playing as one of your FPL teams; else a new one if
+        // there's room; else the first unlinked one (e.g. the details your owner entered for you).
+        const mine = new Set(s.fplTeams.map((t) => t.fplEntryId));
+        const match = s.openSlots.find((o) => mine.has(o.fplId));
         const choice = s.mySlot ? s.mySlot.id : match ? match.id : s.canAddSlot ? NEW_SLOT : (s.openSlots[0]?.id ?? NEW_SLOT);
         setSlotChoice(choice);
-        const prefill = s.mySlot ? { name: s.mySlot.name, fplId: s.mySlot.fplId } : prefillFor(s, choice);
-        setMyName(prefill.name);
-        setMyFplId(prefill.fplId);
+        setPickedFpl(s.mySlot ? s.mySlot.fplId : pickFor(s, s.fplTeams, choice));
       } catch (err) {
         console.error("Setup load error:", err);
         router.push("/signin");
@@ -151,24 +155,17 @@ export function TeamSetup({ leagueSlug }: { leagueSlug: string }) {
     }
   };
 
-  const checkFpl = async () => {
-    setFplPreview(null);
-    const id = myFplId.trim();
-    if (!id) return;
-    const res = await fetch(`/api/me/profile?checkFplEntry=${encodeURIComponent(id)}`, { cache: "no-store" })
-      .then((r) => r.json())
-      .catch(() => null);
-    if (res?.found) setFplPreview(`${res.teamName} — ${res.managerName}`);
-    else if (res?.problem) setFplPreview(res.problem);
-  };
-
   const chooseSlot = (choice: string) => {
     if (!info) return;
     setSlotChoice(choice);
-    const prefill = prefillFor(info, choice);
-    setMyName(prefill.name);
-    setMyFplId(prefill.fplId);
-    setFplPreview(null);
+    setPickedFpl(pickFor(info, fplTeams, choice));
+  };
+
+  /** A newly saved FPL team joins the list and is picked. */
+  const addedFplTeam = (team: FplTeamOption) => {
+    setFplTeams((prev) => (prev.some((t) => t.id === team.id) ? prev : [...prev, team]));
+    setPickedFpl(team.fplEntryId);
+    setErrors((prev) => ({ ...prev, fplId: undefined }));
   };
 
   const validateTeamStep = () => {
@@ -184,9 +181,7 @@ export function TeamSetup({ leagueSlug }: { leagueSlug: string }) {
 
   const validateMeStep = () => {
     const newErrors: Errors = {};
-    if (!myName.trim()) newErrors.name = "Your name is required";
-    if (!myFplId.trim()) newErrors.fplId = "Your FPL ID is required";
-    else if (!/^\d+$/.test(myFplId.trim())) newErrors.fplId = "Must be numeric";
+    if (!pickedFpl) newErrors.fplId = "Pick the FPL team you'll play with";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -205,7 +200,7 @@ export function TeamSetup({ leagueSlug }: { leagueSlug: string }) {
     }
   };
 
-  /** Save this person's part: auction name, or (TVT / Continental) your own details (+ team name if you own it). */
+  /** Save this person's part: auction name, or (TVT / Continental) your FPL team (+ team name if you own it). */
   const handleSave = async () => {
     if (isAuction ? !validateTeamStep() : !validateMeStep()) return;
 
@@ -213,7 +208,7 @@ export function TeamSetup({ leagueSlug }: { leagueSlug: string }) {
     try {
       const body = isAuction
         ? { teamName: hideTeamName ? info?.currentName : teamName }
-        : { teamName: isOwner ? teamName : undefined, name: myName, fplId: myFplId, slotId: slotChoice === NEW_SLOT ? null : slotChoice };
+        : { teamName: isOwner ? teamName : undefined, fplId: pickedFpl, slotId: slotChoice === NEW_SLOT ? null : slotChoice };
       const res = await fetch(withLeague("/api/team/setup"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -263,7 +258,7 @@ export function TeamSetup({ leagueSlug }: { leagueSlug: string }) {
             {isAuction
               ? "Step 1 of 1 — Manager profile"
               : !isOwner
-                ? `${info.ownerName ? `With ${info.ownerName} · ` : ""}add your own name and FPL ID`
+                ? `${info.ownerName ? `With ${info.ownerName} · ` : ""}pick the FPL team you'll play with`
                 : `Step ${stepIndex + 1} of ${steps.length}`}
           </p>
         </div>
@@ -336,52 +331,25 @@ export function TeamSetup({ leagueSlug }: { leagueSlug: string }) {
               {takingOverSlot && (
                 <p className="rounded-lg border border-white/10 bg-black/30 px-4 py-3 text-xs text-gray-300">
                   {isOwner ? "Your team already has these details" : `${info.ownerName ?? "Your teammate"} entered you as`}:{" "}
-                  <span className="font-semibold text-white">{takingOverSlot.name}</span> · FPL {takingOverSlot.fplId}. Check them below.
+                  <span className="font-semibold text-white">{takingOverSlot.name}</span> · FPL {takingOverSlot.fplId}.
+                  {info.lock
+                    ? ` The league has started, so this slot keeps FPL ${takingOverSlot.fplId}: add it to your FPL teams below if it isn't there.`
+                    : " Pick your FPL team below."}
                 </p>
               )}
 
               <div>
-                <label htmlFor="setup-name" className="block text-sm font-semibold text-white mb-2">Your Name</label>
-                <input
-                  id="setup-name"
-                  type="text"
-                  value={myName}
-                  onChange={(e) => setMyName(e.target.value)}
-                  maxLength={60}
-                  placeholder="John Doe"
-                  className={INPUT}
-                />
-                {errors.name && <p className="text-red-400 text-xs mt-1">{errors.name}</p>}
-              </div>
-
-              <div>
-                <label htmlFor="setup-fpl" className="block text-sm font-semibold text-white mb-2">Your FPL Team ID</label>
-                <input
-                  id="setup-fpl"
-                  type="text"
-                  value={myFplId}
-                  onChange={(e) => setMyFplId(e.target.value.replace(/\D/g, ""))}
-                  onBlur={checkFpl}
-                  inputMode="numeric"
-                  maxLength={10}
-                  placeholder="1234567"
-                  className={INPUT}
-                />
-                {errors.fplId && <p className="text-red-400 text-xs mt-1">{errors.fplId}</p>}
-                <p className="text-gray-500 text-xs mt-2">
-                  {fplPreview ?? (
-                    <>
-                      The number in your FPL team&apos;s web address at{" "}
-                      <a href="https://fantasy.premierleague.com" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300">
-                        fantasy.premierleague.com
-                      </a>
-                    </>
-                  )}
+                <h2 className="text-sm font-semibold text-white">Your FPL team</h2>
+                <p className="mt-1 mb-3 text-xs text-gray-400">
+                  Which of your FPL teams plays in this league, as {info.myName || "you"}. You can switch to another one until the
+                  league&apos;s first gameweek deadline.
                 </p>
+                <FplTeamPicker teams={fplTeams} selected={pickedFpl} onSelect={setPickedFpl} onAdded={addedFplTeam} />
+                {errors.fplId && <p className="text-red-400 text-xs mt-2">{errors.fplId}</p>}
               </div>
 
               {isOwner && steps.includes("partner") && (
-                <p className="text-gray-500 text-xs">Only your own details: your partner adds theirs when they join.</p>
+                <p className="text-gray-500 text-xs">Just yours: your partner picks theirs when they join.</p>
               )}
             </div>
           )}

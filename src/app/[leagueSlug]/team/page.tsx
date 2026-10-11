@@ -7,13 +7,14 @@ import { LoadingScreen } from "@/components/LoadingScreen";
 import { useLeague } from "@/lib/league-context";
 import { signOutAccounts } from "@/lib/accounts-client";
 import { PartnerInvitePanel, fetchTeamInfo, type TeamInfo } from "@/components/PartnerInvitePanel";
+import { MyFplTeamSection } from "@/components/MyFplTeamSection";
 
 const CARD = "rounded-2xl border border-white/10 bg-white/5 p-5 sm:p-6 backdrop-blur";
 
 /**
  * /[leagueSlug]/team — your team in a members-mode league: who's on it (and the FPL details each
- * has added), its name, and (for the owner) the partner invite or the partner's details entered by
- * hand. Legacy team logins manage their team at /settings.
+ * has added), which of your FPL teams plays here, its name, and (for the owner) the partner invite
+ * or the partner's details entered by hand. Legacy team logins manage their team at /settings.
  */
 export default function TeamPage() {
   const { league, viewer } = useLeague();
@@ -136,6 +137,8 @@ export default function TeamPage() {
                 </div>
               )}
             </section>
+
+            {info.maxMembers > 1 && !info.needsSetup && <MyFplTeamSection leagueSlug={league.slug} onChanged={reload} />}
 
             <section aria-labelledby="team-name" className={CARD}>
               <h2 id="team-name" className="mb-3 text-lg font-semibold text-white">Team name</h2>

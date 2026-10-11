@@ -5,6 +5,7 @@ import Link from "next/link";
 import { AppNav } from "@/components/AppNav";
 import { LoadingScreen } from "@/components/LoadingScreen";
 import { AccountsOnDevice } from "@/components/AccountsOnDevice";
+import { FplTeamsManager } from "@/components/FplTeamsManager";
 import { announceAuthChange, signOutAccounts } from "@/lib/accounts-client";
 
 const INPUT =
@@ -15,7 +16,6 @@ interface Profile {
   email: string;
   name: string;
   username: string | null;
-  fplEntryId: string | null;
   role: string;
 }
 interface MyLeagues {
@@ -34,7 +34,7 @@ export default function AccountPage() {
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [leagues, setLeagues] = useState<MyLeagues | null>(null);
-  const [form, setForm] = useState({ username: "", name: "", fplEntryId: "" });
+  const [form, setForm] = useState({ username: "", name: "" });
   const [notice, setNotice] = useState<Notice>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState("");
@@ -58,7 +58,7 @@ export default function AccountPage() {
       ]);
       if (cancelled) return;
       setProfile(p.user);
-      setForm({ username: p.user.username ?? "", name: p.user.name ?? "", fplEntryId: p.user.fplEntryId ?? "" });
+      setForm({ username: p.user.username ?? "", name: p.user.name ?? "" });
       setLeagues(l);
       setLoading(false);
     })();
@@ -78,7 +78,6 @@ export default function AccountPage() {
         // Admins and superadmins may have no username; leaving it blank then isn't an error.
         username: form.username.trim() || profile?.username ? form.username : undefined,
         name: form.name,
-        fplEntryId: profile?.role === "superadmin" ? undefined : form.fplEntryId.trim() || null,
       }),
     });
     const body = await res.json().catch(() => ({}));
@@ -197,17 +196,15 @@ export default function AccountPage() {
               <label htmlFor="acc-name" className="block text-sm font-medium text-gray-300 mb-1">Display name</label>
               <input id="acc-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} maxLength={60} className={INPUT} />
             </div>
-            {profile.role !== "superadmin" && (
-              <div>
-                <label htmlFor="acc-fpl" className="block text-sm font-medium text-gray-300 mb-1">Your FPL team ID</label>
-                <input id="acc-fpl" value={form.fplEntryId} onChange={(e) => setForm({ ...form, fplEntryId: e.target.value.replace(/\D/g, "") })} inputMode="numeric" maxLength={10} className={INPUT} />
-                <p className="mt-1 text-xs text-gray-500">Used to prefill team setup. Changing it doesn&apos;t change teams you&apos;ve already set up.</p>
-              </div>
-            )}
             <button type="submit" disabled={busy !== null} className="rounded-lg bg-yellow-500 px-5 py-2.5 text-sm font-semibold text-slate-900 hover:bg-yellow-400 disabled:opacity-50">
               {busy === "profile" ? "Saving…" : "Save"}
             </button>
           </form>
+          {profile.role !== "superadmin" && (
+            <div className="mt-6 border-t border-white/10 pt-5">
+              <FplTeamsManager />
+            </div>
+          )}
         </section>
 
         <section aria-labelledby="devices" className={CARD}>
