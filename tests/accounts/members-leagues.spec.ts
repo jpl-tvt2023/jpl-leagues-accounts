@@ -12,7 +12,7 @@
 import { test, expect, type APIRequestContext, type PlaywrightWorkerArgs } from "@playwright/test";
 
 type Playwright = PlaywrightWorkerArgs["playwright"];
-import { and, eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { apiSignInSuperadmin, apiSignInUser, ensureGameweeks, generateFixtures, testDb, schema, uniqueSlug } from "../harness";
 
@@ -37,6 +37,17 @@ async function join(ctx: APIRequestContext, token: string) {
   return { status: res.status(), body: await res.json().catch(() => ({})) };
 }
 
+/** Save FPL teams to the person's list (setup picks from it). The test FPL stub knows any id. */
+async function saveFplTeams(ctx: APIRequestContext, ...ids: string[]) {
+  const saved = [];
+  for (const id of ids) {
+    const res = await ctx.post("/api/me/fpl-teams", { data: { fplEntryId: id } });
+    expect(res.status(), await res.text()).toBe(200);
+    saved.push((await res.json()).fplTeam);
+  }
+  return saved;
+}
+
 async function myTeamIn(userEmail: string, leagueId: string): Promise<string | null> {
   const db = testDb();
   const [u] = await db.select({ id: schema.users.id }).from(schema.users).where(eq(schema.users.email, userEmail)).limit(1);
@@ -49,13 +60,13 @@ async function myTeamIn(userEmail: string, leagueId: string): Promise<string | n
   return m?.teamId ?? null;
 }
 
-async function createMembersLeague(request: APIRequestContext, format: "tvt" | "auction"): Promise<League> {
+async function createMembersLeague(request: APIRequestContext, format: "tvt" | "auction", name?: string): Promise<League> {
   await apiSignInSuperadmin(request);
   const slug = uniqueSlug(format === "tvt" ? "mt" : "ma");
   const res = await request.post("/api/superadmin/leagues", {
     data:
       format === "tvt"
-        ? { slug, name: `Members TVT ${run}`, sport: "fpl", format: "tvt", season: "2025-26", teamSize: 8, enabledChips: ["D", "W", "C"], authMode: "members" }
+        ? { slug, name: name ?? `Members TVT ${run}`, sport: "fpl", format: "tvt", season: "2025-26", teamSize: 8, enabledChips: ["D", "W", "C"], authMode: "members" }
         : { slug, name: `Members Auction ${run}`, sport: "fpl", format: "auction", season: "2025-26", teamSize: 10, auctionTier: "complete", isSimulated: true, authMode: "members" },
     failOnStatusCode: false,
   });
@@ -116,8 +127,9 @@ test.describe.serial("members-mode leagues", () => {
     expect(setup.needsSetup).toBe(true);
     expect(setup.role).toBe("owner");
 
+    await saveFplTeams(alice, "5001");
     const done = await alice.post(`/api/team/setup?league=${tvt.slug}`, {
-      data: { teamName: `Alice FC ${run}`.slice(0, 30), name: "Alice", fplId: "5001" },
+      data: { teamName: `Alice FC ${run}`.slice(0, 30), fplId: "5001" },
     });
     expect(done.status(), await done.text()).toBe(200);
     expect((await done.json()).teamComplete).toBe(false);
@@ -155,7 +167,8 @@ test.describe.serial("members-mode leagues", () => {
     expect(setup).toMatchObject({ role: "member", needsSetup: true, ownerName: "Alice", openSlots: [], canAddSlot: true });
 
     // A teammate can't rename the team (ignored) or enter the partner (owner only).
-    const saved = await bob.post(`/api/team/setup?league=${tvt.slug}`, { data: { teamName: "Hijacked", name: "Bob", fplId: "5002" } });
+    await saveFplTeams(bob, "5002");
+    const saved = await bob.post(`/api/team/setup?league=${tvt.slug}`, { data: { teamName: "Hijacked", fplId: "5002" } });
     expect(saved.status(), await saved.text()).toBe(200);
     expect((await saved.json()).teamComplete).toBe(true);
     expect((await bob.post(`/api/team/partner?league=${tvt.slug}`, { data: { name: "X", fplId: "1" } })).status()).toBe(403);
@@ -181,7 +194,8 @@ test.describe.serial("members-mode leagues", () => {
     const partner = (data: object) => mia.post(`/api/team/partner?league=${tvt.slug}`, { data });
 
     expect((await partner({ name: "Ned", fplId: "6002" })).status()).toBe(409); // own details first
-    await mia.post(`/api/team/setup?league=${tvt.slug}`, { data: { teamName: `Mia FC ${run}`.slice(0, 30), name: "Mia", fplId: "6001" } });
+    await saveFplTeams(mia, "6001");
+    await mia.post(`/api/team/setup?league=${tvt.slug}`, { data: { teamName: `Mia FC ${run}`.slice(0, 30), fplId: "6001" } });
     expect((await partner({ name: "Ned", fplId: "6001" })).status()).toBe(409); // that FPL ID is already on the team
     const entered = await partner({ name: "Ned", fplId: "6002" });
     expect(entered.status(), await entered.text()).toBe(200);
@@ -200,8 +214,9 @@ test.describe.serial("members-mode leagues", () => {
     const setup = await (await ned.get(`/api/team/setup?league=${tvt.slug}`)).json();
     expect(setup.canAddSlot).toBe(false);
     expect(setup.openSlots).toHaveLength(1);
-    expect((await ned.post(`/api/team/setup?league=${tvt.slug}`, { data: { name: "Ned", fplId: "6004" } })).status()).toBe(409); // which slot?
-    const took = await ned.post(`/api/team/setup?league=${tvt.slug}`, { data: { name: "Ned", fplId: "6004", slotId: setup.openSlots[0].id } });
+    await saveFplTeams(ned, "6004");
+    expect((await ned.post(`/api/team/setup?league=${tvt.slug}`, { data: { fplId: "6004" } })).status()).toBe(409); // which slot?
+    const took = await ned.post(`/api/team/setup?league=${tvt.slug}`, { data: { fplId: "6004", slotId: setup.openSlots[0].id } });
     expect(took.status(), await took.text()).toBe(200);
     expect((await rows()).map((r) => r.fplId).sort()).toEqual(["6001", "6004"]); // updated, not added
     expect((await partner({ name: "Ned", fplId: "6005" })).status()).toBe(409); // he's in now
@@ -211,7 +226,8 @@ test.describe.serial("members-mode leagues", () => {
   test("admin: filling in a missing player 2 completes a pending team", async ({ request, playwright }) => {
     const pat = await person(playwright, "pat");
     expect((await join(pat, tvt.inviteToken)).body.status).toBe("joined");
-    await pat.post(`/api/team/setup?league=${tvt.slug}`, { data: { teamName: `Pat FC ${run}`.slice(0, 30), name: "Pat", fplId: "7001" } });
+    await saveFplTeams(pat, "7001");
+    await pat.post(`/api/team/setup?league=${tvt.slug}`, { data: { teamName: `Pat FC ${run}`.slice(0, 30), fplId: "7001" } });
     const patTeam = (await myTeamIn(email("pat"), tvt.id))!;
 
     await apiSignInSuperadmin(request);
@@ -221,6 +237,78 @@ test.describe.serial("members-mode leagues", () => {
     expect(team.isProfileComplete).toBe(true);
     expect(await testDb().select().from(schema.players).where(eq(schema.players.teamId, patTeam))).toHaveLength(2);
     await pat.dispose();
+  });
+
+  test("saved FPL teams: primary picked by default, only your own, one team per league, switchable", async ({ playwright }) => {
+    const quinn = await person(playwright, "quinn");
+    // FPL teams are optional until you join an FPL league: an empty list is fine.
+    expect((await (await quinn.get("/api/me/fpl-teams")).json()).fplTeams).toEqual([]);
+    const [first, second] = await saveFplTeams(quinn, "8001", "8002");
+    expect([first.isPrimary, second.isPrimary]).toEqual([true, false]);
+    expect((await quinn.patch("/api/me/fpl-teams", { data: { id: second.id } })).status()).toBe(200);
+
+    expect((await join(quinn, tvt.inviteToken)).body.status).toBe("joined");
+    const setup = await (await quinn.get(`/api/team/setup?league=${tvt.slug}`)).json();
+    expect(setup.myName).toBe("Quinn");
+    expect(setup.lock).toBeNull();
+    expect(setup.fplTeams.find((t: { isPrimary: boolean }) => t.isPrimary).fplEntryId).toBe("8002");
+
+    const post = (fplId: string) => quinn.post(`/api/team/setup?league=${tvt.slug}`, { data: { teamName: `Quinn FC ${run}`.slice(0, 30), fplId } });
+    const notSaved = await post("9999");
+    expect(notSaved.status()).toBe(400);
+    expect((await notSaved.json()).code).toBe("not-saved");
+    expect((await post("8002")).status()).toBe(200);
+
+    // Switch to the other one; the slot plays as Quinn either way.
+    const switchTo = (fplId: string) => quinn.post(`/api/team/fpl-team?league=${tvt.slug}`, { data: { fplId } });
+    expect((await switchTo("8001")).status()).toBe(200);
+    const quinnTeam = (await myTeamIn(email("quinn"), tvt.id))!;
+    const [row] = await testDb().select().from(schema.players).where(eq(schema.players.teamId, quinnTeam));
+    expect(row).toMatchObject({ fplId: "8001", name: "Quinn" });
+
+    // Alice's FPL team already plays for her team in this league.
+    await saveFplTeams(quinn, "5001");
+    const taken = await switchTo("5001");
+    expect(taken.status()).toBe(409);
+    expect((await taken.json()).code).toBe("duplicate-fpl-id");
+    const again = await (await quinn.get(`/api/team/setup?league=${tvt.slug}`)).json();
+    expect(again.fplTeams.find((t: { fplEntryId: string }) => t.fplEntryId === "5001").takenBy).toBe(`Alice FC ${run}`.slice(0, 30));
+    await quinn.dispose();
+  });
+
+  test("FPL teams are fixed at the league's first deadline; admins can still change them", async ({ request, playwright }) => {
+    const lockLeague = await createMembersLeague(request, "tvt", `Lock TVT ${run}`);
+    const rita = await person(playwright, "rita");
+    await saveFplTeams(rita, "8101", "8102");
+    expect((await join(rita, lockLeague.inviteToken)).body.status).toBe("joined");
+    expect((await rita.post(`/api/team/setup?league=${lockLeague.slug}`, { data: { teamName: `Rita FC ${run}`.slice(0, 30), fplId: "8101" } })).status()).toBe(200);
+
+    // Its first fixture is in GW1, with the deadline still ahead.
+    const db = testDb();
+    const ritaTeam = (await myTeamIn(email("rita"), lockLeague.id))!;
+    const [other] = await db.select({ id: schema.teams.id }).from(schema.teams).where(and(eq(schema.teams.leagueId, lockLeague.id), ne(schema.teams.id, ritaTeam))).limit(1);
+    const gwId = randomUUID();
+    await db.insert(schema.gameweeks).values({ id: gwId, leagueId: lockLeague.id, number: 1, deadline: new Date(Date.now() + 7 * 864e5) });
+    await db.insert(schema.fixtures).values({ id: randomUUID(), gameweekId: gwId, homeTeamId: ritaTeam, awayTeamId: other.id });
+    const switchTo = (fplId: string) => rita.post(`/api/team/fpl-team?league=${lockLeague.slug}`, { data: { fplId } });
+    expect((await switchTo("8102")).status()).toBe(200);
+
+    // The deadline passes: switching is refused, and the team page says why.
+    await db.update(schema.gameweeks).set({ deadline: new Date(Date.now() - 60_000) }).where(eq(schema.gameweeks.id, gwId));
+    const locked = await switchTo("8101");
+    expect(locked.status()).toBe(409);
+    expect((await locked.json()).code).toBe("fpl-locked");
+    expect((await (await rita.get(`/api/team/invite?league=${lockLeague.slug}`)).json()).fplLock).toMatchObject({ gw: 1 });
+
+    // A league admin can still fix it.
+    await apiSignInSuperadmin(request);
+    const [player] = await db.select().from(schema.players).where(eq(schema.players.teamId, ritaTeam));
+    const fixed = await request.put(`/api/admin/${lockLeague.id}/update-team`, {
+      data: { teamId: ritaTeam, player1Id: player.id, player1Name: player.name, player1FplId: "8199" },
+    });
+    expect(fixed.status(), await fixed.text()).toBe(200);
+    expect((await db.select().from(schema.players).where(eq(schema.players.id, player.id)))[0].fplId).toBe("8199");
+    await rita.dispose();
   });
 
   test("one person, two leagues: captain and wishlist each land on the right team", async ({ playwright }) => {
