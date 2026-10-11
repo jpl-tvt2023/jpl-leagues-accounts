@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { AppNav } from "@/components/AppNav";
 import { LoadingScreen } from "@/components/LoadingScreen";
+import { AccountsOnDevice } from "@/components/AccountsOnDevice";
 import { announceAuthChange, signOutAccounts } from "@/lib/accounts-client";
 
 const INPUT =
@@ -27,7 +28,7 @@ type Notice = { type: "success" | "error"; text: string } | null;
 
 /**
  * /account — the signed-in person's own page: profile, the leagues they're in, their devices,
- * and deleting the account. Legacy team logins have /settings instead.
+ * and deleting the account.
  */
 export default function AccountPage() {
   const [loading, setLoading] = useState(true);
@@ -45,10 +46,6 @@ export default function AccountPage() {
       if (cancelled) return;
       if (!me?.authenticated) {
         window.location.href = "/signin?next=/account";
-        return;
-      }
-      if (me.type === "team") {
-        window.location.href = "/settings";
         return;
       }
       if (!me.user?.username && me.type === "user") {
@@ -77,7 +74,12 @@ export default function AccountPage() {
     const res = await fetch("/api/me/profile", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: form.username, name: form.name, fplEntryId: form.fplEntryId.trim() || null }),
+      body: JSON.stringify({
+        // Admins and superadmins may have no username; leaving it blank then isn't an error.
+        username: form.username.trim() || profile?.username ? form.username : undefined,
+        name: form.name,
+        fplEntryId: profile?.role === "superadmin" ? undefined : form.fplEntryId.trim() || null,
+      }),
     });
     const body = await res.json().catch(() => ({}));
     setBusy(null);
@@ -195,11 +197,13 @@ export default function AccountPage() {
               <label htmlFor="acc-name" className="block text-sm font-medium text-gray-300 mb-1">Display name</label>
               <input id="acc-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} maxLength={60} className={INPUT} />
             </div>
-            <div>
-              <label htmlFor="acc-fpl" className="block text-sm font-medium text-gray-300 mb-1">Your FPL team ID</label>
-              <input id="acc-fpl" value={form.fplEntryId} onChange={(e) => setForm({ ...form, fplEntryId: e.target.value.replace(/\D/g, "") })} inputMode="numeric" maxLength={10} className={INPUT} />
-              <p className="mt-1 text-xs text-gray-500">Used to prefill team setup. Changing it doesn&apos;t change teams you&apos;ve already set up.</p>
-            </div>
+            {profile.role !== "superadmin" && (
+              <div>
+                <label htmlFor="acc-fpl" className="block text-sm font-medium text-gray-300 mb-1">Your FPL team ID</label>
+                <input id="acc-fpl" value={form.fplEntryId} onChange={(e) => setForm({ ...form, fplEntryId: e.target.value.replace(/\D/g, "") })} inputMode="numeric" maxLength={10} className={INPUT} />
+                <p className="mt-1 text-xs text-gray-500">Used to prefill team setup. Changing it doesn&apos;t change teams you&apos;ve already set up.</p>
+              </div>
+            )}
             <button type="submit" disabled={busy !== null} className="rounded-lg bg-yellow-500 px-5 py-2.5 text-sm font-semibold text-slate-900 hover:bg-yellow-400 disabled:opacity-50">
               {busy === "profile" ? "Saving…" : "Save"}
             </button>
@@ -218,6 +222,8 @@ export default function AccountPage() {
             </button>
           </div>
         </section>
+
+        <AccountsOnDevice />
 
         <section aria-labelledby="delete-account" className="rounded-2xl border border-red-500/30 bg-red-500/5 p-5 sm:p-6">
           <h2 id="delete-account" className="text-lg font-semibold text-white mb-1">Delete account</h2>

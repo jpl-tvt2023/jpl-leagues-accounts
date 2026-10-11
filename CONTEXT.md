@@ -42,9 +42,8 @@ src/
 ├── app/
 │   ├── page.tsx                        # Home (league browsing)
 │   ├── layout.tsx                      # Root layout
-│   ├── signin/page.tsx
-│   ├── change-password/page.tsx
-│   ├── dashboard/page.tsx              # Team dashboard
+│   ├── signin/page.tsx                 # Google sign-in (the only sign-in)
+│   ├── dashboard/page.tsx              # Redirects to /[league]/dashboard (TeamDashboard.tsx lives here)
 │   ├── standings/page.tsx              # Global standings view
 │   ├── fixtures/page.tsx               # Global fixtures (supports ?adminLeague=slug)
 │   ├── playoffs/page.tsx               # Global playoffs (supports ?adminLeague=slug)
@@ -90,10 +89,10 @@ src/
 |---|---|---|
 | id | PK | UUID |
 | email | unique text | |
-| password | text | bcrypt hashed; `""` for Google-only accounts |
+| password | text | unused — everyone signs in with Google; `""` on new rows |
 | name | text | |
 | role | "superadmin"\|"admin"\|"user" | set explicitly on insert (the column default is still "admin") |
-| mustChangePassword | boolean | default true |
+| mustChangePassword | boolean | unused; `false` on new rows |
 | username | unique text, nullable | lowercase; null until onboarding |
 | avatarUrl / fplEntryId / lastLoginAt | | person profile |
 | sessionVersion | integer | bump to revoke every session |
@@ -136,8 +135,9 @@ Unique: `(leagueId, name)`
 | name | team name |
 | leagueId | FK → leagues |
 | abbreviation | short name (display) |
-| password | bcrypt hashed |
-| mustChangePassword | boolean |
+| teamLoginId | the team key: internal identifier for backups/importers, not a login |
+| password | unused — nobody signs in as a team; `""` on new rows |
+| mustChangePassword | unused |
 | groupId | FK → groups |
 | leaguePoints | integer |
 | bonusPoints | integer |
@@ -298,8 +298,7 @@ Event log: type, description, teamId, gameweekId, pointsAffected, createdAt.
 ### Auth
 | Method | Path | Purpose |
 |---|---|---|
-| POST | `/api/auth/signin` | Password login: admin email, or legacy team key (refused for members-mode leagues) |
-| GET | `/api/auth/google` → `/api/auth/google/callback` | Google sign-in (find, link by email, or create) |
+| GET | `/api/auth/google` → `/api/auth/google/callback` | Google sign-in — the only sign-in (find, link by email, or create) |
 | POST | `/api/auth/handoff` | iOS home-screen sign-in handoff (behind `NEXT_PUBLIC_IOS_HANDOFF`) |
 | POST | `/api/auth/signout` | Logout |
 | GET | `/api/auth/me` | Verify session; people are re-checked (revoked → signed out, role changed → re-minted) |
@@ -307,9 +306,9 @@ Event log: type, description, teamId, gameweekId, pointsAffected, createdAt.
 | GET | `/api/me/leagues` | Teams, admin leagues, pending requests |
 | POST | `/api/me/sessions` | Sign out of all other devices |
 | DELETE | `/api/me` | Delete account |
-| POST | `/api/auth/change-password` | Change password (rate-limited 5/min) |
+| GET / POST | `/api/auth/accounts`, `/api/auth/switch` | Accounts signed in on this device; switch between them |
 
-### Team (a legacy team login, or a person acting in `?league=<slug>`; resolved by `resolveTeamActor`)
+### Team (a person acting in `?league=<slug>`; resolved by `resolveTeamActor`)
 | Method | Path | Purpose |
 |---|---|---|
 | POST/GET | `/api/team/captain` | Announce / get captain for a GW |
@@ -352,10 +351,10 @@ Event log: type, description, teamId, gameweekId, pointsAffected, createdAt.
 ### Superadmin
 | Method | Path | Purpose |
 |---|---|---|
-| GET/POST | `/api/superadmin/leagues` | List / create leagues (`authMode`: members (default, returns an invite) or legacy) |
-| GET/PUT | `/api/superadmin/leagues/[id]` | Get / update league config |
-| GET/POST | `/api/superadmin/admins` | List / create admins (password optional: Google links by email; existing players are promoted) |
-| DELETE | `/api/superadmin/admins/[userId]` | Remove admin (demotes people who play or use Google; deletes password-only admins) |
+| GET/POST | `/api/superadmin/leagues` | List / create leagues (always members mode; returns an invite) |
+| PATCH/DELETE | `/api/superadmin/leagues/[id]` | Update league config; `{ authMode: "members" }` switches an old team-login league to Google sign-in. DELETE confirms with `{ confirm: <slug> }` |
+| GET/POST | `/api/superadmin/admins` | List / create admins by name + email (Google links by email; existing players are promoted) |
+| DELETE | `/api/superadmin/admins/[userId]` | Remove admin (demotes people who play or have signed in; deletes admins who never signed in) |
 | GET | `/api/superadmin/users?q=` | Find people with their teams and admin leagues |
 | POST | `/api/superadmin/users/[id]/transfer` | Move every membership and admin right to another account |
 | GET/POST | `/api/superadmin/league-assignments` | List / assign admin to league |
@@ -372,7 +371,7 @@ Event log: type, description, teamId, gameweekId, pointsAffected, createdAt.
 Runs on all `/api/*` routes:
 
 - **Public routes** (bypassed): `/api/auth/*`, GET `/api/fixtures`, GET `/api/standings`, GET `/api/leagues`, GET `/api/playoffs/bracket`, GET `/api/gameweeks/[gw]`
-- **Rate limiting** via Upstash Redis: signin (5/min), change-password (5/min), reset-season (1/min)
+- **Rate limiting** via Upstash Redis: reset-season (1/min), sign-in handoff, joins, profile
 - **Session verification**: reads `session` cookie → HMAC verify → forwards `x-session-id`, `x-session-type`, `x-session-sv`, `x-league-id` headers
 - **Team routes**: any valid session passes; the route decides the team via `src/lib/team-actor.ts`
 - **Cron auth**: checks `Authorization: Bearer CRON_SECRET`
@@ -582,9 +581,8 @@ Both `/fixtures/page.tsx` (global) and `/[leagueSlug]/fixtures/page.tsx` (league
 ## Session & Auth Flow
 
 - Sessions are HMAC-signed tokens stored in `session` cookie
-- Three session types: `"superadmin"`, `"admin"`, `"team"`
-- Team sessions identify by team UUID; admin/superadmin by user UUID
-- `mustChangePassword` flag forces redirect to `/change-password` on next login
+- Everyone signs in with Google; there are no passwords
+- Session types: `"superadmin"`, `"admin"`, `"user"` — always a person, identified by user UUID. Any other type (e.g. an old `"team"` token) is refused
 - Rate limiting uses Upstash Redis sliding window counters
 
 ---

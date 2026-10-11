@@ -43,12 +43,12 @@ test.describe.serial("FPL Classic league creation", () => {
     await apiSignInSuperadmin(request);
     const db = testDb();
     const stale = await db
-      .select({ id: schema.leagues.id })
+      .select({ id: schema.leagues.id, slug: schema.leagues.slug })
       .from(schema.leagues)
       // Exact slugs only. A `like("league-900001%")` would also match the uniquely-seasoned
       // leagues the sibling fpl-classic specs create against this same stub league id.
       .where(inArray(schema.leagues.slug, [`league-${STUB_LEAGUE_ID}`, ...FIXED_SEASON_SLUGS]));
-    for (const row of stale) await deleteLeague(request, row.id);
+    for (const row of stale) await deleteLeague(request, row);
   });
 
   test("creating with only a league id returns the FPL name, entrant count, and a derived slug", async ({ request }) => {

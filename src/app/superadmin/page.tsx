@@ -29,6 +29,8 @@ interface League {
    * whether the write will actually be accepted.
    */
   chipsLockedReason?: string | null;
+  /** "legacy": a league from before accounts whose team logins no longer work, until switched. */
+  authMode?: "legacy" | "members";
 }
 
 interface Admin {
@@ -36,7 +38,8 @@ interface Admin {
   name: string;
   email: string;
   role: string;
-  mustChangePassword: boolean;
+  /** "google": has signed in; "pending": created by email, links on their first Google sign-in. */
+  signIn?: "google" | "pending";
   createdAt: string;
   assignedLeagueIds: string[];
 }
@@ -158,9 +161,6 @@ export default function SuperAdminDashboard() {
   const [wizardStep, setWizardStep] = useState<WizardStep>("sport");
   const [leagueForm, setLeagueForm] = useState({
     slug: "", name: "", sport: "", format: "", season: "",
-    // How teams sign in: "members" = people join through an invite link with Google; "legacy" =
-    // a generated team ID + password per team, as before.
-    authMode: "members" as "members" | "legacy",
     teamSize: 32, groupCount: 2, playoffStartGw: 31,
     enabledChips: ["D", "W", "C"] as string[],
     initialBudget: 100_000_000,
@@ -192,15 +192,18 @@ export default function SuperAdminDashboard() {
 
   // ── Delete League modal ──
   const [deletingLeague, setDeletingLeague] = useState<League | null>(null);
-  const [deletePassword, setDeletePassword] = useState("");
+  // The superadmin types the league's slug to confirm.
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [switchingLeague, setSwitchingLeague] = useState<League | null>(null);
+  const [switchLoading, setSwitchLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // ── Admin CRUD modals ──
   const [showCreateAdmin, setShowCreateAdmin] = useState(false);
-  const [adminForm, setAdminForm] = useState({ name: "", email: "", password: "" });
+  const [adminForm, setAdminForm] = useState({ name: "", email: "" });
   const [editingAdmin, setEditingAdmin] = useState<Admin | null>(null);
-  const [editAdminForm, setEditAdminForm] = useState({ name: "", email: "", password: "" });
+  const [editAdminForm, setEditAdminForm] = useState({ name: "", email: "" });
   const [deletingAdmin, setDeletingAdmin] = useState<Admin | null>(null);
   const [assigningAdmin, setAssigningAdmin] = useState<Admin | null>(null);
   const [assignedLeagueIds, setAssignedLeagueIds] = useState<string[]>([]);
@@ -421,7 +424,6 @@ export default function SuperAdminDashboard() {
           isSimulated: leagueForm.isSimulated,
           clubAuctionEnabled: leagueForm.clubAuctionEnabled,
           auctionTier: leagueForm.auctionTier,
-          authMode: leagueForm.authMode,
           // fpl-classic only; ignored by the server for every other format. Slug and name are
           // deliberately not sent — the server derives both from the FPL league.
           fplLeagueId: leagueForm.fplLeagueId ? Number(leagueForm.fplLeagueId) : undefined,
@@ -455,7 +457,7 @@ export default function SuperAdminDashboard() {
       setCreatedInviteUrl(data.invite ? `${window.location.origin}/join/${data.invite.token}` : null);
       setShowWizard(false);
       setWizardStep("sport");
-      setLeagueForm({ slug: "", name: "", sport: "", format: "", season: "", authMode: "members", teamSize: 32, groupCount: 2, playoffStartGw: 31, enabledChips: ["D", "W", "C"], initialBudget: 100_000_000, startGameweek: 1, releaseCycleGws: "10, 20, 30", isSimulated: false, clubAuctionEnabled: false, auctionTier: "complete", fplLeagueId: "", scoringMetric: "net", winnerCutPercent: 30 });
+      setLeagueForm({ slug: "", name: "", sport: "", format: "", season: "", teamSize: 32, groupCount: 2, playoffStartGw: 31, enabledChips: ["D", "W", "C"], initialBudget: 100_000_000, startGameweek: 1, releaseCycleGws: "10, 20, 30", isSimulated: false, clubAuctionEnabled: false, auctionTier: "complete", fplLeagueId: "", scoringMetric: "net", winnerCutPercent: 30 });
       setWizardSelectedAdminIds([]);
       setLeagues(prev => [...prev, { ...data, teamCount: 0, currentGameweek: null }]);
     } catch { setMessage({ type: "error", text: "Network error" }); }
@@ -474,15 +476,35 @@ export default function SuperAdminDashboard() {
     } catch { setMessage({ type: "error", text: "Network error" }); }
   };
 
+  // Old league (team logins) → Google sign-in. Teams and history stay; people are then added to
+  // their teams from the league's Members tab.
+  const handleSwitchLeague = async () => {
+    if (!switchingLeague) return;
+    setSwitchLoading(true);
+    try {
+      const res = await fetch(`/api/superadmin/leagues/${switchingLeague.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ authMode: "members" }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { setMessage({ type: "error", text: data.error || "Couldn't switch the league" }); return; }
+      setLeagues(prev => prev.map(l => l.id === switchingLeague.id ? { ...l, authMode: "members" } : l));
+      setMessage({ type: "success", text: `${switchingLeague.name} now uses Google sign-in. Add each person to their team from the league's Members tab.` });
+      setSwitchingLeague(null);
+    } catch { setMessage({ type: "error", text: "Network error" }); }
+    finally { setSwitchLoading(false); }
+  };
+
   const handleDeleteLeague = async () => {
-    if (!deletingLeague || !deletePassword) return;
+    if (!deletingLeague || !deleteConfirm.trim()) return;
     setDeleteLoading(true);
     setDeleteError(null);
     try {
       const res = await fetch(`/api/superadmin/leagues/${deletingLeague.id}`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: deletePassword }),
+        body: JSON.stringify({ confirm: deleteConfirm }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -491,7 +513,7 @@ export default function SuperAdminDashboard() {
       }
       setLeagues(prev => prev.filter(l => l.id !== deletingLeague.id));
       setDeletingLeague(null);
-      setDeletePassword("");
+      setDeleteConfirm("");
       setMessage({ type: "success", text: data.message });
     } catch {
       setDeleteError("Network error");
@@ -610,14 +632,12 @@ export default function SuperAdminDashboard() {
       if (!res.ok) { setMessage({ type: "error", text: data.error || "Failed to create admin" }); return; }
       setAdmins(prev => [...prev, data]);
       setShowCreateAdmin(false);
-      setAdminForm({ name: "", email: "", password: "" });
+      setAdminForm({ name: "", email: "" });
       setMessage({
         type: "success",
         text: data.promoted
           ? `${data.name} already had an account — they're now an admin.`
-          : adminForm.password
-            ? `Admin "${adminForm.name}" created. They must change their password on first login.`
-            : `Admin "${adminForm.name}" created. They sign in with Google as ${data.email} — nothing to send them.`,
+          : `Admin "${adminForm.name}" created. They sign in with Google as ${data.email} — nothing to send them.`,
       });
     } catch { setMessage({ type: "error", text: "Network error" }); }
     finally { setAdminActionLoading(false); }
@@ -632,7 +652,6 @@ export default function SuperAdminDashboard() {
       const body: Record<string, string> = {};
       if (editAdminForm.name) body.name = editAdminForm.name;
       if (editAdminForm.email) body.email = editAdminForm.email;
-      if (editAdminForm.password) body.password = editAdminForm.password;
       const res = await fetch(`/api/superadmin/admins/${editingAdmin.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -646,7 +665,6 @@ export default function SuperAdminDashboard() {
               ...a,
               name: editAdminForm.name || a.name,
               email: editAdminForm.email || a.email,
-              mustChangePassword: editAdminForm.password ? true : a.mustChangePassword,
             }
           : a
       ));
@@ -1325,12 +1343,18 @@ This overwrites winners that have already been announced. The previous winners a
               This will delete ALL teams, players, fixtures, results, chips, and playoff data. This cannot be undone.
             </p>
             <div className="mb-5">
-              <label className="block text-sm text-gray-300 mb-1">Confirm your password to proceed</label>
+              <label htmlFor="delete-league-confirm" className="block text-sm text-gray-300 mb-1">
+                Type <code className="text-white">{deletingLeague.slug}</code> to confirm
+              </label>
               <input
-                type="password"
-                value={deletePassword}
-                onChange={e => { setDeletePassword(e.target.value); setDeleteError(null); }}
-                placeholder="Your superadmin password"
+                id="delete-league-confirm"
+                type="text"
+                value={deleteConfirm}
+                onChange={e => { setDeleteConfirm(e.target.value); setDeleteError(null); }}
+                placeholder={deletingLeague.slug}
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 className="w-full rounded-lg bg-slate-700 border border-white/10 px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-red-500"
                 autoFocus
               />
@@ -1338,7 +1362,7 @@ This overwrites winners that have already been announced. The previous winners a
             </div>
             <div className="flex gap-3">
               <button
-                onClick={() => { setDeletingLeague(null); setDeletePassword(""); setDeleteError(null); }}
+                onClick={() => { setDeletingLeague(null); setDeleteConfirm(""); setDeleteError(null); }}
                 disabled={deleteLoading}
                 className="flex-1 rounded-lg border border-white/10 px-4 py-2.5 text-gray-300 hover:bg-white/5 transition"
               >
@@ -1346,10 +1370,49 @@ This overwrites winners that have already been announced. The previous winners a
               </button>
               <button
                 onClick={handleDeleteLeague}
-                disabled={deleteLoading || !deletePassword}
+                disabled={deleteLoading || deleteConfirm.trim().toLowerCase() !== deletingLeague.slug.toLowerCase()}
                 className="flex-1 rounded-lg bg-red-600 px-4 py-2.5 font-semibold text-white hover:bg-red-700 transition disabled:opacity-50"
               >
                 {deleteLoading ? "Deleting..." : "Delete League"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Switch League to Google Sign-in Modal ── */}
+      {switchingLeague && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div role="dialog" aria-labelledby="switch-league-title" className="bg-slate-800 rounded-2xl border border-white/10 p-5 sm:p-8 w-full max-w-md max-h-[90dvh] overflow-y-auto">
+            <h2 id="switch-league-title" className="text-xl font-bold text-white mb-2">Switch to Google sign-in</h2>
+            <p className="text-gray-300 text-sm mb-3">
+              <span className="text-white font-semibold">{switchingLeague.name}</span> still uses team logins, which no longer
+              work. After switching, everyone signs in with their own Google account.
+            </p>
+            <ul className="mb-5 list-disc space-y-1 pl-5 text-sm text-gray-400">
+              <li>Teams, players, fixtures, scores and history stay exactly as they are.</li>
+              <li>The old team passwords are deleted.</li>
+              <li>
+                Then, in the league&apos;s Members tab, add each person to their own team by username once they&apos;ve
+                signed in. Don&apos;t share a league invite link for this league: it gives whoever opens it the next free
+                team, not their own.
+              </li>
+              <li>This can&apos;t be undone.</li>
+            </ul>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setSwitchingLeague(null)}
+                disabled={switchLoading}
+                className="flex-1 rounded-lg border border-white/10 px-4 py-2.5 text-gray-300 hover:bg-white/5 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSwitchLeague}
+                disabled={switchLoading}
+                className="flex-1 rounded-lg bg-orange-500 px-4 py-2.5 font-semibold text-slate-900 hover:bg-orange-400 transition disabled:opacity-50"
+              >
+                {switchLoading ? "Switching..." : "Switch league"}
               </button>
             </div>
           </div>
@@ -1403,19 +1466,11 @@ This overwrites winners that have already been announced. The previous winners a
                   className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-white placeholder-gray-500 focus:border-yellow-500 focus:outline-none"
                 />
               </div>
-              <div>
-                <label className="block text-sm text-gray-300 mb-1">New Password <span className="text-gray-500">(leave blank to keep current)</span></label>
-                <input
-                  type="password"
-                  value={editAdminForm.password}
-                  onChange={e => setEditAdminForm({ ...editAdminForm, password: e.target.value })}
-                  placeholder="••••••••"
-                  className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-white placeholder-gray-500 focus:border-yellow-500 focus:outline-none"
-                />
-                {editAdminForm.password && (
-                  <p className="text-xs text-orange-400 mt-1">Admin will be required to change password on next login.</p>
-                )}
-              </div>
+              {editingAdmin.signIn === "pending" && (
+                <p className="text-xs text-gray-500">
+                  They haven&apos;t signed in yet — their first Google sign-in with this email links the account.
+                </p>
+              )}
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setEditingAdmin(null)} className="flex-1 rounded-lg border border-white/10 px-4 py-2.5 text-gray-300 hover:bg-white/5 transition">Cancel</button>
                 <button type="submit" disabled={adminActionLoading} className="flex-1 rounded-lg bg-yellow-500 px-4 py-2.5 font-semibold text-slate-900 hover:bg-yellow-400 transition disabled:opacity-50">
@@ -1493,16 +1548,9 @@ This overwrites winners that have already been announced. The previous winners a
                   className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-white placeholder-gray-500 focus:border-yellow-500 focus:outline-none"
                 />
               </div>
-              <div>
-                <label className="block text-sm text-gray-300 mb-1">Initial password <span className="text-gray-500">(optional)</span></label>
-                <input
-                  type="password" value={adminForm.password}
-                  onChange={e => setAdminForm({ ...adminForm, password: e.target.value })}
-                  placeholder="••••••••"
-                  className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-white placeholder-gray-500 focus:border-yellow-500 focus:outline-none"
-                />
-                <p className="text-xs text-gray-500 mt-1">Leave blank and they sign in with Google using this email. Set one only if they can&apos;t use Google — they&apos;ll change it on first login.</p>
-              </div>
+              <p className="text-xs text-gray-500">
+                Use the email of their Google account: they sign in with Google, and the account links on their first sign-in.
+              </p>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setShowCreateAdmin(false)} className="flex-1 rounded-lg border border-white/10 px-4 py-2.5 text-gray-300 hover:bg-white/5 transition">Cancel</button>
                 <button type="submit" disabled={adminActionLoading} className="flex-1 rounded-lg bg-gradient-to-r from-yellow-400 to-orange-500 px-4 py-2.5 font-semibold text-slate-900 hover:from-yellow-300 hover:to-orange-400 transition disabled:opacity-50">
@@ -1560,7 +1608,7 @@ This overwrites winners that have already been announced. The previous winners a
                 <p className="text-gray-400 text-sm mt-1">Manage all leagues on the platform</p>
               </div>
               <button
-                onClick={() => { setShowWizard(true); setWizardStep("sport"); setLeagueForm({ slug: "", name: "", sport: "", format: "", season: "", authMode: "members", teamSize: 32, groupCount: 2, playoffStartGw: 31, enabledChips: ["D", "W", "C"], initialBudget: 100_000_000, startGameweek: 1, releaseCycleGws: "10, 20, 30", isSimulated: false, clubAuctionEnabled: false, auctionTier: "complete", fplLeagueId: "", scoringMetric: "net", winnerCutPercent: 30 }); setMessage(null); }}
+                onClick={() => { setShowWizard(true); setWizardStep("sport"); setLeagueForm({ slug: "", name: "", sport: "", format: "", season: "", teamSize: 32, groupCount: 2, playoffStartGw: 31, enabledChips: ["D", "W", "C"], initialBudget: 100_000_000, startGameweek: 1, releaseCycleGws: "10, 20, 30", isSimulated: false, clubAuctionEnabled: false, auctionTier: "complete", fplLeagueId: "", scoringMetric: "net", winnerCutPercent: 30 }); setMessage(null); }}
                 className="bg-gradient-to-r from-yellow-400 to-orange-500 text-slate-900 font-semibold px-5 py-2.5 rounded-lg hover:from-yellow-300 hover:to-orange-400 transition"
               >
                 + Create League
@@ -1924,23 +1972,10 @@ This overwrites winners that have already been announced. The previous winners a
                         />
                       </div>
                       {leagueForm.format !== "fpl-classic" && (
-                        <div className="sm:col-span-2">
-                          <label htmlFor="league-auth-mode" className="block text-sm text-gray-300 mb-1">How teams sign in</label>
-                          <select
-                            id="league-auth-mode"
-                            value={leagueForm.authMode}
-                            onChange={e => setLeagueForm({ ...leagueForm, authMode: e.target.value as "members" | "legacy" })}
-                            className="w-full rounded-lg border border-white/10 bg-slate-900 px-4 py-2.5 text-white focus:border-yellow-500 focus:outline-none"
-                          >
-                            <option value="members">Invite link — players sign in with Google (recommended)</option>
-                            <option value="legacy">Team logins — you hand out a team ID and password per team</option>
-                          </select>
-                          <p className="mt-1 text-xs text-gray-500">
-                            {leagueForm.authMode === "members"
-                              ? "You get one link to share. Each person signs in with their own Google account and claims a team; teammates join with an invite from the team owner."
-                              : "The old way: a generated login per team. Use it only if your players can't use Google."}
-                          </p>
-                        </div>
+                        <p className="sm:col-span-2 text-xs text-gray-500">
+                          You get one invite link to share. Each person signs in with their own Google account and claims a team;
+                          teammates join with an invite from the team owner.
+                        </p>
                       )}
                       {leagueForm.format === "fpl-classic" ? (
                         <>
@@ -2220,6 +2255,14 @@ This overwrites winners that have already been announced. The previous winners a
                                 Manage
                               </Link>
                             )}
+                            {league.format !== "fpl-classic" && league.authMode === "legacy" && (
+                              <button
+                                onClick={() => setSwitchingLeague(league)}
+                                className="text-xs text-orange-300 hover:text-orange-200 transition border border-orange-400/40 px-3 py-1.5 rounded-lg whitespace-nowrap"
+                              >
+                                Switch to Google sign-in
+                              </button>
+                            )}
                             <button
                               onClick={() => openEditLeague(league)}
                               className="text-xs text-blue-400 hover:text-blue-300 transition border border-blue-400/30 px-3 py-1.5 rounded-lg whitespace-nowrap"
@@ -2237,7 +2280,7 @@ This overwrites winners that have already been announced. The previous winners a
                               {league.isActive ? "Deactivate" : "Activate"}
                             </button>
                             <button
-                              onClick={() => { setDeletingLeague(league); setDeletePassword(""); setDeleteError(null); }}
+                              onClick={() => { setDeletingLeague(league); setDeleteConfirm(""); setDeleteError(null); }}
                               className="text-xs px-3 py-1.5 rounded-lg transition border border-red-600/40 text-red-500 hover:bg-red-600/10 whitespace-nowrap"
                             >
                               Delete
@@ -2263,7 +2306,7 @@ This overwrites winners that have already been announced. The previous winners a
                 <p className="text-gray-400 text-sm mt-1">Create and manage admin accounts</p>
               </div>
               <button
-                onClick={() => { setShowCreateAdmin(true); setAdminForm({ name: "", email: "", password: "" }); setMessage(null); }}
+                onClick={() => { setShowCreateAdmin(true); setAdminForm({ name: "", email: "" }); setMessage(null); }}
                 className="bg-gradient-to-r from-yellow-400 to-orange-500 text-slate-900 font-semibold px-5 py-2.5 rounded-lg hover:from-yellow-300 hover:to-orange-400 transition"
               >
                 + Create Admin
@@ -2285,7 +2328,7 @@ This overwrites winners that have already been announced. The previous winners a
                       <th className="px-5 py-3 font-medium">Name</th>
                       <th className="px-5 py-3 font-medium">Email</th>
                       <th className="px-5 py-3 font-medium">Role</th>
-                      <th className="px-5 py-3 font-medium">Password</th>
+                      <th className="px-5 py-3 font-medium">Google sign-in</th>
                       <th className="px-5 py-3 font-medium">Leagues</th>
                       <th className="px-5 py-3 font-medium">Actions</th>
                     </tr>
@@ -2305,10 +2348,10 @@ This overwrites winners that have already been announced. The previous winners a
                           </span>
                         </td>
                         <td className="px-5 py-3">
-                          {admin.mustChangePassword ? (
-                            <span className="text-xs text-orange-400">Must change</span>
+                          {admin.signIn === "pending" ? (
+                            <span className="text-xs text-orange-400">Not signed in yet</span>
                           ) : (
-                            <span className="text-xs text-green-400">Set</span>
+                            <span className="text-xs text-green-400">Linked</span>
                           )}
                         </td>
                         <td className="px-5 py-3">
@@ -2328,7 +2371,7 @@ This overwrites winners that have already been announced. The previous winners a
                         <td className="px-5 py-3">
                           <div className="flex items-center gap-2">
                             <button
-                              onClick={() => { setEditingAdmin(admin); setEditAdminForm({ name: "", email: "", password: "" }); }}
+                              onClick={() => { setEditingAdmin(admin); setEditAdminForm({ name: "", email: "" }); }}
                               className="text-xs text-yellow-400 hover:text-yellow-300 border border-yellow-400/30 px-2.5 py-1.5 rounded-lg transition"
                             >
                               Edit

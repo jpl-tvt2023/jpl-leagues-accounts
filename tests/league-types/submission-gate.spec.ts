@@ -41,7 +41,7 @@ async function setStub(
 
 /** Read the dashboard's submission block for the signed-in team. */
 async function submissionState(request: APIRequestContext) {
-  const res = await request.get("/api/team/dashboard");
+  const res = await request.get(`/api/team/dashboard?league=${league.slug}`);
   expect(res.ok()).toBeTruthy();
   const body = await res.json();
   return body.submission as {
@@ -96,18 +96,18 @@ test.describe.serial("submission gate (TVT)", () => {
     await setStub(request, { finishedThrough: 0, liveGw: 1 });
     await apiSignInTeam(request, league.slug, 1);
 
-    const dash = await request.get("/api/team/dashboard").then((r) => r.json());
+    const dash = await request.get(`/api/team/dashboard?league=${league.slug}`).then((r) => r.json());
     const playerId = dash?.captaincyStatus?.player1?.id as string;
     expect(playerId, "expected a player id from captaincyStatus").toBeTruthy();
 
-    const captain = await request.post("/api/team/captain", {
+    const captain = await request.post(`/api/team/captain?league=${league.slug}`, {
       data: { playerId, gameweek: 2 },
       failOnStatusCode: false,
     });
     expect(captain.status()).toBe(400);
     expect(await captain.text()).toContain("GW1");
 
-    const chip = await request.post("/api/team/chips", {
+    const chip = await request.post(`/api/team/chips?league=${league.slug}`, {
       data: { gameweek: 2, chipType: "W" },
       failOnStatusCode: false,
     });
@@ -120,7 +120,7 @@ test.describe.serial("submission gate (TVT)", () => {
     await setStub(request, { finishedThrough: 0, liveGw: 1 });
     await apiSignInTeam(request, league.slug, 1);
 
-    const dash = await request.get("/api/team/dashboard").then((r) => r.json());
+    const dash = await request.get(`/api/team/dashboard?league=${league.slug}`).then((r) => r.json());
     for (const code of ["D", "C", "W"]) {
       expect(dash.chipEligibility[code].eligible, `${code} should be ineligible`).toBe(false);
       expect(dash.chipEligibility[code].reason).toContain("GW1");
@@ -136,9 +136,9 @@ test.describe.serial("submission gate (TVT)", () => {
     expect(submission.gameweek).toBe(2);
     expect(submission.state).toBe("open");
 
-    const dash = await request.get("/api/team/dashboard").then((r) => r.json());
+    const dash = await request.get(`/api/team/dashboard?league=${league.slug}`).then((r) => r.json());
     const playerId = dash?.captaincyStatus?.player1?.id as string;
-    const res = await request.post("/api/team/captain", {
+    const res = await request.post(`/api/team/captain?league=${league.slug}`, {
       data: { playerId, gameweek: 2 },
       failOnStatusCode: false,
     });
@@ -151,9 +151,9 @@ test.describe.serial("submission gate (TVT)", () => {
     await setStub(request, { finishedThrough: 0, liveGw: 1 });
     await apiSignInTeam(request, league.slug, 2);
 
-    const dash = await request.get("/api/team/dashboard").then((r) => r.json());
+    const dash = await request.get(`/api/team/dashboard?league=${league.slug}`).then((r) => r.json());
     const playerId = dash?.captaincyStatus?.player1?.id as string;
-    await request.post("/api/team/captain", {
+    await request.post(`/api/team/captain?league=${league.slug}`, {
       data: { playerId, gameweek: 2 },
       failOnStatusCode: false,
     });

@@ -85,15 +85,20 @@ export function mintPersonSession(user: Pick<User, "id" | "role" | "sessionVersi
   return createSession(user.id, sessionTypeForRole(user.role), { sv: user.sessionVersion });
 }
 
-/** Where a freshly signed-in person goes: onboarding until they have a username, then `next`. */
-export function postSignInPath(user: Pick<User, "username">, next: string): string {
+/**
+ * Where a freshly signed-in person goes: onboarding until they have a username, then `next`.
+ * Superadmins skip onboarding (the username is for playing, and they never play) and land on
+ * /superadmin unless they were heading somewhere specific.
+ */
+export function postSignInPath(user: Pick<User, "username" | "role">, next: string): string {
+  if (user.role === "superadmin") return next && next !== "/" ? next : "/superadmin";
   if (!user.username) return `/onboarding${next && next !== "/" ? `?next=${encodeURIComponent(next)}` : ""}`;
   return next || "/";
 }
 
 /**
- * The signed-in person behind a request, re-read from the database — or null if signed out, a
- * legacy team login, deleted, or revoked. For routes about the person themselves (/api/me/*).
+ * The signed-in person behind a request, re-read from the database — or null if signed out,
+ * deleted, or revoked. For routes about the person themselves (/api/me/*).
  */
 export async function getRequestPerson(request: NextRequest): Promise<User | null> {
   const session = await getRequestSession(request);

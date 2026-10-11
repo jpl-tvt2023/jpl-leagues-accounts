@@ -45,10 +45,10 @@ export function LeagueNav({
 }: LeagueNavProps) {
   const palette = getFormatPalette(format, teamSize);
 
-  // A person (not a legacy team login) has a dashboard and team page per league, so inside a
-  // league point at that league's own — whatever the page passed for the legacy case.
+  // A person has a dashboard and team page per league, so inside a league point at that league's
+  // own — whatever the page passed as a fallback.
   const viewer = useOptionalLeague()?.viewer;
-  const isPerson = !!viewer?.authenticated && viewer.type !== "team";
+  const isPerson = !!viewer?.authenticated;
   const hasTeamHere = isPerson && !!viewer?.teamId;
   const effectiveDashboardHref = hasTeamHere ? `/${leagueSlug}/dashboard` : dashboardHref;
   const settingsHref = isPerson ? (hasTeamHere ? `/${leagueSlug}/team` : "/account") : undefined;

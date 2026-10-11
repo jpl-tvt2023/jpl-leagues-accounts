@@ -91,13 +91,13 @@ test.describe.serial("Continental Championship 20 (admin + user)", () => {
 
   test("user: captain submission honours the Continental-Championship-specific 19-chip cap", async ({ request }) => {
     await apiSignInTeam(request, league.slug, 1);
-    const dash = await request.get("/api/team/dashboard").then((r) => r.json());
+    const dash = await request.get(`/api/team/dashboard?league=${league.slug}`).then((r) => r.json());
     // Player IDs come from captaincyStatus — the dashboard's `teamMembers`
     // array carries names/fplIds for display but deliberately no row ids.
     const players = [dash?.captaincyStatus?.player1, dash?.captaincyStatus?.player2]
       .filter((p): p is { id: string; name: string } => Boolean(p?.id));
     expect(players.length).toBeGreaterThan(0);
-    const res = await request.post("/api/team/captain", {
+    const res = await request.post(`/api/team/captain?league=${league.slug}`, {
       data: { playerId: players[0].id, gameweek: 1 },
       failOnStatusCode: false,
     });

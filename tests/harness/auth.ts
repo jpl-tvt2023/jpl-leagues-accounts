@@ -1,151 +1,140 @@
 /**
  * Auth helpers for tests.
  *
- * Two modes are supported:
- *   - `apiSignIn(request, identifier, password)` — uses Playwright's
- *     `APIRequestContext` to POST /api/auth/signin. The session cookie is
- *     persisted in that request context for subsequent API calls. Use this
- *     when a spec is API-only.
- *   - `uiSignIn(page, identifier, password)` — drives the /signin form. Use
- *     this when the spec needs the resulting page navigation (e.g. team
- *     dashboard, captain submission).
+ * Everyone signs in with Google, which a test can't drive, so every helper here goes through the
+ * test-only POST /api/test-auth/signin (needs TEST_AUTH_ENABLED=1, set in .env.test). It signs in
+ * as a person by email, creating the account on first use.
  *
- * Both reuse the same /api/auth/signin endpoint (src/app/api/auth/signin/route.ts).
+ *   - `apiSignIn*` put the session cookie in a Playwright `APIRequestContext` — for API-only specs.
+ *   - `uiSignIn*` put it in the browser context behind `page` (page.request shares its cookie jar)
+ *     and then open the page a real sign-in would land on.
+ *
+ * "Signing in as team N" means signing in as that team's owner: a test person made the owner of
+ * the team on first use (ensureTeamPerson), and on no other team.
  */
 
+import { createHash, randomUUID } from "node:crypto";
+import { and, eq, sql } from "drizzle-orm";
 import type { APIRequestContext, Page } from "@playwright/test";
-import { TEST_SUPERADMIN, teamLoginId, teamInitialPassword, TEAM_RESET_PASSWORD } from "./constants";
+import { TEST_SUPERADMIN, teamLoginId, teamPersonEmail } from "./constants";
+import { testDb, schema } from "./db";
 
-interface SignInOk {
-  ok: true;
-  redirectTo: string;
-  body: unknown;
+export interface SignedInUser {
+  id: string;
+  username: string | null;
+  role: string;
 }
-interface SignInErr {
-  ok: false;
-  status: number;
-  error: string;
-}
-export type SignInResult = SignInOk | SignInErr;
 
-export async function apiSignIn(
+/**
+ * Sign in as a PERSON without Google. Creates the account on first use; pass `username` to skip
+ * onboarding. The session cookie lands in `request`.
+ */
+export async function apiSignInUser(
   request: APIRequestContext,
-  identifier: string,
-  password: string,
-): Promise<SignInResult> {
-  const res = await request.post("/api/auth/signin", {
-    data: { identifier, password },
-    failOnStatusCode: false,
-  });
+  opts: { email: string; username?: string; name?: string; role?: "user" | "admin" | "superadmin" },
+): Promise<SignedInUser> {
+  const res = await request.post("/api/test-auth/signin", { data: opts, failOnStatusCode: false });
   const body = await res.json().catch(() => ({}));
-  if (!res.ok()) {
-    return { ok: false, status: res.status(), error: body?.error ?? "unknown error" };
-  }
-  return { ok: true, redirectTo: body?.redirectTo ?? "/", body };
+  if (!res.ok()) throw new Error(`apiSignInUser(${opts.email}) failed: ${res.status()} ${body?.error ?? ""}`);
+  return body.user;
 }
 
 export async function apiSignInSuperadmin(request: APIRequestContext): Promise<void> {
-  const res = await apiSignIn(request, TEST_SUPERADMIN.email, TEST_SUPERADMIN.password);
-  if (!res.ok) {
+  const user = await apiSignInUser(request, { email: TEST_SUPERADMIN.email });
+  if (user.role !== "superadmin") {
     throw new Error(
-      `Failed to sign in as test superadmin (${TEST_SUPERADMIN.email}): ${res.status} ${res.error}. ` +
-        "Did you run `npm run test:reset`?",
+      `${TEST_SUPERADMIN.email} is not a superadmin (role ${user.role}). Did you run \`npm run test:reset\`?`,
     );
   }
 }
 
-export async function apiSignInAdmin(
-  request: APIRequestContext,
-  email: string,
-  password: string,
-): Promise<void> {
-  const res = await apiSignIn(request, email, password);
-  if (!res.ok) throw new Error(`apiSignInAdmin(${email}) failed: ${res.status} ${res.error}`);
+/** Sign in as an existing admin (or any existing account) by email. */
+export async function apiSignInAdmin(request: APIRequestContext, email: string): Promise<void> {
+  await apiSignInUser(request, { email });
 }
 
-export async function apiSignInTeam(
-  request: APIRequestContext,
+/** A short, valid, stable username for a team's test person (`^[a-z0-9_]{3,20}$`). */
+function teamUsername(teamId: string): string {
+  return `t_${createHash("sha1").update(teamId).digest("hex").slice(0, 12)}`;
+}
+
+/**
+ * Make sure team `index` of league `slug` has its test person as owner, and return that person's
+ * sign-in details. Idempotent. Writes straight to the test database, like the rest of the harness.
+ */
+export async function ensureTeamPerson(
   slug: string,
   index: number,
-  password = TEAM_RESET_PASSWORD,
-): Promise<void> {
-  const res = await apiSignIn(request, teamLoginId(slug, index), password);
-  if (!res.ok) throw new Error(`apiSignInTeam(${slug}, ${index}) failed: ${res.status} ${res.error}`);
+): Promise<{ email: string; username: string; teamId: string; leagueId: string }> {
+  const db = testDb();
+  const key = teamLoginId(slug, index);
+  const [team] = await db
+    .select({ id: schema.teams.id, leagueId: schema.teams.leagueId })
+    .from(schema.teams)
+    .where(sql`LOWER(${schema.teams.teamLoginId}) = ${key.toLowerCase()}`)
+    .limit(1);
+  if (!team) throw new Error(`ensureTeamPerson: no team with key ${key}`);
+
+  const email = teamPersonEmail(slug, index);
+  const username = teamUsername(team.id);
+  let [user] = await db.select({ id: schema.users.id }).from(schema.users).where(eq(schema.users.email, email)).limit(1);
+  if (!user) {
+    user = { id: randomUUID() };
+    await db.insert(schema.users).values({
+      id: user.id,
+      email,
+      password: "",
+      name: `Team ${index} owner`,
+      role: "user",
+      mustChangePassword: false,
+      username,
+    });
+  }
+
+  const [member] = await db
+    .select({ id: schema.teamMembers.id })
+    .from(schema.teamMembers)
+    .where(and(eq(schema.teamMembers.teamId, team.id), eq(schema.teamMembers.userId, user.id)))
+    .limit(1);
+  if (!member) {
+    await db.insert(schema.teamMembers).values({
+      id: randomUUID(),
+      teamId: team.id,
+      leagueId: team.leagueId,
+      userId: user.id,
+      role: "owner",
+    });
+  }
+  return { email, username, teamId: team.id, leagueId: team.leagueId };
+}
+
+/** Sign in as team `index` of league `slug` (its owner). Team APIs then need `?league=<slug>`. */
+export async function apiSignInTeam(request: APIRequestContext, slug: string, index: number): Promise<void> {
+  const { email } = await ensureTeamPerson(slug, index);
+  await apiSignInUser(request, { email });
 }
 
 export async function apiSignOut(request: APIRequestContext): Promise<void> {
   await request.post("/api/auth/signout").catch(() => {});
 }
 
-export async function uiSignIn(page: Page, identifier: string, password: string): Promise<void> {
-  // The signin form's <label> elements are not htmlFor-bound to their inputs
-  // (see src/app/signin/page.tsx), so `getByLabel` can't match them. Target
-  // the inputs by type/role instead — first text input is the identifier,
-  // the password input is unambiguous.
-  await page.goto("/signin");
-  await page.locator('input[type="text"]').first().fill(identifier);
-  await page.locator('input[type="password"]').first().fill(password);
-  await page.getByRole("button", { name: /sign in/i }).click();
+/** Sign the browser behind `page` in as a person, then open `landing` (default: the home page). */
+export async function uiSignInUser(
+  page: Page,
+  opts: { email: string; username?: string; name?: string; role?: "user" | "admin" | "superadmin" },
+  landing = "/",
+): Promise<void> {
+  await apiSignInUser(page.request, opts);
+  await page.goto(landing);
   await page.waitForLoadState("networkidle");
 }
 
 export async function uiSignInSuperadmin(page: Page): Promise<void> {
-  await uiSignIn(page, TEST_SUPERADMIN.email, TEST_SUPERADMIN.password);
+  await uiSignInUser(page, { email: TEST_SUPERADMIN.email }, "/superadmin");
 }
 
-export async function uiSignInTeam(
-  page: Page,
-  slug: string,
-  index: number,
-  password = TEAM_RESET_PASSWORD,
-): Promise<void> {
-  await uiSignIn(page, teamLoginId(slug, index), password);
-}
-
-/**
- * Bypass the first-login password-change wall by calling the change-password
- * API directly. Returns the new password the team can now use.
- *
- * The auto-created team accounts (POST /api/superadmin/leagues) all carry
- * `mustChangePassword: true`, which forces a /change-password redirect on
- * sign-in. For most specs that's noise we'd rather skip.
- */
-export async function apiResetTeamPassword(
-  request: APIRequestContext,
-  slug: string,
-  index: number,
-): Promise<string> {
-  // Step 1: sign in with the seeded password
-  await apiSignIn(request, teamLoginId(slug, index), teamInitialPassword(index));
-  // Step 2: change to the canonical reset password
-  const res = await request.post("/api/auth/change-password", {
-    data: {
-      currentPassword: teamInitialPassword(index),
-      newPassword: TEAM_RESET_PASSWORD,
-    },
-    failOnStatusCode: false,
-  });
-  if (!res.ok()) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(
-      `apiResetTeamPassword(${slug}, ${index}) failed: ${res.status()} ${body?.error ?? ""}`,
-    );
-  }
-  await apiSignOut(request);
-  return TEAM_RESET_PASSWORD;
-}
-
-/**
- * Sign in as a PERSON (members-mode leagues) without Google, via the test-only
- * POST /api/test-auth/signin (needs TEST_AUTH_ENABLED=1, set in .env.test). Creates the account
- * on first use; pass `username` to skip onboarding. The session cookie lands in `request`.
- */
-export async function apiSignInUser(
-  request: APIRequestContext,
-  opts: { email: string; username?: string; name?: string; role?: "user" | "admin" | "superadmin" },
-): Promise<{ id: string; username: string | null; role: string }> {
-  const res = await request.post("/api/test-auth/signin", { data: opts, failOnStatusCode: false });
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok()) throw new Error(`apiSignInUser(${opts.email}) failed: ${res.status()} ${body?.error ?? ""}`);
-  return body.user;
+/** Sign in as team `index` of league `slug` and open its dashboard, as a real sign-in would. */
+export async function uiSignInTeam(page: Page, slug: string, index: number): Promise<void> {
+  const { email } = await ensureTeamPerson(slug, index);
+  await uiSignInUser(page, { email }, `/${slug}/dashboard`);
 }

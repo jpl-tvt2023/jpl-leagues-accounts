@@ -1,17 +1,16 @@
 /**
  * Factory helpers that create leagues via POST /api/superadmin/leagues.
  *
- * The create-league endpoint also auto-creates `teamSize` placeholder team
- * accounts with login IDs `${slug}Team${i}` and passwords `Team@${padded(i)}`
- * (see src/app/api/superadmin/leagues/route.ts). Specs receive a `LeagueRef`
- * with slug, id, and team count — everything they need to drive the rest of
- * the suite.
+ * The create-league endpoint also auto-creates `teamSize` placeholder teams
+ * with team keys `${slug}-Team${i}` (see src/app/api/superadmin/leagues/route.ts).
+ * Nobody is on them yet: specs put a test person on each through setupAllTeams /
+ * apiSignInTeam. Specs receive a `LeagueRef` with slug, id, and team count —
+ * everything they need to drive the rest of the suite.
  *
  * Caller must have signed in as the test superadmin first (apiSignInSuperadmin).
  */
 
 import type { APIRequestContext } from "@playwright/test";
-import { TEST_SUPERADMIN } from "./constants";
 
 export interface LeagueRef {
   id: string;
@@ -30,11 +29,9 @@ export interface LeagueRef {
 /**
  * Generate a slug unique to this test run (lowercase, dash-safe).
  *
- * Must stay short: /api/team/setup enforces a 3–20 char loginId regex on
- * `<slug>Team<NN>`, so for a 32-team league with two-digit indexes the slug
- * itself must be ≤ 14 chars. We use 6 chars of timestamp (millisecond base36)
- * plus a 2-char random tail — collision-resistant within a single run, short
- * enough for any prefix up to ~5 chars.
+ * Kept short so team keys (`<slug>-Team<NN>`) stay readable. We use 6 chars of
+ * timestamp (millisecond base36) plus a 2-char random tail — collision-resistant
+ * within a single run.
  */
 export function uniqueSlug(prefix: string): string {
   const stamp = Date.now().toString(36).slice(-6) + Math.random().toString(36).slice(2, 4);
@@ -45,9 +42,7 @@ async function createLeague(
   request: APIRequestContext,
   payload: Record<string, unknown>,
 ): Promise<LeagueRef> {
-  // Existing specs drive leagues through team logins, so they ask for a legacy league explicitly;
-  // new leagues default to members mode (people join via invite). Override with payload.authMode.
-  const res = await request.post("/api/superadmin/leagues", { data: { authMode: "legacy", ...payload }, failOnStatusCode: false });
+  const res = await request.post("/api/superadmin/leagues", { data: payload, failOnStatusCode: false });
   const body = await res.json().catch(() => ({}));
   if (!res.ok()) {
     throw new Error(
@@ -159,14 +154,14 @@ export async function createFplClassicLeague(
  * Optional cleanup hook for specs that want to leave test.db tidy; the global
  * `npm run test:reset` is usually enough between runs.
  */
-export async function deleteLeague(request: APIRequestContext, id: string): Promise<void> {
-  const res = await request.delete(`/api/superadmin/leagues/${id}`, {
-    // The route confirms deletion against the caller's own password — omitting it is a 400.
-    data: { password: TEST_SUPERADMIN.password },
+export async function deleteLeague(request: APIRequestContext, league: { id: string; slug: string }): Promise<void> {
+  const res = await request.delete(`/api/superadmin/leagues/${league.id}`, {
+    // The route confirms deletion by the league's slug, typed back — omitting it is a 400.
+    data: { confirm: league.slug },
     failOnStatusCode: false,
   });
   if (!res.ok() && res.status() !== 404) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(`deleteLeague(${id}) failed: ${res.status()} ${body?.error ?? ""}`);
+    throw new Error(`deleteLeague(${league.id}) failed: ${res.status()} ${body?.error ?? ""}`);
   }
 }

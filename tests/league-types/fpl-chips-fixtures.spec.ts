@@ -91,7 +91,6 @@ test.describe.serial("FPL chips on the fixtures page", () => {
     const res = await request.post("/api/superadmin/leagues", {
       data: {
         // Team logins: this spec signs teams in with team keys.
-        authMode: "legacy",
         slug, name: "FPL Chips Fixtures", sport: "fpl", format: "tvt",
         season: "2025-26", teamSize: TEAMS, groupCount: 2, enabledChips: ["D", "W", "C"],
       },
@@ -294,7 +293,6 @@ test.describe.serial("FPL chips on the fixtures page", () => {
     const res = await request.post("/api/superadmin/leagues", {
       data: {
         // Team logins: this spec signs teams in with team keys.
-        authMode: "legacy",
         slug: coldSlug, name: "FPL Chips Cold Cache", sport: "fpl", format: "tvt",
         season: "2025-26", teamSize: TEAMS, groupCount: 2, enabledChips: ["D", "W", "C"],
       },

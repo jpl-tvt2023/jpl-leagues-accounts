@@ -9,9 +9,6 @@ export const dynamic = "force-dynamic";
 async function context(request: NextRequest) {
   const { actor, denial } = await resolveTeamActor(request, { league: leagueFromRequest(request) });
   if (!actor) return { denied: teamActorDenied(denial) } as const;
-  if (actor.memberRole === "legacy") {
-    return { denied: NextResponse.json({ error: "Team logins don't have teammates to invite." }, { status: 400 }) } as const;
-  }
   const [league] = await db.select({ format: leagues.format, slug: leagues.slug }).from(leagues).where(eq(leagues.id, actor.leagueId)).limit(1);
   return { actor, format: league?.format ?? "", slug: league?.slug ?? "" } as const;
 }

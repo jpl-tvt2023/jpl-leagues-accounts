@@ -11,7 +11,7 @@ const MAX_SUBJECT_LENGTH = 200;
 /**
  * POST /api/feedback
  * Submit user feedback. Scope is "site" (general) or "league" (this user's league).
- * A team session (legacy login, or a person acting in `?league=`) is required. leagueId is derived
+ * A person acting for their team in `?league=` is required. leagueId is derived
  * from the team — never accepted from the body.
  */
 export async function POST(request: NextRequest) {

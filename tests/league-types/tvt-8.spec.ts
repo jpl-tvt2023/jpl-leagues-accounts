@@ -11,7 +11,6 @@
 import { test, expect } from "@playwright/test";
 import {
   apiSignInSuperadmin,
-  apiSignIn,
   apiSignOut,
   apiSignInTeam,
   createTvtLeague,
@@ -21,9 +20,7 @@ import {
   setupAllTeams,
   ensureGameweeks,
   scoreGameweek,
-  teamLoginId,
-  TEAM_RESET_PASSWORD,
-  uiSignIn,
+  uiSignInTeam,
   expectStandingsHasTeam,
   expectFixturesPageRenders,
   expectPageLoads,
@@ -102,9 +99,9 @@ test.describe.serial("TVT-8 (admin + user)", () => {
 
   // -------------------- USER SCENARIOS --------------------
 
-  test("user: team can sign in after first-login password change", async ({ page }) => {
-    await uiSignIn(page, teams[0].loginId, TEAM_RESET_PASSWORD);
-    await expect.poll(() => page.url(), { timeout: 15_000 }).not.toContain("/signin");
+  test("user: a team owner signs in and lands on their team dashboard", async ({ page }) => {
+    await uiSignInTeam(page, league.slug, 1);
+    await expect.poll(() => page.url(), { timeout: 15_000 }).toContain(`/${league.slug}/dashboard`);
   });
 
   test("user: the dashboard nav links to every league page, FPL League included", async ({ page }) => {
@@ -113,9 +110,8 @@ test.describe.serial("TVT-8 (admin + user)", () => {
     // exactly how FPL League ended up reachable from every league page but not
     // from here — this keeps asserting the rendered nav rather than trusting the
     // model, so a regression in either layer still fails.
-    await uiSignIn(page, teams[0].loginId, TEAM_RESET_PASSWORD);
-    await expect.poll(() => page.url(), { timeout: 15_000 }).not.toContain("/signin");
-    await page.goto("/dashboard");
+    await uiSignInTeam(page, league.slug, 1);
+    await expect.poll(() => page.url(), { timeout: 15_000 }).toContain(`/${league.slug}/dashboard`);
 
     const nav = page.locator("nav").first();
     for (const label of ["Standings", "Fixtures", "FPL League", "Playoffs"]) {
@@ -150,18 +146,17 @@ test.describe.serial("TVT-8 (admin + user)", () => {
 
   test("user: captain submission succeeds for a future-deadline GW", async ({ request }) => {
     // Sign in as Team 1
-    const signIn = await apiSignIn(request, teamLoginId(league.slug, 1), TEAM_RESET_PASSWORD);
-    expect(signIn.ok).toBe(true);
+    await apiSignInTeam(request, league.slug, 1);
 
     // Pick the first player from the team's dashboard
-    const dash = await request.get("/api/team/dashboard").then((r) => r.json());
+    const dash = await request.get(`/api/team/dashboard?league=${league.slug}`).then((r) => r.json());
     // Player IDs come from captaincyStatus — the dashboard's `teamMembers`
     // array carries names/fplIds for display but deliberately no row ids.
     const players = [dash?.captaincyStatus?.player1, dash?.captaincyStatus?.player2]
       .filter((p): p is { id: string; name: string } => Boolean(p?.id));
     expect(players.length).toBeGreaterThan(0);
 
-    const res = await request.post("/api/team/captain", {
+    const res = await request.post(`/api/team/captain?league=${league.slug}`, {
       data: { playerId: players[0].id, gameweek: 1 },
       failOnStatusCode: false,
     });
@@ -174,7 +169,7 @@ test.describe.serial("TVT-8 (admin + user)", () => {
     // Win-Win, not Double Pointer: DP is deliberately ineligible in GW1
     // because its rank rule needs a league table that does not exist yet
     // (see double-pointer-eligibility.ts). WW carries no positional constraint.
-    const res = await request.post("/api/team/chips", {
+    const res = await request.post(`/api/team/chips?league=${league.slug}`, {
       data: { gameweek: 1, chipType: "W" }, // Win-Win — enabled by default
       failOnStatusCode: false,
     });
@@ -185,7 +180,7 @@ test.describe.serial("TVT-8 (admin + user)", () => {
   test("user: chip submission for a disabled chip returns 400", async ({ request }) => {
     await apiSignInTeam(request, league.slug, 3);
     // SL ("Score Lock") not in default enabledChips ["D","W","C"]
-    const res = await request.post("/api/team/chips", {
+    const res = await request.post(`/api/team/chips?league=${league.slug}`, {
       data: { gameweek: 1, chipType: "SL" },
       failOnStatusCode: false,
     });

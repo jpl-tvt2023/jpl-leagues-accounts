@@ -32,7 +32,7 @@ erDiagram
 | Table | Purpose |
 |---|---|
 | `users` | One row per **person**: `role` = `"superadmin"` \| `"admin"` \| `"user"` (player). Also `username` (unique, lowercase), `avatarUrl`, `fplEntryId`, `lastLoginAt` and `sessionVersion` (bump it to revoke every session). Google-only accounts store `password = ""`. In **legacy** leagues teams still log in via `teams.teamLoginId` + `teams.password`, not via this table. |
-| `leagues` | One row per league. Holds `format` (`"tvt"` \| `"continental-championship"` \| `"auction"`), `teamSize`, `groupCount`, `playoffStartGw`, `enabledChips` (JSON array of 3 chip codes), `initialBudget` (auction), `season`, `slug`, `name`, and `authMode` (`"legacy"`: team logins; `"members"`: people join via invite). |
+| `leagues` | One row per league. Holds `format` (`"tvt"` \| `"continental-championship"` \| `"auction"`), `teamSize`, `groupCount`, `playoffStartGw`, `enabledChips` (JSON array of 3 chip codes), `initialBudget` (auction), `season`, `slug`, `name`, and `authMode` (`"members"`: people join via invite and sign in with Google; `"legacy"`: an old team-login league not yet switched, where nobody can act for a team). |
 | `league_admins` | Many-to-many between users and leagues. Defines which admin has access to which league. |
 | `user_identities` | External sign-ins (Google `sub`) linked to a user. |
 | `team_members` | Who is on which team in members-mode leagues. Unique `(leagueId, userId)`: one team per person per league. `role` owner/member; `playerId` = the FPL slot this person fills. |
@@ -46,7 +46,7 @@ erDiagram
 
 | Table | Purpose |
 |---|---|
-| `teams` | One row per team. Has `teamLoginId` (human-readable credential), `password` (bcrypt hashed), `groupId` (optional FK to `groups`), `leaguePoints` and `bonusPoints` running totals, plus per-chip-set "used" flags (`winWinSet1Used`, etc.). |
+| `teams` | One row per team. Has `teamLoginId` (the "Team key": an internal identifier, not a login), `password` (unused; `""` — nobody signs in as a team), `groupId` (optional FK to `groups`), `leaguePoints` and `bonusPoints` running totals, plus per-chip-set "used" flags (`winWinSet1Used`, etc.). |
 | `players` | One row per FPL manager. Two rows per team. Has `fplId` (the manager's FPL entry ID — used for fetching their picks). |
 | `groups` | League groups (e.g. Group A / Group B for TVT; A/B/C/D for Continental Championship cup groups; "Playoffs" group for knockout fixtures). `groupType` distinguishes regular-season groups from playoff/cup groups. |
 

@@ -197,7 +197,7 @@ export default function SuperadminHelpPage() {
           <ul className="list-disc list-inside space-y-1 mt-2">
             <li>If they also play in a league or sign in with Google, they&apos;re <strong className="text-white">demoted to a player</strong>: their league assignments go, their teams stay.</li>
             <li>Any admin session they have open stops working on its next request — no need to wait for it to expire.</li>
-            <li>A password-only admin who plays in no league is deleted outright.</li>
+            <li>An admin who never signed in and plays in no league is deleted outright.</li>
           </ul>
         </div>
       ),
@@ -208,10 +208,10 @@ export default function SuperadminHelpPage() {
         <div className="space-y-2">
           <p>Go to the <strong className="text-white">Admins</strong> tab on the Superadmin dashboard and click <strong className="text-white">+ New Admin</strong>.</p>
           <ul className="list-disc list-inside space-y-1 mt-2">
-            <li>Enter the admin&apos;s name and the email of their <strong className="text-white">Google account</strong>. Leave the password blank.</li>
+            <li>Enter the admin&apos;s name and the email of their <strong className="text-white">Google account</strong>.</li>
             <li>There&apos;s nothing to send them: the first time they <strong className="text-white">Continue with Google</strong> with that email, the admin account links to it.</li>
             <li>If that email already belongs to a player, they&apos;re promoted to admin on the spot and keep their teams.</li>
-            <li>Only set a password for someone who can&apos;t use Google. They&apos;ll be asked to change it on first sign-in.</li>
+            <li>Everyone signs in with Google — there are no passwords to set or reset.</li>
           </ul>
           <p className="mt-2">Admin accounts can be assigned to multiple leagues at any time. An admin who also plays has one account for both.</p>
         </div>
@@ -283,7 +283,7 @@ export default function SuperadminHelpPage() {
       steps: [
         "Go to the 'Admins' tab on the Superadmin dashboard.",
         "Click '+ New Admin'.",
-        "Enter the admin's name and the email of their Google account. Leave the password blank.",
+        "Enter the admin's name and the email of their Google account.",
         "Tell them to sign in with Google using that email — the admin account links on their first sign-in. No password to share.",
         "Find the newly created admin in the list and click 'Assign Leagues'.",
         "Select the league(s) you want them to manage and save.",
@@ -293,7 +293,7 @@ export default function SuperadminHelpPage() {
     {
       title: "View all leagues and check their status",
       steps: [
-        "Sign in at /signin with Google (or your break-glass superadmin password).",
+        "Sign in at /signin with Google.",
         "You are redirected to the Superadmin dashboard, which shows the 'Leagues' tab by default.",
         "Each league row shows: name, slug, format, team count, current gameweek, and active status.",
         "Leagues shown as inactive are hidden from public listing but still accessible by their slug.",

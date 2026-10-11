@@ -15,7 +15,7 @@ cosmetic / copy / layout problems. No skip lists; everything is in scope.
 - Working directory: `jpl-leagues-accounts/` (this repo; its database is `jpl-india`, never production's)
 - Read-only inspection. Do NOT mutate DB state, run migrations, or invoke production cleanups.
 - Codebase is Next.js (App Router) + Drizzle ORM + libsql/Turso. Tailwind for styling.
-- Reference league: `demo-auction`. Other formats exist (TVT, Triple Crown, classic). Leagues are either legacy (team logins) or members-mode (people join via invite) — see `docs/10-accounts-and-membership.md`.
+- Reference league: `demo-auction`. Other formats exist (TVT, Triple Crown, classic). Everyone signs in with Google; people join leagues via invite (old team-login leagues must be switched to Google sign-in first) — see `docs/10-accounts-and-membership.md`.
 - The most recent fix wave covered: double-sell guard, proactive squad-full skip, admin heartbeat,
   pending_release in `ownerOfPlayer`, composition warning on auto-complete, trade `bonusSlots`,
   pause/resume time shift, wishlist+unsold tabs, squad-header rewrite, 14→15 sweep, auto-backup
@@ -53,12 +53,12 @@ Target 15-25 findings total across all severities.
 The agent **must** touch every domain. For domains where the agent finds nothing, write an explicit
 `Domain N / <name> — walked, no findings` line in the report so coverage is verifiable.
 
-1. **Auth / setup / membership** — sign-in, password change, session expiry, super-admin gates, setup wizard,
+1. **Auth / setup / membership** — Google sign-in (the only sign-in), session expiry, super-admin gates, setup wizard,
    and which team a request acts as.
-   - `src/app/api/auth/*`, `src/app/signin/page.tsx`, `src/app/setup/page.tsx`, `src/lib/auth.ts`,
+   - `src/app/api/auth/*`, `src/app/signin/page.tsx`, `src/app/setup/TeamSetup.tsx`, `src/lib/auth.ts`,
      `src/lib/team-actor.ts`, `src/lib/viewer.ts`, `src/middleware.ts`.
    - **P0 checks (membership / IDOR):** a person can never act as a team they aren't on, by naming another
-     team's id or another league; a legacy team login can't reach outside its own league; removing a member or
+     team's id or another league; an old team-login token is refused outright; removing a member or
      bumping `users.session_version` revokes access on the very next request; every team-scoped route goes
      through `resolveTeamActor` / `sessionActsAsTeam` / `sessionTeamIdInLeague` (`tests/unit/team-actor-guard.test.ts`).
    - Planned (Phases 2–3): Google sign-in and email auto-link, username rules, invite expiry / max uses /

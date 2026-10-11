@@ -14,7 +14,7 @@ function initials(label: string): string {
   return (words.length === 1 ? words[0].slice(0, 2) : words[0][0] + words[1][0]).toUpperCase();
 }
 
-/** Stable colour per account, so the same team always has the same avatar on every screen. */
+/** Stable colour per account, so the same account always has the same avatar on every screen. */
 function colourFor(key: string): string {
   let h = 0;
   for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
@@ -104,22 +104,12 @@ function AccountActions({
         </span>
         Add another account
       </Link>
-      {active.type !== "team" && (
-        <Link href="/account" onClick={onNavigate} className={ROW}>
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center">
-            <NavIcon name="settings" className="h-5 w-5" />
-          </span>
-          Your account
-        </Link>
-      )}
-      {active.type === "team" && (
-        <Link href="/settings#accounts" onClick={onNavigate} className={ROW}>
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center">
-            <NavIcon name="settings" className="h-5 w-5" />
-          </span>
-          Manage accounts
-        </Link>
-      )}
+      <Link href="/account" onClick={onNavigate} className={ROW}>
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center">
+          <NavIcon name="settings" className="h-5 w-5" />
+        </span>
+        Your account
+      </Link>
       {accounts.length > 1 && (
         <button type="button" onClick={onSignOutAll} disabled={busyKey !== null} className={ROW}>
           <span className="flex h-8 w-8 shrink-0 items-center justify-center">
@@ -171,11 +161,9 @@ export function DrawerAccountSection({ onNavigate }: { onNavigate?: () => void }
           <AccountActions accounts={accounts} active={active} onNavigate={onNavigate} />
         </div>
       )}
-      {active.type !== "team" && (
-        <div className="border-t border-white/10 p-1">
-          <LeagueSwitcher onNavigate={onNavigate} />
-        </div>
-      )}
+      <div className="border-t border-white/10 p-1">
+        <LeagueSwitcher onNavigate={onNavigate} />
+      </div>
     </div>
   );
 }
@@ -236,12 +224,8 @@ export function AccountMenu({ onSignOut, className = "" }: { onSignOut?: () => v
                 <AccountAvatar account={active} />
                 <AccountText account={active} />
               </div>
-              {active.type !== "team" && (
-                <>
-                  <div className="my-1 border-t border-white/10" />
-                  <LeagueSwitcher onNavigate={() => setOpen(false)} />
-                </>
-              )}
+              <div className="my-1 border-t border-white/10" />
+              <LeagueSwitcher onNavigate={() => setOpen(false)} />
               <div className="my-1 border-t border-white/10" />
               <AccountActions accounts={accounts} active={active} onNavigate={() => setOpen(false)} />
             </>

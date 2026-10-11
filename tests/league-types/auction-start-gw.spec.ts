@@ -45,7 +45,6 @@ test.describe.serial("Auction start gameweek + release cycles", () => {
     const res = await request.post("/api/superadmin/leagues", {
       data: {
         // Team logins: this spec signs teams in with team keys.
-        authMode: "legacy",
         slug: leagueSlug, name: "Auction Start GW", sport: "fpl", format: "auction",
         season: "2025-26", teamSize: 4, auctionTier: "primary", isSimulated: true,
         startGameweek: START_GW, releaseCycleGws: CYCLES,
@@ -59,7 +58,6 @@ test.describe.serial("Auction start gameweek + release cycles", () => {
     const tvt = await request.post("/api/superadmin/leagues", {
       data: {
         // Team logins: this spec signs teams in with team keys.
-        authMode: "legacy",
         slug: tvtSlug, name: "Start GW TVT guard", sport: "fpl", format: "tvt",
         season: "2025-26", teamSize: 8,
       },
@@ -91,7 +89,6 @@ test.describe.serial("Auction start gameweek + release cycles", () => {
     const res = await request.post("/api/superadmin/leagues", {
       data: {
         // Team logins: this spec signs teams in with team keys.
-        authMode: "legacy",
         slug: `asg-bad-${Date.now().toString(36)}`, name: "bad", sport: "fpl", format: "auction",
         season: "2025-26", teamSize: 4, startGameweek: 20, releaseCycleGws: "10, 20",
       },

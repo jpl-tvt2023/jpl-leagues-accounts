@@ -6,7 +6,7 @@ import { AccountAvatar } from "./AccountSwitcher";
 import { signOutAccounts, switchAccount, useDeviceAccounts } from "@/lib/accounts-client";
 
 /**
- * Settings → "Accounts on this device": every account signed in on this browser, with switch and
+ * Account → "Accounts on this device": every account signed in on this browser, with switch and
  * sign-out per account, plus sign out of all of them. The shared-device caveat lives here, where
  * someone deciding whether to stay signed in will read it.
  */

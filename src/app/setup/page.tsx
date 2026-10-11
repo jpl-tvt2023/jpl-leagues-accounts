@@ -1,6 +1,9 @@
-import { TeamSetup } from "./TeamSetup";
+import { redirect } from "next/navigation";
 
-/** /setup — team setup for a legacy team login. People set up each team at /[leagueSlug]/setup. */
+/**
+ * /setup — the old team-login setup wizard. Teams are set up per league at /[leagueSlug]/setup;
+ * /dashboard knows which league to send a person to. Kept as a redirect for old links.
+ */
 export default function SetupPage() {
-  return <TeamSetup />;
+  redirect("/dashboard");
 }

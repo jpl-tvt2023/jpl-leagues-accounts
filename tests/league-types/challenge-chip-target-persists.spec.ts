@@ -40,7 +40,6 @@ test.describe.serial("Challenge Chip target persists", () => {
     const res = await request.post("/api/superadmin/leagues", {
       data: {
         // Team logins: this spec signs teams in with team keys.
-        authMode: "legacy",
         slug, name: "Challenge Chip Target", sport: "fpl", format: "tvt",
         season: "2025-26", teamSize: TEAMS, groupCount: 2, enabledChips: ["D", "W", "C"],
       },
@@ -76,7 +75,7 @@ test.describe.serial("Challenge Chip target persists", () => {
 
   test("dashboard payload carries the challenged team", async ({ request }) => {
     await apiSignInTeam(request, slug, challengerIndex);
-    const dash = await request.get("/api/team/dashboard").then((r) => r.json());
+    const dash = await request.get(`/api/team/dashboard?league=${slug}`).then((r) => r.json());
 
     expect(dash.upcomingChip).not.toBeNull();
     expect(dash.upcomingChip.type).toBe("C");
@@ -88,7 +87,7 @@ test.describe.serial("Challenge Chip target persists", () => {
   });
 
   test("the opponent dropdown shows the challenged team, not 'Select opponent...'", async ({ page }) => {
-    // uiSignInTeam already lands on /dashboard; an explicit goto races that in-flight
+    // uiSignInTeam already lands on the team dashboard; an explicit goto races that in-flight
     // client navigation and aborts it.
     await uiSignInTeam(page, slug, challengerIndex);
 

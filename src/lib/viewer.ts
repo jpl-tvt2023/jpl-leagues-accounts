@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { and, eq } from "drizzle-orm";
-import { db, leagueAdmins, teams, users } from "@/lib/db";
+import { db, leagueAdmins, users } from "@/lib/db";
 import { verifySession, SESSION_COOKIE_NAME, isPersonSession, type SessionPayload } from "@/lib/auth";
 import { resolveTeamActorForSession } from "@/lib/team-actor";
 import type { ViewerInfo } from "@/lib/league-context";
@@ -18,76 +18,47 @@ const SIGNED_OUT: ViewerInfo = { authenticated: false, type: null, dashboardHref
  * demotion, account replaced), reads as signed out.
  */
 export async function resolveViewerForSession(session: SessionPayload | null): Promise<ViewerInfo> {
-  if (!session) return SIGNED_OUT;
+  if (!session || !isPersonSession(session)) return SIGNED_OUT;
 
-  if (isPersonSession(session)) {
-    const [user] = await db
-      .select({ username: users.username, sessionVersion: users.sessionVersion })
-      .from(users)
-      .where(eq(users.id, session.id))
-      .limit(1);
-    if (!user || user.sessionVersion !== (session.sv ?? 0)) return SIGNED_OUT;
-    const base = { authenticated: true, userId: session.id, username: user.username };
+  const [user] = await db
+    .select({ username: users.username, sessionVersion: users.sessionVersion })
+    .from(users)
+    .where(eq(users.id, session.id))
+    .limit(1);
+  if (!user || user.sessionVersion !== (session.sv ?? 0)) return SIGNED_OUT;
+  const base = { authenticated: true, userId: session.id, username: user.username };
 
-    if (session.type === "superadmin") {
-      return { ...base, type: "superadmin", dashboardHref: "/admin" };
-    }
-
-    if (session.type === "admin") {
-      const rows = await db
-        .select({ leagueId: leagueAdmins.leagueId })
-        .from(leagueAdmins)
-        .where(eq(leagueAdmins.userId, session.id))
-        .limit(2);
-      const adminLeagueId = rows[0]?.leagueId ?? null;
-      return {
-        ...base,
-        type: "admin",
-        adminLeagueId,
-        dashboardHref: adminLeagueId ? `/admin/${adminLeagueId}` : "/admin",
-      };
-    }
-
-    // A player. Their leagues live on the home page until the My Leagues hub lands.
-    return { ...base, type: "user", dashboardHref: "/" };
+  if (session.type === "superadmin") {
+    return { ...base, type: "superadmin", dashboardHref: "/admin" };
   }
 
-  if (session.type === "team") {
-    const teamRow = await db
-      .select({ id: teams.id })
-      .from(teams)
-      .where(eq(teams.id, session.id))
-      .limit(1);
-    const teamId = teamRow[0]?.id;
+  if (session.type === "admin") {
+    const rows = await db
+      .select({ leagueId: leagueAdmins.leagueId })
+      .from(leagueAdmins)
+      .where(eq(leagueAdmins.userId, session.id))
+      .limit(2);
+    const adminLeagueId = rows[0]?.leagueId ?? null;
     return {
-      authenticated: true,
-      type: "team",
-      teamId,
-      dashboardHref: "/dashboard",
+      ...base,
+      type: "admin",
+      adminLeagueId,
+      dashboardHref: adminLeagueId ? `/admin/${adminLeagueId}` : "/admin",
     };
   }
 
-  return SIGNED_OUT;
+  // A player. Their leagues live on the home page until the My Leagues hub lands.
+  return { ...base, type: "user", dashboardHref: "/" };
 }
 
 /**
- * The viewer as seen from one league: `teamId` is their team in THAT league (a legacy login for
- * a team of this league, or a person's membership here) and is absent otherwise — so league
- * pages can show "my team" without a round-trip of their own. `isLeagueAdmin` covers
- * superadmins and this league's admins.
+ * The viewer as seen from one league: `teamId` is their team in THAT league (their membership
+ * here) and is absent otherwise — so league pages can show "my team" without a round-trip of
+ * their own. `isLeagueAdmin` covers superadmins and this league's admins.
  */
 export async function resolveViewerForLeague(session: SessionPayload | null, leagueId: string, leagueSlug?: string): Promise<ViewerInfo> {
   const viewer = await resolveViewerForSession(session);
   if (!session || !viewer.authenticated) return viewer;
-
-  if (session.type === "team") {
-    const [team] = await db
-      .select({ leagueId: teams.leagueId })
-      .from(teams)
-      .where(eq(teams.id, session.id))
-      .limit(1);
-    return { ...viewer, teamId: team?.leagueId === leagueId ? session.id : undefined, isLeagueAdmin: false };
-  }
 
   const { actor } = await resolveTeamActorForSession(session, { league: leagueId });
   let isLeagueAdmin = session.type === "superadmin";

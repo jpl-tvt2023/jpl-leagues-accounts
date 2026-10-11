@@ -96,6 +96,18 @@ export class MembershipError extends Error {
   }
 }
 
+/**
+ * Superadmins run the platform and never play: no team and no join request, in any league.
+ * (League admins can also play.) Every path onto a team goes through this.
+ */
+async function assertNotSuperadmin(dbx: Db, userId: string, message: string): Promise<void> {
+  const [row] = await dbx.select({ role: users.role }).from(users).where(eq(users.id, userId)).limit(1);
+  if (row?.role === "superadmin") throw new MembershipError(message, 403, "superadmin");
+}
+
+export const SUPERADMIN_CANNOT_JOIN = "Superadmins run leagues but can't join one as a player.";
+const SUPERADMIN_CANNOT_BE_ASSIGNED = "That person is a superadmin. Superadmins can't be on a team.";
+
 async function audit(dbx: Db, type: string, description: string, ids: { userId?: string | null; leagueId?: string | null; teamId?: string | null }) {
   await dbx.insert(auditLogs).values({
     id: generateId(),
@@ -104,6 +116,34 @@ async function audit(dbx: Db, type: string, description: string, ids: { userId?:
     userId: ids.userId ?? null,
     leagueId: ids.leagueId ?? null,
     teamId: ids.teamId ?? null,
+  });
+}
+
+// ─── Switching an old league to Google sign-in ───────────────────────────────
+
+/**
+ * Move a league from before accounts (`auth_mode = "legacy"`, whose team logins no longer work)
+ * to Google sign-in. Teams, players, fixtures and history stay exactly as they are; only how
+ * people reach a team changes. The old team passwords are wiped, so nothing could sign in with
+ * them even in principle.
+ *
+ * Afterwards every team is open (no members). People sign in with Google and the league admin
+ * puts each one on their own team from the Members tab (assign by username). No league invite is
+ * created here: one would hand the next person whichever open team comes first, not their own.
+ */
+export async function switchLeagueToGoogleSignIn(leagueId: string, byUserId: string | null): Promise<void> {
+  await writeTx(async (tx) => {
+    const [league] = await tx
+      .select({ authMode: leagues.authMode, format: leagues.format, name: leagues.name })
+      .from(leagues)
+      .where(eq(leagues.id, leagueId))
+      .limit(1);
+    if (!league) throw new MembershipError("League not found.", 404, "not-found");
+    if (league.format === "fpl-classic") throw new MembershipError("FPL Classic leagues have no accounts.", 400, "fpl-classic");
+    if (league.authMode === "members") throw new MembershipError("This league already uses Google sign-in.", 409, "already-members");
+    await tx.update(leagues).set({ authMode: "members" }).where(eq(leagues.id, leagueId));
+    await tx.update(teams).set({ password: "", mustChangePassword: false }).where(eq(teams.leagueId, leagueId));
+    await audit(tx, "LEAGUE_SWITCHED_TO_GOOGLE", `${league.name} switched from team logins to Google sign-in`, { userId: byUserId, leagueId });
   });
 }
 
@@ -277,6 +317,7 @@ export async function claimOpenSlot(leagueId: string, userId: string, viaInviteI
   for (let attempt = 0; attempt < 5; attempt++) {
     try {
       return await writeTx(async (tx) => {
+        await assertNotSuperadmin(tx, userId, SUPERADMIN_CANNOT_JOIN);
         if (await alreadyInLeague(tx, userId, leagueId)) throw new MembershipError("You're already in this league.", 409, "already-member");
         const [slot] = await tx
           .select({ id: teams.id, name: teams.name })
@@ -321,6 +362,7 @@ export async function joinAsPartner(invite: LeagueInvite, userId: string): Promi
   const teamId = invite.teamId;
   try {
     return await writeTx(async (tx) => {
+      await assertNotSuperadmin(tx, userId, SUPERADMIN_CANNOT_JOIN);
       if (await alreadyInLeague(tx, userId, invite.leagueId)) throw new MembershipError("You're already in this league.", 409, "already-member");
       const [league] = await tx.select({ format: leagues.format }).from(leagues).where(eq(leagues.id, invite.leagueId)).limit(1);
       const [{ n }] = await tx.select({ n: sql<number>`count(*)` }).from(teamMembers).where(eq(teamMembers.teamId, teamId));
@@ -340,6 +382,7 @@ export async function joinAsPartner(invite: LeagueInvite, userId: string): Promi
 // ─── Approval mode ───────────────────────────────────────────────────────────
 
 export async function fileJoinRequest(leagueId: string, userId: string, inviteId: string): Promise<string> {
+  await assertNotSuperadmin(db, userId, SUPERADMIN_CANNOT_JOIN);
   if (await teamOfUserInLeague(userId, leagueId)) throw new MembershipError("You're already in this league.", 409, "already-member");
   const [existing] = await db
     .select({ id: joinRequests.id })
@@ -413,6 +456,7 @@ export async function assignToTeam(leagueId: string, teamId: string, userId: str
         .where(and(eq(teams.id, teamId), eq(teams.leagueId, leagueId)))
         .limit(1);
       if (!team) throw new MembershipError("Team not found in this league.", 404);
+      await assertNotSuperadmin(tx, userId, SUPERADMIN_CANNOT_BE_ASSIGNED);
       if (await alreadyInLeague(tx, userId, leagueId)) throw new MembershipError("That person is already on a team in this league.", 409, "already-member");
       const current = await tx.select({ role: teamMembers.role }).from(teamMembers).where(eq(teamMembers.teamId, teamId));
       if (current.length >= maxMembersFor(team.format)) throw new MembershipError("That team already has its full line-up.", 409, "team-full");
@@ -449,6 +493,7 @@ export async function removeMember(leagueId: string, memberId: string): Promise<
 export async function replaceMemberAccount(leagueId: string, memberId: string, newUserId: string): Promise<void> {
   const m = await memberInLeague(memberId, leagueId);
   if (m.userId === newUserId) return;
+  await assertNotSuperadmin(db, newUserId, SUPERADMIN_CANNOT_BE_ASSIGNED);
   if (await teamOfUserInLeague(newUserId, leagueId)) throw new MembershipError("That person is already on a team in this league.", 409, "already-member");
   await db.update(teamMembers).set({ userId: newUserId }).where(eq(teamMembers.id, m.id));
   await audit(db, "MEMBER_REPLACED", `Seat moved from ${m.userId} to ${newUserId}`, { userId: newUserId, leagueId, teamId: m.teamId });
@@ -486,6 +531,13 @@ export async function transferAllMemberships(fromUserId: string, toUserId: strin
     const toLeagues = new Set((await tx.select({ leagueId: teamMembers.leagueId }).from(teamMembers).where(eq(teamMembers.userId, toUserId))).map((r) => r.leagueId));
     const conflicts = fromRows.filter((r) => toLeagues.has(r.leagueId)).map((r) => r.leagueId);
     if (conflicts.length > 0) throw new MembershipError("The new account is already in some of these leagues.", 409, "conflict");
+    const [from] = await tx.select({ role: users.role }).from(users).where(eq(users.id, fromUserId)).limit(1);
+    const [to] = await tx.select({ role: users.role }).from(users).where(eq(users.id, toUserId)).limit(1);
+    // The new account ends up with the higher of the two roles; a superadmin can't keep any teams.
+    const endsSuperadmin = from?.role === "superadmin" || to?.role === "superadmin";
+    if (endsSuperadmin && (fromRows.length > 0 || toLeagues.size > 0)) {
+      throw new MembershipError("Superadmins can't be on a team. Take the account off its teams first.", 409, "superadmin");
+    }
     if (fromRows.length > 0) {
       await tx.update(teamMembers).set({ userId: toUserId }).where(inArray(teamMembers.id, fromRows.map((r) => r.id)));
     }
@@ -495,8 +547,6 @@ export async function transferAllMemberships(fromUserId: string, toUserId: strin
       if (toAdmin.has(a.leagueId)) await tx.delete(leagueAdmins).where(eq(leagueAdmins.id, a.id));
       else await tx.update(leagueAdmins).set({ userId: toUserId }).where(eq(leagueAdmins.id, a.id));
     }
-    const [from] = await tx.select({ role: users.role }).from(users).where(eq(users.id, fromUserId)).limit(1);
-    const [to] = await tx.select({ role: users.role }).from(users).where(eq(users.id, toUserId)).limit(1);
     const rank = (r?: string) => (r === "superadmin" ? 2 : r === "admin" ? 1 : 0);
     if (rank(from?.role) > rank(to?.role)) await tx.update(users).set({ role: from!.role }).where(eq(users.id, toUserId));
     await tx.update(users).set({ sessionVersion: sql`${users.sessionVersion} + 1` }).where(eq(users.id, fromUserId));

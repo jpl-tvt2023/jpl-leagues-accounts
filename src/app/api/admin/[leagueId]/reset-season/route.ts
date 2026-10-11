@@ -1,15 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, users, teams, players, gameweeks, fixtures, results, gameweekCaptains, gameweekChips, auditLogs } from "@/lib/db";
+import { db, users, teams, players, gameweeks, fixtures, results, gameweekCaptains, gameweekChips, auditLogs, leagues } from "@/lib/db";
 import { eq, inArray, or } from "drizzle-orm";
 import { playoffTies, challengerSurvivalEntries } from "@/lib/db/schema";
-import { sql } from "drizzle-orm";
 import { invalidateLeaguePageCache } from "@/lib/fpl-cache";
-import bcrypt from "bcryptjs";
 import { getAuthorizedLeagueId } from "@/lib/league-auth";
 
 /**
- * POST /api/admin/[leagueId]/reset-season
- * Reset all season data for this league — requires admin password confirmation
+ * POST /api/admin/[leagueId]/reset-season { confirm }
+ * Reset all season data for this league. `confirm` must be the league's slug, typed by the admin:
+ * people sign in with Google, so there is no password to re-enter.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -19,22 +18,19 @@ export async function POST(request: NextRequest) {
     const sessionId = request.headers.get("x-session-id");
     if (!sessionId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    // Look up admin user for password verification
     const admin = await db.query.users.findFirst({ where: eq(users.id, sessionId) });
     if (admin?.role !== "admin" && admin?.role !== "superadmin") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await request.json();
-    const { password } = body;
-
-    if (!password) {
-      return NextResponse.json({ error: "Password is required" }, { status: 400 });
+    const body = await request.json().catch(() => ({}));
+    const confirm = typeof body.confirm === "string" ? body.confirm.trim().toLowerCase() : "";
+    if (!confirm) {
+      return NextResponse.json({ error: "Type the league's slug to confirm" }, { status: 400 });
     }
-
-    const isValid = await bcrypt.compare(password, admin.password);
-    if (!isValid) {
-      return NextResponse.json({ error: "Incorrect password" }, { status: 403 });
+    const [league] = await db.select({ slug: leagues.slug }).from(leagues).where(eq(leagues.id, leagueId)).limit(1);
+    if (!league || confirm !== league.slug.toLowerCase()) {
+      return NextResponse.json({ error: "That doesn't match the league's slug" }, { status: 403 });
     }
 
     // Get all team IDs for this league

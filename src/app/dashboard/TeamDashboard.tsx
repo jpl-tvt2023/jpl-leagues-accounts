@@ -876,14 +876,13 @@ function PerformerPanel({
 
 
 /**
- * The team dashboard. Without `routeSlug` it is /dashboard for a legacy team login. With it —
- * /[leagueSlug]/dashboard — every team API call names the league, which is how a person (who can
- * be on a team in several leagues) is resolved to the right team.
+ * The team dashboard at /[leagueSlug]/dashboard. Every team API call names the league, which is
+ * how a person (who can be on a team in several leagues) is resolved to the right team.
  */
-export function TeamDashboard({ routeSlug }: { routeSlug?: string } = {}) {
+export function TeamDashboard({ routeSlug }: { routeSlug: string }) {
   const router = useRouter();
   const withLeague = useCallback(
-    (url: string) => (routeSlug ? `${url}${url.includes("?") ? "&" : "?"}league=${encodeURIComponent(routeSlug)}` : url),
+    (url: string) => `${url}${url.includes("?") ? "&" : "?"}league=${encodeURIComponent(routeSlug)}`,
     [routeSlug],
   );
   const [data, setData] = useState<DashboardData | null>(null);
@@ -1042,42 +1041,21 @@ export function TeamDashboard({ routeSlug }: { routeSlug?: string } = {}) {
     // Check auth status and profile completion before loading dashboard
     const checkAuth = async () => {
       try {
-        if (routeSlug) {
-          // A person: the setup API says whose team this is in this league, and whether it's set up.
-          const setupRes = await fetch(withLeague("/api/team/setup"));
-          if (setupRes.status === 401) {
-            router.push(`/signin?next=${encodeURIComponent(`/${routeSlug}/dashboard`)}`);
-            return;
-          }
-          if (!setupRes.ok) {
-            router.push(`/${routeSlug}`); // not on a team in this league
-            return;
-          }
-          if (!(await setupRes.json()).isProfileComplete) {
-            router.push(`/${routeSlug}/setup`);
-            return;
-          }
-          document.cookie = `${LAST_LEAGUE_COOKIE}=${encodeURIComponent(routeSlug)}; path=/; max-age=31536000; samesite=lax`;
-          fetchDashboard();
+        // The setup API says whose team this is in this league, and whether it's set up.
+        const setupRes = await fetch(withLeague("/api/team/setup"));
+        if (setupRes.status === 401) {
+          router.push(`/signin?next=${encodeURIComponent(`/${routeSlug}/dashboard`)}`);
           return;
         }
-
-        const res = await fetch("/api/auth/me");
-        const me = await res.json();
-
-        // If not authenticated, redirect to signin
-        if (!me.authenticated || me.type !== "team") {
-          router.push("/signin");
+        if (!setupRes.ok) {
+          router.push(`/${routeSlug}`); // not on a team in this league
           return;
         }
-
-        // If profile not complete, redirect to setup
-        if (!me.team.isProfileComplete) {
-          router.push("/setup");
+        if (!(await setupRes.json()).isProfileComplete) {
+          router.push(`/${routeSlug}/setup`);
           return;
         }
-
-        // Auth is valid and profile is complete, load dashboard
+        document.cookie = `${LAST_LEAGUE_COOKIE}=${encodeURIComponent(routeSlug)}; path=/; max-age=31536000; samesite=lax`;
         fetchDashboard();
       } catch (err) {
         console.error("Auth check error:", err);

@@ -131,7 +131,7 @@ export type NavContext =
       auctionTier: "primary" | "complete" | null;
       isLoggedIn: boolean;
       dashboardHref: string;
-      /** Team settings. Legacy team logins: /settings; people: /[league]/team. */
+      /** Team settings: /[league]/team for someone on a team there, else /account. */
       settingsHref?: string;
     }
   | {
@@ -199,7 +199,7 @@ function when(cond: boolean, ...items: NavItem[]): NavItem[] {
 }
 
 function buildLeague(ctx: Extract<NavContext, { surface: "league" }>, runtime: NavRuntime): NavModel {
-  const { leagueSlug, format, auctionTier, isLoggedIn, dashboardHref, settingsHref = "/settings" } = ctx;
+  const { leagueSlug, format, auctionTier, isLoggedIn, dashboardHref, settingsHref = "/account" } = ctx;
   const auctionLive = runtime.auctionLive ?? false;
   const p = (path: string) => `/${leagueSlug}/${path}`;
 
@@ -501,7 +501,7 @@ export function buildNavModel(ctx: NavContext, runtime: NavRuntime = {}): NavMod
             heading: "Account",
             items: [
               { key: "dashboard", label: "← Back to Dashboard", href: ctx.backHref, tone: "back" },
-              { key: "settings", label: "Settings", href: "/settings" },
+              { key: "settings", label: "Your account", href: "/account" },
               { key: "notifications", label: "Notifications", href: "/notifications" },
             ],
           },

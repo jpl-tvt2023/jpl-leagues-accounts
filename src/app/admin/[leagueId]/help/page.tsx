@@ -67,8 +67,9 @@ export default function AdminHelpPage() {
   const [playoffStartGw, setPlayoffStartGw] = useState<number>(31);
   const [leagueName, setLeagueName] = useState<string>("");
   const [leagueFormat, setLeagueFormat] = useState<string>("tvt");
-  // "members": players join via invite link (Google sign-in). "legacy": a team ID + password per team.
-  const [authMode, setAuthMode] = useState<"legacy" | "members">("legacy");
+  // "members": players join via invite link (Google sign-in). "legacy": a league from before
+  // accounts, whose team logins no longer work until the superadmin switches it to Google sign-in.
+  const [authMode, setAuthMode] = useState<"legacy" | "members">("members");
   const [activeTab, setActiveTab] = useState<ActiveTab>("faqs");
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
@@ -178,23 +179,38 @@ export default function AdminHelpPage() {
     {
       question: "What is the team key?",
       answer: (
-        <p>An internal identifier each team has (e.g. <span className="font-mono">my-league-Team3</span>). Backups and the captain/chip importers match teams by it. In invite-link leagues it is <em>not</em> a login — nobody signs in with it.</p>
+        <p>An internal identifier each team has (e.g. <span className="font-mono">my-league-Team3</span>). Backups and the captain/chip importers match teams by it. It is <em>not</em> a login — everyone signs in with Google.</p>
       ),
     },
   ];
 
+  const legacyFaq = {
+    question: "Why can't my players sign in to this league?",
+    answer: (
+      <div className="space-y-2">
+        <p>
+          This league was created before Google sign-in, and its team IDs and passwords no longer work. Ask your superadmin to
+          switch it to Google sign-in (Superadmin → Leagues). Teams, scores and history are kept.
+        </p>
+        <p>
+          Then have each player sign in with Google and send you their username, and add them to their own team from the
+          <strong className="text-white"> Members</strong> tab. Don&apos;t share a league invite link for this league: it gives
+          whoever opens it the next free team, not their own.
+        </p>
+      </div>
+    ),
+  };
+
   const faqs = [
-    ...(authMode === "members" ? memberFaqs : []),
+    ...(authMode === "members" ? memberFaqs : [legacyFaq]),
     {
-      question: authMode === "members" ? "How do I add teams by hand? (team-login leagues)" : "How do I add teams to my league?",
+      question: "How do I add teams by hand?",
       answer: (
         <ol className="list-decimal list-inside space-y-1.5">
           <li>Go to your Admin Dashboard and click the <strong className="text-white">Teams</strong> tab.</li>
           <li>Click <strong className="text-white">Add Team</strong>.</li>
-          <li>Fill in: team name, group assignment{teamSize === 32 ? " (A or B)" : ""}, and two players (name + FPL ID each).</li>
-          <li>Set a temporary password for the team&apos;s login.</li>
-          <li>Submit — the team login ID and temporary password are shown. Share these with the team.</li>
-          <li>The team can log in at the Sign In page using the assigned team login ID.</li>
+          <li>Fill in: team key, team name, group assignment{teamSize === 32 ? " (A or B)" : ""}, and two players (name + FPL ID each).</li>
+          <li>Submit, then add the people who play for it from the <strong className="text-white">Members</strong> tab (assign by username).</li>
         </ol>
       ),
     },
@@ -203,7 +219,7 @@ export default function AdminHelpPage() {
       answer: (
         <div className="space-y-2">
           <p>Go to the <strong className="text-white">Bulk Upload</strong> tab. Prepare an Excel or CSV file with the following columns:</p>
-          <p className="font-mono text-xs bg-white/5 rounded p-2">TeamName · Group · Player1Name · Player1FplId · Player2Name · Player2FplId · Password</p>
+          <p className="font-mono text-xs bg-white/5 rounded p-2">TeamName · Group · Player1Name · Player1FplId · Player2Name · Player2FplId</p>
           <ol className="list-decimal list-inside space-y-1.5 mt-2">
             <li>Upload the file in the Bulk Upload tab.</li>
             <li>Review the preview table — errors are highlighted in red (e.g., duplicate names, missing FPL IDs).</li>
@@ -380,8 +396,8 @@ export default function AdminHelpPage() {
               "Players sign in with Google and claim a team; watch the Members tab fill up (Open → Claimed → Set up). Assign anyone specific by username.",
             ]
           : [
-              "Go to the Teams tab. Add teams one by one using Add Team, or use Bulk Upload for multiple teams at once.",
-              "Share login credentials (team login ID + temp password) with each team.",
+              "This league still uses team logins, which no longer work: ask your superadmin to switch it to Google sign-in.",
+              "Have each player sign in with Google and send you their username, then add them to their own team from the Members tab.",
             ]),
         teamSize === 32
           ? "Generate fixtures automatically: scroll to Quick Actions at the bottom of the Teams tab and click Generate Fixtures. The system creates a full home-and-away round-robin for both groups (GW1–30)."
@@ -435,7 +451,7 @@ export default function AdminHelpPage() {
       number: 5,
       title: "Bulk importing teams from Excel",
       steps: [
-        "Prepare your Excel file with columns: TeamName, Group, Player1Name, Player1FplId, Player2Name, Player2FplId, Password.",
+        "Prepare your Excel file with columns: TeamName, Group, Player1Name, Player1FplId, Player2Name, Player2FplId.",
         teamSize === 32
           ? "Group column must be A or B — ensure teams are split correctly between the two groups."
           : "Group column should be A for all teams (single group league).",

@@ -30,7 +30,6 @@ test.describe.serial("Captains & Chips card", () => {
     const res = await request.post("/api/superadmin/leagues", {
       data: {
         // Team logins: this spec signs teams in with team keys.
-        authMode: "legacy",
         slug, name: "Captains Chips Card", sport: "fpl", format: "tvt",
         season: "2025-26", teamSize: TEAMS, groupCount: 2, enabledChips: ["D", "W", "C"],
       },
@@ -79,7 +78,7 @@ test.describe.serial("Captains & Chips card", () => {
 
   test("api exposes the challenged team alongside the chip", async ({ request }) => {
     await apiSignInTeam(request, slug, 1);
-    const dash = await request.get("/api/team/dashboard").then((r) => r.json());
+    const dash = await request.get(`/api/team/dashboard?league=${slug}`).then((r) => r.json());
     const challenger = dash.leagueCaptains.find((c: { teamName: string }) => c.teamName === challengerName);
     expect(challenger.chipType).toBe("C");
     expect(challenger.chipCode).toBe("CC");
@@ -94,7 +93,7 @@ test.describe.serial("Captains & Chips card", () => {
   });
 
   test("card renders headers, abbreviations, and aligned single-line rows", async ({ page }) => {
-    // uiSignInTeam already lands on /dashboard; an explicit goto races that
+    // uiSignInTeam already lands on the team dashboard; an explicit goto races that
     // in-flight client navigation and aborts it (net::ERR_ABORTED).
     await uiSignInTeam(page, slug, 1);
 
@@ -162,7 +161,7 @@ test.describe.serial("Captains & Chips card", () => {
 
   test("the card defaults to the lowest unconcluded gameweek, not the last scored one", async ({ request }) => {
     await apiSignInTeam(request, slug, 1);
-    const dash = await request.get("/api/team/dashboard").then((r) => r.json());
+    const dash = await request.get(`/api/team/dashboard?league=${slug}`).then((r) => r.json());
 
     // Nothing has concluded in this league, so the default is its first gameweek.
     expect(dash.captainsDefaultGw).toBe(1);
@@ -174,7 +173,7 @@ test.describe.serial("Captains & Chips card", () => {
 
   test("the captains route serves any gameweek inside the range", async ({ request }) => {
     await apiSignInTeam(request, slug, 1);
-    const res = await request.get("/api/team/dashboard/captains?gw=1");
+    const res = await request.get(`/api/team/dashboard/captains?gw=1&league=${slug}`);
     expect(res.status(), await res.text()).toBe(200);
     const body = await res.json();
     expect(body.gameweek).toBe(1);
@@ -193,10 +192,10 @@ test.describe.serial("Captains & Chips card", () => {
     // before that opponent had to commit. A client-side clamp is not an access control, so the
     // server must refuse it outright.
     await apiSignInTeam(request, slug, 1);
-    const dash = await request.get("/api/team/dashboard").then((r) => r.json());
+    const dash = await request.get(`/api/team/dashboard?league=${slug}`).then((r) => r.json());
     const beyond = dash.captainsDefaultGw + 1;
 
-    const res = await request.get(`/api/team/dashboard/captains?gw=${beyond}`);
+    const res = await request.get(`/api/team/dashboard/captains?gw=${beyond}&league=${slug}`);
     expect(res.status()).toBe(400);
     const body = await res.json();
     expect(body.error).toContain(`GW${dash.captainsDefaultGw}`);
@@ -205,7 +204,7 @@ test.describe.serial("Captains & Chips card", () => {
   });
 
   test("the navigator renders and is bounded by the available range", async ({ page }) => {
-    // uiSignInTeam already lands on /dashboard; an explicit goto races that in-flight client
+    // uiSignInTeam already lands on the team dashboard; an explicit goto races that in-flight client
     // navigation and aborts it (net::ERR_ABORTED).
     await uiSignInTeam(page, slug, 1);
 
@@ -221,7 +220,7 @@ test.describe.serial("Captains & Chips card", () => {
 
   test("announcements require a session", async ({ request }) => {
     await apiSignOut(request);
-    const res = await request.get("/api/team/dashboard/captains?gw=1");
+    const res = await request.get(`/api/team/dashboard/captains?gw=1&league=${slug}`);
     expect(res.status()).toBe(401);
   });
 
@@ -233,12 +232,12 @@ test.describe.serial("Captains & Chips card", () => {
     await request.post("/api/test-fpl-stub/control", { data: { finishedThrough: 1, liveGw: null } });
     await apiSignInTeam(request, slug, 1);
 
-    const dash = await request.get("/api/team/dashboard").then((r) => r.json());
+    const dash = await request.get(`/api/team/dashboard?league=${slug}`).then((r) => r.json());
     expect(dash.captainsDefaultGw).toBe(2);
     expect(dash.captainsAvailableGws).toEqual([1, 2]);
 
     // GW1's announcements are still reachable...
-    const back = await request.get("/api/team/dashboard/captains?gw=1");
+    const back = await request.get(`/api/team/dashboard/captains?gw=1&league=${slug}`);
     expect(back.status()).toBe(200);
     const backBody = await back.json();
     expect(backBody.gameweek).toBe(1);
@@ -247,11 +246,11 @@ test.describe.serial("Captains & Chips card", () => {
     ).toBe("CC");
 
     // ...while GW2, the new default, carries none of GW1's chips.
-    const fwd = await request.get("/api/team/dashboard/captains?gw=2").then((r) => r.json());
+    const fwd = await request.get(`/api/team/dashboard/captains?gw=2&league=${slug}`).then((r) => r.json());
     expect(fwd.leagueCaptains.every((c: { chipCode: string | null }) => c.chipCode === null)).toBe(true);
 
     // And GW3 is still past the edge.
-    expect((await request.get("/api/team/dashboard/captains?gw=3")).status()).toBe(400);
+    expect((await request.get(`/api/team/dashboard/captains?gw=3&league=${slug}`)).status()).toBe(400);
   });
 
   test("stepping the navigator back shows the earlier gameweek's chips", async ({ page }) => {

@@ -161,8 +161,7 @@ jpl-leagues-accounts/
 │   │   ├── help/page.tsx             # Public sign-in & account help (no sign-in needed)
 │   │   ├── privacy/page.tsx          # What we store, and why
 │   │   ├── auth/handoff/             # iOS home-screen sign-in handoff (behind a flag)
-│   │   ├── dashboard/                # Team dashboard (TeamDashboard.tsx); /dashboard = legacy logins
-│   │   ├── change-password/page.tsx  # First-login password change
+│   │   ├── dashboard/                # TeamDashboard.tsx; /dashboard redirects to your last league's
 │   │   ├── standings/page.tsx        # Legacy single-league standings
 │   │   ├── fixtures/page.tsx         # Legacy single-league fixtures
 │   │   ├── playoffs/page.tsx         # Legacy single-league playoffs
@@ -179,7 +178,7 @@ jpl-leagues-accounts/
 │   │   │   ├── fixtures/page.tsx
 │   │   │   └── playoffs/page.tsx
 │   │   └── api/                      # API routes (37 files)
-│   │       ├── auth/                 # signin, signout, me, change-password, google, handoff
+│   │       ├── auth/                 # google, signout, me, accounts, switch, handoff
 │   │       ├── me/                   # the signed-in person: profile, leagues, sessions, delete
 │   │       ├── join/                 # use an invite link
 │   │       ├── test-auth/            # TEST ONLY person sign-in (TEST_AUTH_ENABLED)
@@ -201,7 +200,7 @@ jpl-leagues-accounts/
 │       │   ├── index.ts              # Drizzle client (LibSQL connection)
 │       │   └── schema.ts             # Complete database schema + relations
 │       ├── auth.ts                   # Session create/verify (HMAC-SHA256)
-│       ├── team-actor.ts             # Which team a request acts as (legacy login or membership)
+│       ├── team-actor.ts             # Which team a request acts as (the person's membership)
 │       ├── membership.ts             # Invites, joining, teammates, approvals, admin tools
 │       ├── accounts.ts               # People: Google find/link/create, sessions
 │       ├── privilege.ts              # Admin/superadmin re-checked against the database
@@ -238,8 +237,8 @@ jpl-leagues-accounts/
 | `leagues` | League instances with variant config |
 | `league_admins` | Maps admins to their leagues |
 | `groups` | Groups (A/B) within a league |
-| `teams` | Teams (TVT: 2 players). A login only in legacy leagues; otherwise people join via `team_members` |
-| `team_members` | Who is on which team (members-mode leagues); one team per person per league |
+| `teams` | Teams (TVT: 2 players). Not a login: people are on teams via `team_members` |
+| `team_members` | Who is on which team; one team per person per league |
 | `user_identities` / `league_invites` / `join_requests` / `auth_handoffs` | Google links, invite links, approval requests, iOS sign-in handoffs |
 | `players` | Individual FPL managers within a team |
 | `gameweeks` | GW1–38 with deadlines and phase flags |
@@ -265,7 +264,8 @@ enabled_chips      -- JSON array of 3 chip codes, e.g. '["D","W","C"]'
 
 #### `teams`
 ```
-id, name, league_id, abbreviation, password, must_change_password
+id, name, league_id, abbreviation, team_login_id   -- the team key (internal id, not a login)
+password, must_change_password                   -- unused: nobody signs in as a team
 group_id, league_points, bonus_points
 -- Chip usage flags (12 total: 6 chips × 2 sets):
 double_pointer_set1_used, challenge_chip_set1_used, win_win_set1_used
@@ -309,7 +309,7 @@ token = base64url(JSON payload) + "." + HMAC-SHA256(payload, SESSION_SECRET)
 ```
 
 - Payload: `{ id, type, exp, sv? }` — expires after **7 days**
-  - `type`: `superadmin` | `admin` | `user` (a person, `id` = users.id) or `team` (a legacy team login, `id` = teams.id)
+  - `type`: `superadmin` | `admin` | `user` — always a person, `id` = users.id. Any other type (e.g. an old team-login token) is refused.
   - `sv`: the person's `users.session_version` when the token was minted. Bumping the column revokes every older token.
 - Stored in an `HttpOnly; SameSite=Lax` cookie named `session`
 - Verification uses constant-time comparison to prevent timing attacks
@@ -320,10 +320,11 @@ Full design: [docs/10-accounts-and-membership.md](docs/10-accounts-and-membershi
 
 | Who | Signs in with | Access |
 |------|-------|--------|
-| `superadmin` | Google (linked by email) — or a password, kept as a break-glass | Full platform access: create leagues, manage admins, view all data |
-| `admin` | Google (linked by email), or a password if created with one | League-scoped: manage teams, process scores, override chips/captains |
-| `user` (player) | Google, then a unique username | Every team they're on, in any number of members-mode leagues |
-| `team` (legacy) | Team key + password from the admin | That one team, in a league created before Google sign-in (until the 2026-27 season ends) |
+| `superadmin` | Google (seeded by email with `npm run seed:admin`, linked on first sign-in) | Full platform access: create leagues, manage admins, view all data. Never plays |
+| `admin` | Google (created by email on the superadmin page, linked on first sign-in) | League-scoped: manage teams, process scores, override chips/captains |
+| `user` (player) | Google, then a unique username | Every team they're on, in any number of leagues |
+
+**Google is the only way to sign in.** There are no passwords: no team logins, no admin passwords, no break-glass. Leagues from before accounts are switched to Google sign-in by the superadmin; see [docs/10-accounts-and-membership.md](docs/10-accounts-and-membership.md).
 
 An admin who also plays has one identity: their membership gives them a team like anyone else's.
 
@@ -331,12 +332,12 @@ An admin who also plays has one identity: their membership gives them a team lik
 
 `src/middleware.ts` runs on all `/api/*` routes and:
 
-1. **Rate limits** signin/change-password (5 req/min), reset-season (1 req/min), the sign-in handoff and joins, and the profile endpoint, per IP, via Upstash Redis
+1. **Rate limits** reset-season (1 req/min), the sign-in handoff and joins, and the profile endpoint, per IP, via Upstash Redis
 2. **Allows public GET** routes: `/api/standings`, `/api/fixtures`, `/api/playoffs/bracket`, `/api/leagues`, `/api/gameweeks/[gw]`; all of `/api/auth/*`; and the test-only stubs
 3. **Validates the session cookie** for all protected routes
 4. **Enforces role**:
    - admin routes require `admin` or `superadmin`;
-   - team routes take any valid session, and **which team** is decided in the route by `resolveTeamActor` (`src/lib/team-actor.ts`): legacy login = its own team; person = their membership in the league named by `?league=`
+   - team routes take any valid session, and **which team** is decided in the route by `resolveTeamActor` (`src/lib/team-actor.ts`): the person's membership in the league named by `?league=`
 5. **Injects headers** (`x-session-id`, `x-session-type`, `x-session-sv`, `x-league-id`) for route handlers
 6. **Cron support** — Vercel cron jobs authenticate via `Authorization: Bearer <CRON_SECRET>`
 
@@ -510,10 +511,10 @@ All routes under `/api/`. Public GET routes require no auth.
 
 | Method | Route | Auth | Description |
 |--------|-------|------|-------------|
-| POST | `/api/auth/signin` | None | Sign in (team or admin). Returns session cookie |
-| POST | `/api/auth/signout` | None | Clear session cookie |
-| GET | `/api/auth/me` | None | Returns `{ authenticated, type, id }` |
-| POST | `/api/auth/change-password` | Session | Change own password |
+| GET | `/api/auth/google` → `/api/auth/google/callback` | None | Sign in with Google (the only sign-in). Sets the session cookie |
+| POST | `/api/auth/signout` | None | Sign out the active account (or `{ key }` / `{ all: true }`) |
+| GET | `/api/auth/me` | None | Returns `{ authenticated, type, user }` |
+| GET / POST | `/api/auth/accounts`, `/api/auth/switch` | None | Accounts signed in on this device, and switching between them |
 
 ### Public Data
 
@@ -631,8 +632,8 @@ cp .env.example .env.local
 # 4. Push the schema to your Turso database
 npm run db:push
 
-# 5. Seed the initial superadmin account
-npm run seed:admin
+# 5. Seed the initial superadmin (by Google email — there are no passwords)
+SUPERADMIN_EMAIL=you@gmail.com npm run seed:admin
 
 # 6. Start the development server
 npm run dev
@@ -642,9 +643,9 @@ The app runs at [http://localhost:3000](http://localhost:3000).
 
 > **Note:** `npm run dev` uses `--webpack` flag for Turbopack compatibility.
 
-### Default Superadmin Credentials
+### The first superadmin
 
-After running `seed:admin`, log in at `/signin` with the credentials defined in `scripts/seed-admin.ts`. You will be prompted to change the password on first login.
+`seed:admin` creates the superadmin's account from `SUPERADMIN_EMAIL`, with no password. Sign in at `/signin` with Google using that email: the account links on first sign-in. Google sign-in has to be configured first ([docs/07-deployment.md](docs/07-deployment.md)).
 
 ---
 
@@ -727,7 +728,7 @@ The following headers are set on all responses via `next.config.ts`:
 | Push schema | `npm run db:push` | Sync schema.ts → Turso DB |
 | Generate migrations | `npm run db:generate` | Generate migration files (dev only) |
 | DB Studio | `npm run db:studio` | Open Drizzle Studio |
-| Seed admin | `npm run seed:admin` | Create initial superadmin account |
+| Seed admin | `npm run seed:admin` | Create the first superadmin from `SUPERADMIN_EMAIL` (Google sign-in, no password) |
 
 ---
 

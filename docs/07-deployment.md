@@ -46,7 +46,7 @@ TEST_AUTH_ENABLED                     # "1" enables POST /api/test-auth/signin. 
 People sign in with Google ([10-accounts-and-membership.md](10-accounts-and-membership.md)). Each environment needs its own OAuth client, because Google only accepts redirect URIs registered exactly.
 
 1. **Google Cloud Console → APIs & Services → OAuth consent screen.**
-   - User type: External. App name "JPL India"; support email; app logo optional.
+   - User type: External. App name "JPL India"; support email. Leave the app logo empty: uploading one makes Google require brand verification first.
    - App homepage: your site. **Privacy policy: `https://<your-domain>/privacy`**, which is required before you publish.
    - Scopes: only `openid`, `email` and `profile`. These are non-sensitive scopes, so Google needs no app verification review.
    - Publishing status: **In production**. While it's in Testing, only listed test users can sign in.
@@ -60,7 +60,20 @@ People sign in with Google ([10-accounts-and-membership.md](10-accounts-and-memb
 
 Vercel preview URLs change with every deployment, so they can't be registered. Previews sign people in with `TEST_AUTH_ENABLED=1` instead (see [09-environments.md](09-environments.md)).
 
-If Google sign-in is not configured, the Continue with Google button lands back on `/signin` with a "not set up" message. Password sign-in for admins and legacy teams keeps working.
+If Google sign-in is not configured, the Continue with Google button lands back on `/signin` with a "not set up" message — and **nobody can sign in at all**: Google is the only way in, for admins and the superadmin too. There is no password fallback.
+
+### The first superadmin
+
+Admins are created from the superadmin page, so the very first superadmin is seeded from the command line, with no password. Their first Google sign-in with that email links the account:
+
+```powershell
+$env:DATABASE_URL = "libsql://jpl-india-<org>.<region>.turso.io"
+$env:TURSO_AUTH_TOKEN = turso db tokens create jpl-india
+$env:SUPERADMIN_EMAIL = "<the superadmin's Google account email>"
+npm run seed:admin
+```
+
+It refuses any database but `jpl-india` or a local `file:` one, and is safe to run twice. Superadmins never play, so it won't promote an account that's already on a team.
 
 ### Failure modes when missing
 
@@ -105,6 +118,13 @@ Run `npm run db:push:dev` (uses `.env.dev`) and `npm run seed:dev` to populate. 
 3. Copy the REST URL + REST token into env vars.
 
 Free tier covers our cache footprint comfortably (~10k operations/day).
+
+Create it in the Upstash console, not from Vercel's Storage tab: that integration can name the variables `KV_…`, and the app reads only `UPSTASH_REDIS_REST_URL` / `_TOKEN`.
+
+This deployment uses two databases, and neither may be production's (the `fpl:scoring-active` lock is global across everything sharing a database):
+
+- **`jpl-india`** — the site. Set in Vercel for Production and Preview.
+- **`jpl-india-test`** — the e2e suite, via the gitignored `.env.test.local` (see `.env.test.local.example`). `npm run test:reset` FLUSHes it, and the suite fills it with stub FPL data, so it must never be the site's database.
 
 ## FPL API
 

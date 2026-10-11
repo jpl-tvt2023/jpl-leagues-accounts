@@ -65,8 +65,8 @@ const SECTIONS: Array<{ title: string; entries: Entry[] }> = [
         q: "I have a team ID and password from my league admin",
         a: (
           <p>
-            Those still work for leagues created before Google sign-in, until the end of the 2026-27 season. Use the
-            team-ID form under the Google button on the sign-in page.
+            Those no longer work — everyone signs in with Google now. Sign in with Google, pick a username, and send it
+            to your league admin: they add you to your old team. Your team, scores and history are kept.
           </p>
         ),
       },

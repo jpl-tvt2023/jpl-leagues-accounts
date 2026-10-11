@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
   }
 
   // Authorization: superadmin → any team; admin → only teams in leagues they administer;
-  // a team (legacy login or member) → only their own team. Anything else → 403.
+  // a team member → only their own team. Anything else → 403.
   if (await sessionActsAsTeam(session, teamId)) {
     // own team
   } else if (session.type === "admin") {
