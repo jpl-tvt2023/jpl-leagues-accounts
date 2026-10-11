@@ -5,6 +5,8 @@ import Link from "next/link";
 import { AppNav } from "@/components/AppNav";
 import { InstallBanner } from "@/components/pwa/InstallBanner";
 import { MyLeaguesHub } from "@/components/MyLeaguesHub";
+import { useMyLeagues } from "@/lib/my-leagues-client";
+import { signOutAccounts } from "@/lib/accounts-client";
 
 interface League {
   id: string;
@@ -55,6 +57,15 @@ const FORMAT_PRIMARY_BTN: Record<string, string> = {
 export default function Home() {
   const [leagues, setLeagues] = useState<League[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  // The signed-in person's leagues: null while checking, undefined when nobody is signed in.
+  // The header uses it too, so a signed-in person sees their account menu here, not Sign In.
+  const myLeagues = useMyLeagues();
+  const signedIn = myLeagues === null ? null : myLeagues !== undefined;
+
+  const signOut = async () => {
+    await signOutAccounts();
+    window.location.href = "/";
+  };
 
   useEffect(() => {
     fetch("/api/leagues")
@@ -66,7 +77,13 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900">
-      <AppNav context={{ surface: "public", page: "home" }} activeKey="" brandHref="/" brandLabel="JPL India" />
+      <AppNav
+        context={{ surface: "public", page: "home", signedIn }}
+        activeKey=""
+        brandHref="/"
+        brandLabel="JPL India"
+        onSignOut={signOut}
+      />
 
       {/* Hero */}
       <section className="mx-auto max-w-4xl px-4 sm:px-6 py-12 sm:py-20 text-center">
@@ -84,7 +101,7 @@ export default function Home() {
       {/* League Cards */}
       <section className="mx-auto max-w-5xl px-4 pb-12 sm:pb-24 sm:px-6">
         <InstallBanner className="mb-6" />
-        <MyLeaguesHub />
+        <MyLeaguesHub leagues={myLeagues ?? null} />
         {isLoading ? (
           <div className="grid gap-6 sm:grid-cols-2">
             {[1, 2].map((i) => (

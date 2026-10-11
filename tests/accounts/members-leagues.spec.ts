@@ -85,6 +85,20 @@ test.describe.serial("members-mode leagues", () => {
     expect(res.status()).toBe(404);
   });
 
+  test("a signed-in person in no league sees their account on the home page, not Sign In", async ({ page }) => {
+    await apiSignInUser(page.request, { email: email("newbie"), name: "Newbie", username: uname("newbie") });
+    await page.goto("/");
+    await expect(page.getByText("You're not in a league yet")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Account", exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Sign In" })).toHaveCount(0);
+
+    // Signed out, the same page offers Sign In again.
+    await page.request.post("/api/auth/signout");
+    await page.goto("/");
+    await expect(page.getByRole("link", { name: "Sign In" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Account", exact: true })).toHaveCount(0);
+  });
+
   test("join page: a signed-in person joins with one tap and lands on setup", async ({ page }) => {
     await apiSignInUser(page.request, { email: email("alice"), name: "Alice", username: uname("alice") });
     await page.goto(`/join/${tvt.inviteToken}`);

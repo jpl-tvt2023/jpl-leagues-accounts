@@ -1,14 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { teamHref, useMyLeagues } from "@/lib/my-leagues-client";
+import { teamHref, useMyLeagues, type MyLeagues } from "@/lib/my-leagues-client";
 
 /**
  * "Your leagues" on the home page for a signed-in person — the hub for one identity in many
  * leagues. Renders nothing for signed-out visitors and legacy team logins.
+ *
+ * Pass `leagues` when the page has already fetched them (the home page needs them for its header
+ * too); otherwise the hub fetches its own.
  */
-export function MyLeaguesHub() {
-  const leagues = useMyLeagues();
+export function MyLeaguesHub({ leagues: given }: { leagues?: MyLeagues | null } = {}) {
+  const fetched = useMyLeagues(given === undefined);
+  const leagues = given === undefined ? fetched : given;
   if (!leagues) return null;
   const empty = leagues.teams.length === 0 && leagues.adminOf.length === 0 && !leagues.allLeagues;
 

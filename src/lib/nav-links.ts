@@ -149,8 +149,12 @@ export type NavContext =
    * Pages outside any league and outside the signed-in area. `home` is the league list itself;
    * `signin` links back to it; `flow` is a mid-flow screen (change password, team setup) that
    * offers no way out until it is finished.
+   *
+   * `signedIn` matters on `home` only, which is also a signed-in player's home (their leagues
+   * hub): true shows their account menu, false or omitted shows Sign In, and null (still
+   * checking) shows neither, so the wrong button never flashes up.
    */
-  | { surface: "public"; page: "home" | "signin" | "flow" };
+  | { surface: "public"; page: "home" | "signin" | "flow"; signedIn?: boolean | null };
 
 /**
  * Live-auction state is a *runtime* input, not part of the context identity — keeping it
@@ -491,7 +495,12 @@ export function buildNavModel(ctx: NavContext, runtime: NavRuntime = {}): NavMod
           { kind: "none" },
         );
       }
-      return model([], false, ctx.page === "home" ? { kind: "signIn", href: "/signin" } : { kind: "none" });
+      if (ctx.page === "home") {
+        if (ctx.signedIn === true) return model([], false, { kind: "signOut" });
+        if (ctx.signedIn === null) return model([], false, { kind: "none" });
+        return model([], false, { kind: "signIn", href: "/signin" });
+      }
+      return model([], false, { kind: "none" });
 
     case "account":
       return model(
