@@ -5,6 +5,10 @@ const BASE_URL = `http://localhost:${PORT}`;
 
 export default defineConfig({
   testDir: "./tests",
+  // Specs only. Playwright's default pattern also matches tests/unit/*.test.ts, which are node:test
+  // files for `npm run test:unit` — loading them here runs them in the worker, and two of them
+  // point process.env.DATABASE_URL at their own scratch database, breaking tests/harness/db.ts.
+  testMatch: /.*\.spec\.ts$/,
   fullyParallel: false,
   workers: 1,
   forbidOnly: !!process.env.CI,

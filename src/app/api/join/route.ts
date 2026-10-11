@@ -11,6 +11,7 @@ import {
   loadInvite,
   teamOfUserInLeague,
   INVITE_PROBLEM_MESSAGES,
+  SUPERADMIN_CANNOT_JOIN,
 } from "@/lib/membership";
 
 export const dynamic = "force-dynamic";
@@ -31,6 +32,7 @@ async function landingFor(slug: string, teamId: string): Promise<string> {
 export async function POST(request: NextRequest) {
   const person = await getRequestPerson(request);
   if (!person) return NextResponse.json({ error: "Sign in first.", code: "signed-out" }, { status: 401 });
+  if (person.role === "superadmin") return NextResponse.json({ error: SUPERADMIN_CANNOT_JOIN, code: "superadmin" }, { status: 403 });
   if (!person.username) return NextResponse.json({ error: "Pick a username first.", code: "needs-username" }, { status: 409 });
 
   const body = (await request.json().catch(() => ({}))) as { token?: unknown };

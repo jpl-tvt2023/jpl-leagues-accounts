@@ -32,7 +32,6 @@ async function createTvtLeague(request: APIRequestContext, slug: string): Promis
   const res = await request.post("/api/superadmin/leagues", {
     data: {
       // Team logins: this spec signs teams in with team keys.
-      authMode: "legacy",
       slug,
       name: "Chip Lock",
       sport: "fpl",

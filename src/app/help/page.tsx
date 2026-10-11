@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { AppNav } from "@/components/AppNav";
 
-export const metadata: Metadata = { title: "Help · JPL Leagues" };
+export const metadata: Metadata = { title: "Help · JPL India" };
 
 interface Entry {
   id: string;
@@ -65,8 +65,8 @@ const SECTIONS: Array<{ title: string; entries: Entry[] }> = [
         q: "I have a team ID and password from my league admin",
         a: (
           <p>
-            Those still work for leagues created before Google sign-in, until the end of the 2026-27 season. Use the
-            team-ID form under the Google button on the sign-in page.
+            Those no longer work — everyone signs in with Google now. Sign in with Google, pick a username, and send it
+            to your league admin: they add you to your old team. Your team, scores and history are kept.
           </p>
         ),
       },
@@ -179,7 +179,7 @@ const SECTIONS: Array<{ title: string; entries: Entry[] }> = [
 export default function HelpPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-900 via-purple-900 to-slate-900">
-      <AppNav context={{ surface: "public", page: "flow" }} activeKey="" brandHref="/" brandLabel="JPL Sports" title="Help" />
+      <AppNav context={{ surface: "public", page: "flow" }} activeKey="" brandHref="/" brandLabel="JPL India" title="Help" />
       <main className="mx-auto max-w-2xl px-4 sm:px-6 py-10 sm:py-14">
         <h1 className="text-2xl sm:text-4xl font-bold text-white">Help with signing in and accounts</h1>
         <p className="mt-2 text-sm sm:text-base text-gray-400">

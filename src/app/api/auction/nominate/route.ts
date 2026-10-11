@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Auction session is not active" }, { status: 400 });
   }
 
-  // The caller's own team in this auction's league (legacy login or member); null for admins.
+  // The caller's own team in this auction's league (as a member); null for admins.
   const myTeamId = await sessionTeamIdInLeague(session, sessionRow[0].leagueId);
 
   // Post-sale intermission: nominations are locked until the cooldown elapses (sync beat). Applies to

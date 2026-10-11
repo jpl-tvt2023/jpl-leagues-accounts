@@ -40,7 +40,6 @@ test.describe.serial("Chip used in a past gameweek", () => {
     const res = await request.post("/api/superadmin/leagues", {
       data: {
         // Team logins: this spec signs teams in with team keys.
-        authMode: "legacy",
         slug, name: "Chip Used Past GW", sport: "fpl", format: "tvt",
         season: "2025-26", teamSize: TEAMS, groupCount: 2, enabledChips: ["D", "W", "C"],
       },
@@ -55,7 +54,7 @@ test.describe.serial("Chip used in a past gameweek", () => {
     // Find the open submission gameweek, then plant the played chip in a DIFFERENT Set 1
     // gameweek — the whole point is that a chip spent elsewhere in the set still counts.
     await apiSignInTeam(request, slug, TEAM_INDEX);
-    const dash = await request.get("/api/team/dashboard").then((r) => r.json());
+    const dash = await request.get(`/api/team/dashboard?league=${slug}`).then((r) => r.json());
     const submissionGw: number = dash.submission.gameweek;
     expect(submissionGw, "league needs an open submission window").toBeGreaterThan(0);
     playedGw = submissionGw === 1 ? 2 : submissionGw - 1;
@@ -78,7 +77,7 @@ test.describe.serial("Chip used in a past gameweek", () => {
 
   test("the dashboard reports it as used, not available", async ({ request }) => {
     await apiSignInTeam(request, slug, TEAM_INDEX);
-    const dash = await request.get("/api/team/dashboard").then((r) => r.json());
+    const dash = await request.get(`/api/team/dashboard?league=${slug}`).then((r) => r.json());
 
     // The reported symptom.
     expect(dash.chipStatus.set1.D.used).toBe(true);
@@ -95,9 +94,9 @@ test.describe.serial("Chip used in a past gameweek", () => {
 
   test("submitting the same chip again in the set is rejected", async ({ request }) => {
     await apiSignInTeam(request, slug, TEAM_INDEX);
-    const dash = await request.get("/api/team/dashboard").then((r) => r.json());
+    const dash = await request.get(`/api/team/dashboard?league=${slug}`).then((r) => r.json());
 
-    const res = await request.post("/api/team/chips", {
+    const res = await request.post(`/api/team/chips?league=${slug}`, {
       data: { chipType: "D", gameweek: dash.submission.gameweek },
       failOnStatusCode: false,
     });
@@ -110,9 +109,9 @@ test.describe.serial("Chip used in a past gameweek", () => {
 
   test("a different chip in the same set is still allowed", async ({ request }) => {
     await apiSignInTeam(request, slug, TEAM_INDEX);
-    const dash = await request.get("/api/team/dashboard").then((r) => r.json());
+    const dash = await request.get(`/api/team/dashboard?league=${slug}`).then((r) => r.json());
 
-    const res = await request.post("/api/team/chips", {
+    const res = await request.post(`/api/team/chips?league=${slug}`, {
       data: { chipType: "W", gameweek: dash.submission.gameweek },
       failOnStatusCode: false,
     });

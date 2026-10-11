@@ -2,17 +2,23 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import {
   leagues, groups, teams, players, gameweeks, fixtures, results,
-  gameweekChips, playoffTies, challengerSurvivalEntries, leagueAdmins, settings, users,
+  gameweekChips, playoffTies, challengerSurvivalEntries, leagueAdmins, settings,
   auctionBids, auctionWishlists, auctionOwnership, auctionScores, auctionSessions, tradeProposals,
   fplClassicConfig, fplClassicEntrants, fplClassicEntryGws, fplClassicAwards,
 } from "@/lib/db/schema";
 import { eq, inArray } from "drizzle-orm";
 import { isSuperAdmin } from "@/lib/privilege";
-import bcrypt from "bcryptjs";
 import { invalidateLeaguePageCache } from "@/lib/fpl-cache";
 import { validateEnabledChipsArray } from "@/lib/formats/tvt/chip-validation";
 import { findEnabledChipsLock } from "@/lib/formats/tvt/enabled-chips-lock";
+import { MembershipError, switchLeagueToGoogleSignIn } from "@/lib/membership";
 
+/**
+ * PATCH /api/superadmin/leagues/[id] { name?, season?, isActive?, enabledChips?, authMode? }
+ *
+ * `authMode: "members"` switches a league from before accounts (team logins) to Google sign-in —
+ * see switchLeagueToGoogleSignIn. It can't be switched back.
+ */
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -71,19 +77,33 @@ export async function PATCH(
     updates.enabledChips = JSON.stringify(chipCheck.chips);
   }
 
-  if (Object.keys(updates).length === 0) {
+  const switchToMembers = body.authMode !== undefined;
+  if (switchToMembers && body.authMode !== "members") {
+    return NextResponse.json({ error: "authMode can only be set to \"members\" (Google sign-in)" }, { status: 400 });
+  }
+
+  if (Object.keys(updates).length === 0 && !switchToMembers) {
     return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
   }
 
-  await db.update(leagues).set(updates).where(eq(leagues.id, id));
+  if (switchToMembers) {
+    try {
+      await switchLeagueToGoogleSignIn(id, request.headers.get("x-session-id"));
+    } catch (err) {
+      if (err instanceof MembershipError) return NextResponse.json({ error: err.message }, { status: err.status });
+      throw err;
+    }
+  }
+
+  if (Object.keys(updates).length > 0) await db.update(leagues).set(updates).where(eq(leagues.id, id));
   await invalidateLeaguePageCache(id);
   return NextResponse.json({ success: true });
 }
 
 /**
- * DELETE /api/superadmin/leagues/[id]
- * Permanently delete a league and ALL its data.
- * Requires the superadmin's own password in the request body for confirmation.
+ * DELETE /api/superadmin/leagues/[id] { confirm }
+ * Permanently delete a league and ALL its data. `confirm` must be the league's slug, typed by the
+ * superadmin: people sign in with Google, so there is no password to re-enter.
  */
 export async function DELETE(
   request: NextRequest,
@@ -102,26 +122,19 @@ export async function DELETE(
   // A bodyless DELETE is a caller mistake, not a server fault: without the catch, request.json()
   // throws SyntaxError and this returns a bare 500 that no caller can branch on.
   const body = await request.json().catch(() => ({} as Record<string, unknown>));
-  const password = typeof body.password === "string" ? body.password : "";
+  const confirm = typeof body.confirm === "string" ? body.confirm.trim().toLowerCase() : "";
 
-  if (!password) {
-    return NextResponse.json({ error: "Password is required to confirm deletion" }, { status: 400 });
-  }
-
-  // Verify the superadmin's own password
-  const userRow = await db.select({ password: users.password }).from(users).where(eq(users.id, superadminUserId)).limit(1);
-  if (userRow.length === 0) {
-    return NextResponse.json({ error: "User not found" }, { status: 404 });
-  }
-  const passwordValid = await bcrypt.compare(password, userRow[0].password);
-  if (!passwordValid) {
-    return NextResponse.json({ error: "Incorrect password" }, { status: 403 });
+  if (!confirm) {
+    return NextResponse.json({ error: "Type the league's slug to confirm deletion" }, { status: 400 });
   }
 
   // Verify the league exists
-  const leagueRow = await db.select({ id: leagues.id, name: leagues.name }).from(leagues).where(eq(leagues.id, id)).limit(1);
+  const leagueRow = await db.select({ id: leagues.id, name: leagues.name, slug: leagues.slug }).from(leagues).where(eq(leagues.id, id)).limit(1);
   if (leagueRow.length === 0) {
     return NextResponse.json({ error: "League not found" }, { status: 404 });
+  }
+  if (confirm !== leagueRow[0].slug.toLowerCase()) {
+    return NextResponse.json({ error: "That doesn't match the league's slug" }, { status: 403 });
   }
 
   // Gather IDs needed for cascade

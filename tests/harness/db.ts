@@ -31,6 +31,9 @@ export function testDb() {
   const client = createClient({ url });
   // Match production index.ts behaviour — referential integrity matters in tests too.
   void client.execute("PRAGMA foreign_keys = ON");
+  // libsql defaults to 0: a write that lands while the dev server holds the lock fails at once
+  // with SQLITE_BUSY instead of waiting the few ms for it. Waiting blocks only this process.
+  void client.execute("PRAGMA busy_timeout = 10000");
   _db = drizzle(client, { schema });
   return _db;
 }

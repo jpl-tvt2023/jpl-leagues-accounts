@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
   const leagueId = await getAuthorizedLeagueId(request);
   if (!leagueId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const [league] = await db.select({ authMode: leagues.authMode, format: leagues.format }).from(leagues).where(eq(leagues.id, leagueId)).limit(1);
-  if (league?.authMode !== "members") return NextResponse.json({ error: "This league uses team logins." }, { status: 400 });
+  if (league?.authMode !== "members") return NextResponse.json({ error: "This league hasn't been switched to Google sign-in yet. Ask the superadmin to switch it." }, { status: 400 });
   const roster = await leagueRoster(leagueId);
   return NextResponse.json({
     ...roster,

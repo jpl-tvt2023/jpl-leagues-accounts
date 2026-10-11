@@ -1,118 +1,77 @@
 /**
- * Platform Seed Script
+ * Seed the first superadmin.
  *
- * Seeds: 4 admin users, 2 leagues, league_admin assignments
+ * Everyone signs in with Google, so there is no password: this creates (or promotes) the users row
+ * for one email address, and the first Google sign-in with that (verified) email links to it — see
+ * findOrCreateGoogleUser in src/lib/accounts.ts. Further admins are added from the superadmin page.
  *
- * Usage: ADMIN_PASSWORD=yourpass npm run seed:admin
+ * Usage (PowerShell):
+ *   $env:DATABASE_URL = "libsql://jpl-india-<org>.<region>.turso.io"
+ *   $env:TURSO_AUTH_TOKEN = turso db tokens create jpl-india
+ *   $env:SUPERADMIN_EMAIL = "you@gmail.com"
+ *   npm run seed:admin
  *
- * All admins are seeded with the same temporary password and will be
- * prompted to set their own password on first login.
+ * DATABASE_URL may also be a local `file:` database. Like every database command in this repo it
+ * refuses anything but those two (src/lib/db/target-guard.ts). Safe to run twice.
  */
 
 import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
-import { users, leagues, leagueAdmins } from "../src/lib/db/schema";
-import bcrypt from "bcryptjs";
+import { and, count, eq, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
-
-const client = createClient({
-  url: process.env.TURSO_CONNECTION_URL || "file:./tvt-league.db",
-  authToken: process.env.TURSO_AUTH_TOKEN,
-});
-const db = drizzle(client);
+import { joinRequests, teamMembers, users } from "../src/lib/db/schema";
+import { assertSafeDbTarget } from "../src/lib/db/target-guard";
 
 async function seed() {
-  const password = process.env.ADMIN_PASSWORD;
+  const url = process.env.DATABASE_URL || process.env.TURSO_CONNECTION_URL;
+  const email = process.env.SUPERADMIN_EMAIL?.trim().toLowerCase();
+  const name = process.env.SUPERADMIN_NAME?.trim() || email?.split("@")[0];
 
-  if (!password) {
-    console.error("\n❌  ADMIN_PASSWORD environment variable is required.");
-    console.error("   Usage: ADMIN_PASSWORD=yourSecurePassword npm run seed:admin\n");
+  if (!url) {
+    console.error("\n❌  Set DATABASE_URL (libsql:// or file:) first.\n");
     process.exit(1);
   }
-
-  if (password.length < 8) {
-    console.error("\n❌  Password must be at least 8 characters.\n");
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    console.error("\n❌  Set SUPERADMIN_EMAIL to the Google account's email address.\n");
     process.exit(1);
   }
+  assertSafeDbTarget(url);
 
-  console.log("\n🌱  Seeding JPL Sports platform...\n");
+  const db = drizzle(createClient({ url, authToken: process.env.TURSO_AUTH_TOKEN }));
 
-  const hashed = await bcrypt.hash(password, 12);
-
-  // ---- 1. Admin users ----
-  const adminUsers = [
-    { id: randomUUID(), email: "rahul@jplindia.com",    name: "Rahul",    role: "superadmin" },
-    { id: randomUUID(), email: "sushank@jplindia.com",  name: "Sushank",  role: "admin" },
-    { id: randomUUID(), email: "yashasva@jplindia.com", name: "Yashasva", role: "admin" },
-    { id: randomUUID(), email: "aadi@jplindia.com",     name: "Aadi",     role: "admin" },
-  ];
-
-  const insertedUsers: { id: string; role: string; name: string }[] = [];
-  for (const u of adminUsers) {
-    try {
-      await db.insert(users).values({ ...u, password: hashed, mustChangePassword: true });
-      insertedUsers.push(u);
-      console.log(`  ✓ User: ${u.name} <${u.email}> (${u.role})`);
-    } catch {
-      console.log(`  ⚠️  User ${u.email} already exists — skipping`);
+  const [existing] = await db.select().from(users).where(sql`LOWER(${users.email}) = ${email}`).limit(1);
+  if (existing) {
+    if (existing.role === "superadmin") {
+      console.log(`\n✓  ${email} is already the superadmin. Nothing to do.\n`);
+      return;
     }
+    // Superadmins never play (src/lib/membership.ts), so an account that's on a team can't become one.
+    const [{ n: teamCount }] = await db.select({ n: count() }).from(teamMembers).where(eq(teamMembers.userId, existing.id));
+    if (teamCount > 0) {
+      console.error(`\n❌  ${email} is on ${teamCount} team(s). Superadmins can't play: take them off their teams first.\n`);
+      process.exit(1);
+    }
+    await db.update(joinRequests).set({ status: "cancelled", decidedAt: new Date() })
+      .where(and(eq(joinRequests.userId, existing.id), eq(joinRequests.status, "pending")));
+    // Promoted in place; their next request picks the role up (/api/auth/me re-mints the session).
+    await db.update(users).set({ role: "superadmin", updatedAt: new Date() }).where(eq(users.id, existing.id));
+    console.log(`\n✓  ${email} promoted from ${existing.role} to superadmin.\n`);
+    return;
   }
 
-  // ---- 2. Leagues ----
-  const leagueRows = [
-    {
-      id: randomUUID(),
-      slug: "tvt-fpl",
-      name: "JPL TVT FPL",
-      sport: "fpl",
-      format: "tvt",
-      season: "2025-26",
-      isActive: true,
-    },
-    {
-      id: randomUUID(),
-      slug: "tvt-cricket",
-      name: "JPL TVT Cricket",
-      sport: "cricket",
-      format: "tvt",
-      season: "IPL 2026",
-      isActive: true,
-    },
-  ];
-
-  const insertedLeagues: { id: string; slug: string }[] = [];
-  for (const l of leagueRows) {
-    try {
-      await db.insert(leagues).values(l);
-      insertedLeagues.push({ id: l.id, slug: l.slug });
-      console.log(`  ✓ League: ${l.name} (${l.slug})`);
-    } catch {
-      console.log(`  ⚠️  League ${l.slug} already exists — skipping`);
-    }
-  }
-
-  // ---- 3. league_admins assignments (non-superadmin users × all leagues) ----
-  const scopedUsers = insertedUsers.filter(u => u.role !== "superadmin");
-  for (const league of insertedLeagues) {
-    for (const user of scopedUsers) {
-      try {
-        await db.insert(leagueAdmins).values({
-          id: randomUUID(),
-          leagueId: league.id,
-          userId: user.id,
-        });
-        console.log(`  ✓ Assigned ${user.name} → ${league.slug}`);
-      } catch {
-        // already assigned
-      }
-    }
-  }
-
-  console.log("\n✅  Seed complete!");
-  console.log("   Admins sign in at /signin with their email + the shared password.");
-  console.log("   Each admin will be prompted to set their own password on first login.");
-  console.log("   Superadmin (Rahul): full platform access.");
-  console.log("   Admins (Sushank, Yashasva, Aadi): scoped to assigned leagues.\n");
+  await db.insert(users).values({
+    id: randomUUID(),
+    email,
+    name: name!,
+    password: "", // Google-only: never a usable password (see users.password)
+    role: "superadmin",
+    mustChangePassword: false,
+  });
+  console.log(`\n✓  Superadmin ${email} created.`);
+  console.log("   Sign in at /signin with Google using that email — the account links on first sign-in.\n");
 }
 
-seed().catch(console.error);
+seed().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

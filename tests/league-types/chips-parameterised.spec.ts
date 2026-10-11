@@ -35,7 +35,6 @@ async function createLeague(
   const res = await request.post("/api/superadmin/leagues", {
     data: {
       // Team logins: this spec signs teams in with team keys.
-      authMode: "legacy",
       slug, name: `Chips ${enabledChips.join("/")}`, sport: "fpl", format: "tvt",
       season: "2025-26", teamSize: TEAMS, groupCount: 2, enabledChips,
     },
@@ -53,7 +52,7 @@ test.describe.serial("chip picker follows enabledChips", () => {
   test("a default D/W/C league reports exactly those three", async ({ request }) => {
     const { slug } = await createLeague(request, "a", ["D", "W", "C"]);
     await apiSignInTeam(request, slug, 1);
-    const dash = await request.get("/api/team/dashboard").then((r) => r.json());
+    const dash = await request.get(`/api/team/dashboard?league=${slug}`).then((r) => r.json());
 
     expect([...dash.enabledChips].sort()).toEqual(["C", "D", "W"]);
     expect(Object.keys(dash.chipEligibility).sort()).toEqual(["C", "D", "W"]);
@@ -67,7 +66,7 @@ test.describe.serial("chip picker follows enabledChips", () => {
   test("an SL/CB/UD league reports its own chips, not D/C/W", async ({ request }) => {
     const { slug } = await createLeague(request, "b", ["SL", "CB", "UD"]);
     await apiSignInTeam(request, slug, 1);
-    const dash = await request.get("/api/team/dashboard").then((r) => r.json());
+    const dash = await request.get(`/api/team/dashboard?league=${slug}`).then((r) => r.json());
 
     expect([...dash.enabledChips].sort()).toEqual(["CB", "SL", "UD"]);
     expect(Object.keys(dash.chipEligibility).sort()).toEqual(["CB", "SL", "UD"]);
@@ -82,7 +81,7 @@ test.describe.serial("chip picker follows enabledChips", () => {
   test("unimplemented chips are surfaced as ineligible, not silently offered", async ({ request }) => {
     const { slug } = await createLeague(request, "b", ["SL", "CB", "UD"]);
     await apiSignInTeam(request, slug, 1);
-    const dash = await request.get("/api/team/dashboard").then((r) => r.json());
+    const dash = await request.get(`/api/team/dashboard?league=${slug}`).then((r) => r.json());
 
     for (const code of ["SL", "CB", "UD"]) {
       expect(dash.chipEligibility[code].eligible, `${code} must not be offerable`).toBe(false);
@@ -94,7 +93,7 @@ test.describe.serial("chip picker follows enabledChips", () => {
   test("the PL fixture card carries the league's chips, not a fixed trio", async ({ request }) => {
     const { slug } = await createLeague(request, "b", ["SL", "CB", "UD"]);
     await apiSignInTeam(request, slug, 1);
-    const body = await request.get("/api/team/dashboard/pl-fixture?gw=1").then((r) => r.json());
+    const body = await request.get(`/api/team/dashboard/pl-fixture?gw=1&league=${slug}`).then((r) => r.json());
 
     if (body?.fixture) {
       for (const side of [body.fixture.home, body.fixture.away]) {

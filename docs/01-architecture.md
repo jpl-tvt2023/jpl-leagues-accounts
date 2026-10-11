@@ -9,7 +9,7 @@
 | Database | Turso (libSQL — a hosted SQLite fork) accessed via Drizzle ORM |
 | Cache | Upstash Redis (REST API) |
 | Hosting | Vercel (Hobby tier) |
-| Auth | Custom session cookie (HMAC-SHA256) — see [`src/lib/auth.ts`](../src/lib/auth.ts). A session is a person (`user` / `admin` / `superadmin`) or, in legacy leagues, a team login. See [10-accounts-and-membership.md](10-accounts-and-membership.md) |
+| Auth | Custom session cookie (HMAC-SHA256) — see [`src/lib/auth.ts`](../src/lib/auth.ts). A session is always a person (`user` / `admin` / `superadmin`), signed in with Google — there are no passwords. See [10-accounts-and-membership.md](10-accounts-and-membership.md) |
 | External data | Fantasy Premier League public API (`fantasy.premierleague.com/api/...`) |
 | Styling | Tailwind CSS v4 (no separate config — `@import "tailwindcss"` in `globals.css`) |
 | Schema migrations | Drizzle Kit |

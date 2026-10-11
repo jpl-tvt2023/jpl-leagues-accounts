@@ -42,17 +42,16 @@ import { eq, and, inArray, isNotNull } from "drizzle-orm";
 export type TeamRow = {
   "Team ID": string;
   "Team Name": string;
-  Password: string;
   "Player1 Name": string;
   "Player1 FPL ID": string;
   "Player2 Name": string;
   "Player2 FPL ID": string;
   Group: string;
   /**
-   * Members-mode leagues only: who is on the team ("owner:@alice, member:@bob"). Read-only —
-   * restore ignores it: team rows survive a restore, and so do their memberships.
+   * Who is on the team ("owner:@alice, member:@bob"). Read-only — restore ignores it: team rows
+   * survive a restore, and so do their memberships.
    */
-  Members?: string;
+  Members: string;
 };
 
 export type FixtureRow = {
@@ -249,14 +248,6 @@ export type BackupRows = {
   auctionBidLogs: AuctionBidLogRow[] | null;
 };
 
-/**
- * Placeholder password emitted for every team in the backup. Bcrypt hashes
- * cannot be reversed, and re-importing requires plaintext (bulk-upload-teams
- * re-hashes via bcrypt). On restore, admin must hand out new passwords or use
- * the per-team "edit team" flow to set them.
- */
-const PASSWORD_PLACEHOLDER = "RESET_REQUIRED";
-
 export async function generateBackupRows(leagueId: string): Promise<BackupRows> {
   const [league] = await db
     .select({
@@ -265,7 +256,6 @@ export async function generateBackupRows(leagueId: string): Promise<BackupRows> 
       name: leagues.name,
       format: leagues.format,
       season: leagues.season,
-      authMode: leagues.authMode,
     })
     .from(leagues)
     .where(eq(leagues.id, leagueId))
@@ -289,10 +279,9 @@ export async function generateBackupRows(leagueId: string): Promise<BackupRows> 
       where: and(eq(teams.leagueId, leagueId), eq(teams.isGhost, false)),
       with: { players: true, group: true },
     });
-    // Members mode: there are no team passwords to placeholder, and the useful fact is who's on it.
-    const membersMode = league.authMode === "members";
+    // Teams have no passwords (everyone signs in with Google); the useful fact is who's on it.
     const membersByTeam = new Map<string, string[]>();
-    if (membersMode && teamRows.length > 0) {
+    if (teamRows.length > 0) {
       const rows = await db
         .select({ teamId: teamMembers.teamId, role: teamMembers.role, username: users.username, name: users.name })
         .from(teamMembers)
@@ -309,13 +298,12 @@ export async function generateBackupRows(leagueId: string): Promise<BackupRows> 
       return {
         "Team ID": t.teamLoginId ?? "",
         "Team Name": t.name,
-        Password: membersMode ? "" : PASSWORD_PLACEHOLDER,
         "Player1 Name": p1?.name ?? "",
         "Player1 FPL ID": p1?.fplId ?? "",
         "Player2 Name": p2?.name ?? "",
         "Player2 FPL ID": p2?.fplId ?? "",
         Group: t.group?.name ?? "",
-        ...(membersMode ? { Members: (membersByTeam.get(t.id) ?? []).join(", ") } : {}),
+        Members: (membersByTeam.get(t.id) ?? []).join(", "),
       };
     });
   }

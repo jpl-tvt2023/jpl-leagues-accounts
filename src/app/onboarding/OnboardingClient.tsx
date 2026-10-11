@@ -30,8 +30,8 @@ export function OnboardingClient({ next }: { next: string }) {
         window.location.href = `/signin?next=${encodeURIComponent(`/onboarding?next=${next}`)}`;
         return;
       }
-      if (me.type === "team") {
-        window.location.href = "/dashboard"; // legacy team login: nothing to set up here
+      if (me.type === "superadmin") {
+        window.location.href = next === "/" ? "/superadmin" : next; // superadmins never play: no username needed
         return;
       }
       if (me.user?.username) {
@@ -111,7 +111,7 @@ export function OnboardingClient({ next }: { next: string }) {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-900 via-purple-900 to-slate-900">
-      <AppNav context={{ surface: "public", page: "flow" }} activeKey="" brandHref="/" brandLabel="JPL Sports" title="Welcome" />
+      <AppNav context={{ surface: "public", page: "flow" }} activeKey="" brandHref="/" brandLabel="JPL India" title="Welcome" />
 
       <div className="mx-auto max-w-md px-4 sm:px-6 py-10 sm:py-16">
         <div className="text-center mb-8">

@@ -127,24 +127,26 @@ const STRONG = "text-white";
 
 /**
  * Sign-in and account questions, shared by every format's help — one copy instead of one per
- * format. Picks the wording by how the league's teams sign in: members-mode leagues (Google +
- * invite links) or legacy leagues (a team ID and password from the admin). Fuller answers, which
- * need no sign-in to read, live on the public /help page.
+ * format. Everyone signs in with Google; the wording differs only for a league from before
+ * accounts ("legacy") that hasn't been switched to Google sign-in yet. Fuller answers, which need
+ * no sign-in to read, live on the public /help page.
  */
 export function accountFaqs(authMode: "legacy" | "members", opts: { twoPlayer: boolean }): FaqEntry[] {
   if (authMode === "legacy") {
     return [
       {
-        question: "How do I sign in? (team ID)",
+        question: "How do I sign in? (old team ID)",
         answer: (
           <div className="space-y-2">
-            <p>This league was created before Google sign-in, so your team signs in with the <strong className={STRONG}>team ID and password</strong> your league admin gave you — until the end of the 2026-27 season.</p>
+            <p>
+              Team IDs and passwords no longer work — everyone signs in with <strong className={STRONG}>Google</strong> now. This
+              league is being moved over; your team, scores and history are kept.
+            </p>
             <ol className="list-decimal list-inside space-y-1.5">
-              <li>Click <strong className={STRONG}>Sign In</strong> and use the team-ID form under the Google button.</li>
-              <li>The first time, you&apos;ll be asked to set your own password.</li>
-              <li>You&apos;re then taken to your team dashboard.</li>
+              <li>Tap <strong className={STRONG}>Sign In</strong>, then <strong className={STRONG}>Continue with Google</strong>, and pick a username.</li>
+              <li>Send your username to your league admin — they add you to your team.</li>
+              <li>Your team&apos;s dashboard then appears under this league.</li>
             </ol>
-            <p>Lost your team ID or password? Ask your league admin.</p>
           </div>
         ),
       },
@@ -212,12 +214,12 @@ export function accountScenario(authMode: "legacy" | "members", number: number, 
   return authMode === "legacy"
     ? {
         number,
-        title: "Signing in for the first time with a team ID",
+        title: "Moving from a team ID to Google sign-in",
         steps: [
-          `Click "Sign In" and use the team-ID form under the Google button.`,
-          "Enter the team ID and temporary password from your admin.",
-          "You're redirected to the Change Password page — set your own password.",
-          "You're signed in and taken to your team dashboard.",
+          `Click "Sign In", then "Continue with Google" — team IDs and passwords no longer work.`,
+          "Pick your username.",
+          "Send your username to your league admin; they add you to your team.",
+          "Your team's dashboard then appears under this league — nothing about your team changes.",
         ],
       }
     : {

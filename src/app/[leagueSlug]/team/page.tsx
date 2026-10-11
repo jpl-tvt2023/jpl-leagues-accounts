@@ -36,10 +36,6 @@ export default function TeamPage() {
       window.location.href = `/signin?next=${encodeURIComponent(`/${league.slug}/team`)}`;
       return;
     }
-    if (viewer.type === "team") {
-      window.location.href = "/settings";
-      return;
-    }
     let cancelled = false;
     (async () => {
       const res = await fetch(`/api/team/invite?league=${encodeURIComponent(league.slug)}`, { cache: "no-store" });
@@ -52,7 +48,7 @@ export default function TeamPage() {
     return () => {
       cancelled = true;
     };
-  }, [league.slug, viewer.authenticated, viewer.type]);
+  }, [league.slug, viewer.authenticated]);
 
   const reload = async () => {
     const res = await fetch(api("/api/team/invite"), { cache: "no-store" });

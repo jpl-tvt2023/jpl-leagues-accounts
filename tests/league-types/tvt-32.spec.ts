@@ -101,7 +101,7 @@ test.describe.serial("TVT-32 (admin + user)", () => {
 
   test("user: team can view its own dashboard after sign-in", async ({ request }) => {
     await apiSignInTeam(request, league.slug, 1);
-    const dash = await request.get("/api/team/dashboard");
+    const dash = await request.get(`/api/team/dashboard?league=${league.slug}`);
     expect(dash.ok()).toBeTruthy();
     await apiSignOut(request);
   });
@@ -110,7 +110,7 @@ test.describe.serial("TVT-32 (admin + user)", () => {
     // Only a two-group league exercises this; TVT-8 has one, so the rest of the
     // suite cannot cover it.
     await apiSignInTeam(request, league.slug, 1);
-    const dash = await request.get("/api/team/dashboard");
+    const dash = await request.get(`/api/team/dashboard?league=${league.slug}`);
     expect(dash.ok()).toBeTruthy();
     const body = await dash.json();
     await apiSignOut(request);

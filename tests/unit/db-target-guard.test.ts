@@ -2,7 +2,7 @@
  * Database target guard (src/lib/db/target-guard.ts).
  *
  * This repo carries schema changes production must not receive, so the app, drizzle-kit and the
- * 0025 apply script all refuse every database except a local file: one or the jpl-leagues-accounts
+ * 0025 apply script all refuse every database except a local file: one or the jpl-india
  * Turso database. These tests pin that production's `jpl-leagues` — and look-alikes — are refused.
  *
  * Run with: npm run test:unit
@@ -18,9 +18,9 @@ test("allows local file: databases", () => {
 });
 
 test("allows this repo's own Turso database, libsql or https, any region", () => {
-  assert.equal(ALLOWED_TURSO_DB, "jpl-leagues-accounts");
-  assert.doesNotThrow(() => assertSafeDbTarget("libsql://jpl-leagues-accounts-jpltvt2023.aws-ap-south-1.turso.io"));
-  assert.doesNotThrow(() => assertSafeDbTarget("https://jpl-leagues-accounts-jpltvt2023.turso.io"));
+  assert.equal(ALLOWED_TURSO_DB, "jpl-india");
+  assert.doesNotThrow(() => assertSafeDbTarget("libsql://jpl-india-jpltvt2023.aws-ap-south-1.turso.io"));
+  assert.doesNotThrow(() => assertSafeDbTarget("https://jpl-india-jpltvt2023.turso.io"));
 });
 
 test("refuses production's jpl-leagues database", () => {
@@ -30,8 +30,8 @@ test("refuses production's jpl-leagues database", () => {
 
 test("refuses other databases, including staging and look-alikes", () => {
   assert.throws(() => assertSafeDbTarget("libsql://jpl-leagues-staging-jpltvt2023.turso.io"), /Refusing/);
-  assert.throws(() => assertSafeDbTarget("libsql://jpl-leagues-accountsx.turso.io"), /Refusing/);
-  assert.throws(() => assertSafeDbTarget("libsql://evil.example.com/jpl-leagues-accounts-x"), /Refusing/);
+  assert.throws(() => assertSafeDbTarget("libsql://jpl-indiax.turso.io"), /Refusing/);
+  assert.throws(() => assertSafeDbTarget("libsql://evil.example.com/jpl-india-x"), /Refusing/);
 });
 
 test("refuses empty and unparseable URLs", () => {

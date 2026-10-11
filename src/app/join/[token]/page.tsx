@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { eq } from "drizzle-orm";
 import { db, teams, users } from "@/lib/db";
-import { INVITE_PROBLEM_MESSAGES, loadInvite, pendingRequestFor, teamOfUserInLeague } from "@/lib/membership";
+import { INVITE_PROBLEM_MESSAGES, SUPERADMIN_CANNOT_JOIN, loadInvite, pendingRequestFor, teamOfUserInLeague } from "@/lib/membership";
 import { resolveViewer } from "@/lib/viewer";
 import { detectInAppBrowser } from "@/lib/in-app-browser";
 import { getFormatPalette } from "@/lib/format-palette";
@@ -50,14 +50,14 @@ export default async function JoinPage({ params }: { params: Promise<{ token: st
 
     if (!viewer.authenticated) {
       state = inApp.inApp ? { kind: "in-app", card, inApp } : { kind: "signed-out", card };
-    } else if (viewer.type === "team") {
-      state = { kind: "team-login", card };
     } else {
-      const [me] = await db.select({ username: users.username }).from(users).where(eq(users.id, viewer.userId!)).limit(1);
+      const [me] = await db.select({ username: users.username, role: users.role }).from(users).where(eq(users.id, viewer.userId!)).limit(1);
       const mine = await teamOfUserInLeague(viewer.userId!, league.id);
       if (mine) {
         const [t] = await db.select({ done: teams.isProfileComplete }).from(teams).where(eq(teams.id, mine.teamId)).limit(1);
         state = { kind: "member", card, href: t?.done ? `/${league.slug}/dashboard` : `/${league.slug}/setup` };
+      } else if (me?.role === "superadmin") {
+        state = { kind: "invalid", message: SUPERADMIN_CANNOT_JOIN, card };
       } else if (loaded.problem) {
         state = { kind: "invalid", message: INVITE_PROBLEM_MESSAGES[loaded.problem], card };
       } else if (!me?.username) {
@@ -69,7 +69,7 @@ export default async function JoinPage({ params }: { params: Promise<{ token: st
       }
     }
     // Problems with the link itself trump sign-in steps — no point signing in to a dead link.
-    if (loaded.problem && (state.kind === "signed-out" || state.kind === "in-app" || state.kind === "team-login")) {
+    if (loaded.problem && (state.kind === "signed-out" || state.kind === "in-app")) {
       state = { kind: "invalid", message: INVITE_PROBLEM_MESSAGES[loaded.problem], card: state.card };
     }
   }

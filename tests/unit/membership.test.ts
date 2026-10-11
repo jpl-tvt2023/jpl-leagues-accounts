@@ -138,3 +138,28 @@ test("releasing a team empties it and turns off its teammate invites", async () 
   assert.equal((await m.loadInvite(invite.token))?.problem, "revoked");
   assert.equal(await m.countOpenSlots(LEAGUE), 1);
 });
+
+test("a superadmin can never be put on a team, by any route", async () => {
+  await d.db.insert(d.users).values({ id: "sa", email: "sa@unit.test", password: "", name: "SA", role: "superadmin" });
+  const isSuperadminRefusal = (e: Error & { code?: string }) => e.code === "superadmin";
+  await assert.rejects(m.claimOpenSlot(LEAGUE, "sa", null), isSuperadminRefusal);
+  await assert.rejects(m.fileJoinRequest(LEAGUE, "sa", (await m.createLeagueInvite(LEAGUE, null)).id), isSuperadminRefusal);
+  await assert.rejects(m.joinAsPartner(await m.createPartnerInvite("t2", "u7"), "sa"), isSuperadminRefusal);
+  await assert.rejects(m.assignToTeam(LEAGUE, "t1", "sa", null), isSuperadminRefusal);
+  const [seat] = await d.db.select().from(d.teamMembers).where(eq(d.teamMembers.userId, "u7"));
+  await assert.rejects(m.replaceMemberAccount(LEAGUE, seat.id, "sa"), isSuperadminRefusal);
+  // Recovery transfers can't hand a superadmin teams, nor make someone with teams a superadmin.
+  await assert.rejects(m.transferAllMemberships("u7", "sa"), isSuperadminRefusal);
+  await assert.rejects(m.transferAllMemberships("sa", "u3"), isSuperadminRefusal);
+  assert.equal(await teamOf("u7"), "t2");
+  assert.equal((await d.db.select().from(d.teamMembers).where(eq(d.teamMembers.userId, "sa"))).length, 0);
+});
+
+test("superadmins skip onboarding; everyone else picks a username first", async () => {
+  const { postSignInPath } = await import("../../src/lib/accounts");
+  assert.equal(postSignInPath({ username: null, role: "superadmin" }, "/"), "/superadmin");
+  assert.equal(postSignInPath({ username: null, role: "superadmin" }, "/admin/x"), "/admin/x");
+  assert.equal(postSignInPath({ username: null, role: "admin" }, "/"), "/onboarding");
+  assert.equal(postSignInPath({ username: null, role: "user" }, "/join/abc"), "/onboarding?next=%2Fjoin%2Fabc");
+  assert.equal(postSignInPath({ username: "alice", role: "user" }, "/"), "/");
+});

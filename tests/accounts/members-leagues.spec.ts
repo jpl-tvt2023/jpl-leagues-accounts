@@ -14,7 +14,7 @@ import { test, expect, type APIRequestContext, type PlaywrightWorkerArgs } from 
 type Playwright = PlaywrightWorkerArgs["playwright"];
 import { and, eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
-import { apiSignIn, apiSignInSuperadmin, apiSignInUser, ensureGameweeks, generateFixtures, testDb, schema, uniqueSlug } from "../harness";
+import { apiSignInSuperadmin, apiSignInUser, ensureGameweeks, generateFixtures, testDb, schema, uniqueSlug } from "../harness";
 
 const run = Date.now().toString(36);
 const email = (who: string) => `${who}-${run}@members.test`;
@@ -74,15 +74,15 @@ test.describe.serial("members-mode leagues", () => {
     await ensureGameweeks(tvt.id);
   });
 
-  test("a members league has team keys but no team passwords, and refuses team-key sign-in", async ({ request }) => {
+  test("a league has team keys but no team passwords, and there is no team-key sign-in", async ({ request }) => {
     const teams = await testDb().select().from(schema.teams).where(eq(schema.teams.leagueId, tvt.id));
     expect(teams).toHaveLength(8);
     for (const t of teams) {
       expect(t.teamLoginId).toBeTruthy();
       expect(t.password).toBe("");
     }
-    const res = await apiSignIn(request, teams[0].teamLoginId!, "Team1");
-    expect(res.ok).toBe(false);
+    const res = await request.post("/api/auth/signin", { data: { identifier: teams[0].teamLoginId, password: "Team1" }, failOnStatusCode: false });
+    expect(res.status()).toBe(404);
   });
 
   test("join page: a signed-in person joins with one tap and lands on setup", async ({ page }) => {
@@ -98,7 +98,6 @@ test.describe.serial("members-mode leagues", () => {
   test("team setup through ?league=, then the dashboard works for that league", async ({ playwright }) => {
     const alice = await person(playwright, "alice");
     const setup = await alice.get(`/api/team/setup?league=${tvt.slug}`).then((r) => r.json());
-    expect(setup.membersMode).toBe(true);
     expect(setup.isProfileComplete).toBe(false);
 
     const done = await alice.post(`/api/team/setup?league=${tvt.slug}`, {

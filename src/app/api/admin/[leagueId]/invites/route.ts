@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
   const leagueId = await getAuthorizedLeagueId(request);
   if (!leagueId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const league = await membersLeague(leagueId);
-  if (!league) return NextResponse.json({ error: "This league uses team logins, not invite links." }, { status: 400 });
+  if (!league) return NextResponse.json({ error: "This league hasn't been switched to Google sign-in yet. Ask the superadmin to switch it." }, { status: 400 });
 
   const body = (await request.json().catch(() => ({}))) as { requiresApproval?: unknown; maxUses?: unknown; expiresInDays?: unknown };
   const maxUses = body.maxUses === null ? null : typeof body.maxUses === "number" ? Math.floor(body.maxUses) : undefined;

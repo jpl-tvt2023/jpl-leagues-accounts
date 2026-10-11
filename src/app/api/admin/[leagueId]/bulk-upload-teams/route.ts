@@ -6,7 +6,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, teams, players, groups, leagues } from "@/lib/db";
 import { eq, and, ne, inArray, sql } from "drizzle-orm";
-import bcrypt from "bcryptjs";
 import { generateId } from "@/lib/id";
 import { getAuthorizedLeagueId } from "@/lib/league-auth";
 
@@ -14,7 +13,7 @@ interface TeamRow {
   teamLoginId: string;
   teamName: string;
   abbreviation?: string; // Legacy column — accepted but ignored
-  password: string;
+  password?: string; // Legacy column from team-login days — accepted but ignored
   player1Name: string;
   player1FplId: string | number;
   player2Name: string;
@@ -67,13 +66,12 @@ export async function POST(request: NextRequest) {
     const seenNames = new Set<string>();
 
     const REQUIRED_FIELDS: (keyof TeamRow)[] = [
-      "teamLoginId", "teamName", "password",
+      "teamLoginId", "teamName",
       "player1Name", "player1FplId", "player2Name", "player2FplId",
     ];
     const FIELD_LABELS: Record<string, string> = {
       teamLoginId: "Team ID",
       teamName: "Team Name",
-      password: "Password",
       player1Name: "Player1 Name",
       player1FplId: "Player1 FPL ID",
       player2Name: "Player2 Name",
@@ -92,9 +90,6 @@ export async function POST(request: NextRequest) {
       }
       if (!LOGIN_ID_RE.test(r.teamLoginId)) {
         errors.push(`Row ${rowNum}: Team ID "${r.teamLoginId}" must be 3–30 chars (letters, digits, _ or -)`);
-      }
-      if (String(r.password).length < 4) {
-        errors.push(`Row ${rowNum}: Password must be at least 4 characters`);
       }
       if (!/^\d+$/.test(String(r.player1FplId).trim())) {
         errors.push(`Row ${rowNum}: Player1 FPL ID "${r.player1FplId}" must be numeric`);
@@ -167,13 +162,12 @@ export async function POST(request: NextRequest) {
     let created = 0;
     for (const r of rows) {
       const teamId = generateId();
-      const hashed = await bcrypt.hash(r.password, 10);
       await db.insert(teams).values({
         id: teamId,
         teamLoginId: r.teamLoginId.trim(),
         name: r.teamName,
-        password: hashed,
-        mustChangePassword: true,
+        password: "", // nobody signs in with it — see teams.password in the schema
+        mustChangePassword: false,
         isProfileComplete: true,
         groupId: r.group ? groupIdByName.get(r.group) ?? null : null,
         leagueId,

@@ -1,12 +1,10 @@
 /**
  * "Which team is this request acting as?" — the one place every team-scoped API answers it.
  *
- * Two kinds of session reach team routes:
- * - Legacy team login (`type: "team"`): the session IS the team. Legacy leagues only.
- * - A person (`type: "user" | "admin" | "superadmin"`): the session is a users row, and the team
- *   comes from team_members. Because a person is on at most one team per league (unique
- *   (league_id, user_id)), the request names the league (`?league=<slug>`) or the team
- *   (`teamId`, as the auction routes already pass) and the membership row settles the rest.
+ * Every session is a person (a users row), and the team comes from team_members. Because a person
+ * is on at most one team per league (unique (league_id, user_id)), the request names the league
+ * (`?league=<slug>`) or the team (`teamId`, as the auction routes already pass) and the membership
+ * row settles the rest.
  *
  * The league therefore comes from the URL, never from the cookie: switching leagues is plain
  * navigation, and a stale tab can't act on a team the person switched away from.
@@ -18,16 +16,16 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { and, eq } from "drizzle-orm";
-import { db, leagues, teamMembers, teams, users } from "@/lib/db";
+import { db, leagues, teamMembers, users } from "@/lib/db";
 import { SESSION_COOKIE_NAME, isPersonSession, verifySession, type SessionPayload } from "@/lib/auth";
 
 export interface TeamActor {
   teamId: string;
   leagueId: string;
-  /** The signed-in person; null for a legacy team login. */
-  userId: string | null;
-  /** "legacy" for a team login; otherwise the person's role on the team. */
-  memberRole: "owner" | "member" | "legacy";
+  /** The signed-in person. */
+  userId: string;
+  /** The person's role on the team. */
+  memberRole: "owner" | "member";
 }
 
 /** Why no actor resolved. Routes map these onto their own status codes and messages. */
@@ -80,18 +78,6 @@ export async function resolveTeamActorForSession(
   const leagueId = hint.league ? await resolveLeagueRef(hint.league) : null;
   if (hint.league && !leagueId) return { denial: "forbidden" };
 
-  if (session.type === "team") {
-    const [team] = await db
-      .select({ id: teams.id, leagueId: teams.leagueId })
-      .from(teams)
-      .where(eq(teams.id, session.id))
-      .limit(1);
-    if (!team) return { denial: "unauthenticated" };
-    if (teamHint && teamHint !== team.id) return { denial: "forbidden" };
-    if (leagueId && leagueId !== team.leagueId) return { denial: "forbidden" };
-    return { actor: { teamId: team.id, leagueId: team.leagueId, userId: null, memberRole: "legacy" } };
-  }
-
   if (!isPersonSession(session)) return { denial: "unauthenticated" };
   if (!teamHint && !leagueId) return { denial: "league-required" };
 
@@ -115,14 +101,11 @@ export async function resolveTeamActor(request: NextRequest, hint: TeamActorHint
 }
 
 /**
- * Every team the session may act as: a legacy login's own team, or all of a person's
- * memberships (empty if the session was revoked). Used where one view spans leagues, such as
- * the notification bell.
+ * Every team the session may act as: all of the person's memberships (empty if the session was
+ * revoked). Used where one view spans leagues, such as the notification bell.
  */
 export async function listSessionTeamIds(session: SessionPayload | null): Promise<string[]> {
-  if (!session) return [];
-  if (session.type === "team") return [session.id];
-  if (!isPersonSession(session)) return [];
+  if (!session || !isPersonSession(session)) return [];
   const rows = await db
     .select({ teamId: teamMembers.teamId })
     .from(teamMembers)
@@ -132,8 +115,8 @@ export async function listSessionTeamIds(session: SessionPayload | null): Promis
 }
 
 /**
- * True if the session may act as `teamId` — a legacy login for that very team, or a person who is
- * on it. For "teams may only touch their own X" checks where the request names the team.
+ * True if the session's person is on `teamId`. For "teams may only touch their own X" checks where
+ * the request names the team.
  */
 export async function sessionActsAsTeam(session: SessionPayload | null, teamId: string | null | undefined): Promise<boolean> {
   if (!session || !teamId) return false;
@@ -141,8 +124,8 @@ export async function sessionActsAsTeam(session: SessionPayload | null, teamId: 
 }
 
 /**
- * The session's own team in a league, or null (signed out, admin with no team, not a member, or a
- * legacy login for another league). For read endpoints that flag "mine" in league-wide data.
+ * The session's own team in a league, or null (signed out, admin with no team, or not a member).
+ * For read endpoints that flag "mine" in league-wide data.
  */
 export async function sessionTeamIdInLeague(session: SessionPayload | null, league: string): Promise<string | null> {
   if (!session) return null;

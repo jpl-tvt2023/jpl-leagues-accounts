@@ -13,10 +13,7 @@ import {
   generateFixtures,
   ensureGameweeks,
   setupTvtTeam,
-  apiSignIn,
-  uiSignIn,
-  teamLoginId,
-  TEAM_RESET_PASSWORD,
+  uiSignInTeam,
 } from "../harness";
 
 test.describe.serial("smoke: harness end-to-end", () => {
@@ -34,13 +31,13 @@ test.describe.serial("smoke: harness end-to-end", () => {
     expect(summary.leagueStageGws).toBe(35); // 8-team × 5 reps
     expect(summary.totalFixtures).toBeGreaterThan(0);
 
-    // Walk one team through password change + setup so the next sign-in
-    // lands on the dashboard, not /change-password.
+    // Put a person on one team and complete its setup, so their dashboard is ready.
     await setupTvtTeam(request, league.slug, 1);
 
-    // Now drive the UI sign-in for that team via the shared helper.
-    await uiSignIn(page, teamLoginId(league.slug, 1), TEAM_RESET_PASSWORD);
-    await expect.poll(() => page.url(), { timeout: 15_000 }).not.toContain("/signin");
+    // Now sign that person in, in the browser, via the shared helper.
+    await uiSignInTeam(page, league.slug, 1);
+    await expect.poll(() => page.url(), { timeout: 15_000 }).toContain(`/${league.slug}/dashboard`);
+    await expect(page.getByRole("heading", { name: "Team 1", level: 1 })).toBeVisible();
   });
 
   test("public standings endpoint returns JSON for the smoke league", async ({ request }) => {
@@ -76,9 +73,8 @@ test.describe.serial("smoke: harness end-to-end", () => {
     }
   });
 
-  test("apiSignIn rejects invalid credentials with 401", async ({ request }) => {
-    const result = await apiSignIn(request, "nobody@example.com", "wrong");
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.status).toBe(401);
+  test("there is no password sign-in endpoint", async ({ request }) => {
+    const res = await request.post("/api/auth/signin", { data: { identifier: "nobody@example.com", password: "wrong" }, failOnStatusCode: false });
+    expect(res.status()).toBe(404);
   });
 });

@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { AppNav } from "@/components/AppNav";
 
-export const metadata: Metadata = { title: "Privacy · JPL Leagues" };
+export const metadata: Metadata = { title: "Privacy · JPL India" };
 
 const H2 = "mt-8 mb-2 text-lg font-semibold text-white";
 
@@ -14,7 +14,7 @@ const H2 = "mt-8 mb-2 text-lg font-semibold text-white";
 export default function PrivacyPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-900 via-purple-900 to-slate-900">
-      <AppNav context={{ surface: "public", page: "flow" }} activeKey="" brandHref="/" brandLabel="JPL Sports" title="Privacy" />
+      <AppNav context={{ surface: "public", page: "flow" }} activeKey="" brandHref="/" brandLabel="JPL India" title="Privacy" />
       <main className="mx-auto max-w-2xl px-4 sm:px-6 py-10 sm:py-14 text-sm sm:text-base leading-relaxed text-gray-300">
         <h1 className="text-2xl sm:text-4xl font-bold text-white">What we store, and why</h1>
         <p className="mt-2 text-xs text-gray-500">Last updated 10 October 2026</p>

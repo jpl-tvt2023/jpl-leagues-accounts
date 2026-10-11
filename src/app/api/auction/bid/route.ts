@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
 
   const leagueId = sessionRow[0].leagueId;
 
-  // The bidding team: the caller's own team in this league (legacy login or member).
+  // The bidding team: the caller's own team in this league (as a member).
   const { actor, denial } = await resolveTeamActorForSession(session, { league: leagueId });
   if (!actor) {
     return denial === "unauthenticated"

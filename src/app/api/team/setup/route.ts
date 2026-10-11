@@ -29,19 +29,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Team not found" }, { status: 404 });
     }
 
-    // Check if this is a teamLoginId or team name uniqueness check
-    const checkLoginId = request.nextUrl.searchParams.get("checkLoginId");
+    // Team name uniqueness check
     const checkName = request.nextUrl.searchParams.get("checkName");
-
-    if (checkLoginId) {
-      // Global uniqueness check on teamLoginId (case-insensitive)
-      const checkLoginIdLower = checkLoginId.toLowerCase();
-      const existing = await db.select().from(teams).where(sql`LOWER(${teams.teamLoginId}) = ${checkLoginIdLower}`).limit(1);
-      // Available if: no team with this loginId, OR this is the current team's loginId
-      return NextResponse.json({
-        available: existing.length === 0 || existing[0].id === teamId,
-      });
-    }
 
     if (checkName) {
       // Per-league uniqueness check: query teams in this league for this name (case-insensitive)
@@ -54,7 +43,6 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const membersMode = actor.memberRole !== "legacy";
     const [league] = await db
       .select({ slug: leagues.slug, format: leagues.format, clubAuctionEnabled: leagues.clubAuctionEnabled })
       .from(leagues)
@@ -65,17 +53,14 @@ export async function GET(request: NextRequest) {
       .from(players)
       .where(eq(players.teamId, teamId))
       .orderBy(asc(players.createdAt), asc(players.id));
-    // Members mode: player 1 defaults to the person themselves.
-    const [me] = membersMode && actor.userId
-      ? await db.select({ name: users.name, fplEntryId: users.fplEntryId }).from(users).where(eq(users.id, actor.userId)).limit(1)
-      : [];
+    // Player 1 defaults to the person themselves.
+    const [me] = await db.select({ name: users.name, fplEntryId: users.fplEntryId }).from(users).where(eq(users.id, actor.userId)).limit(1);
 
     return NextResponse.json({
       teamId: team.id,
       currentLoginId: team.teamLoginId,
       currentName: team.name,
       isProfileComplete: team.isProfileComplete,
-      membersMode,
       leagueSlug: league?.slug ?? null,
       leagueFormat: league?.format ?? "tvt",
       clubAuctionEnabled: league?.clubAuctionEnabled ?? false,
@@ -100,7 +85,6 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const {
-      teamLoginId,
       teamName,
       player1Name,
       player1FplId,
@@ -109,45 +93,7 @@ export async function POST(request: NextRequest) {
     } = body;
 
     // ============= Validations =============
-
-    // Members-mode teams keep their internal team key; only legacy team logins choose a login ID here.
-    const membersMode = actor.memberRole !== "legacy";
-    let normalizedLoginId: string | null = null;
-    if (!membersMode) {
-      // Team Login ID: non-empty, format validation, globally unique
-      if (!teamLoginId || typeof teamLoginId !== "string" || !teamLoginId.trim()) {
-        return NextResponse.json(
-          { error: "Team ID is required" },
-          { status: 400 }
-        );
-      }
-
-      const trimmedLoginId = teamLoginId.trim();
-
-      // Validate format
-      if (!/^[A-Za-z0-9_-]{3,20}$/.test(trimmedLoginId)) {
-        return NextResponse.json(
-          { error: "Team ID must be 3–20 alphanumeric/underscore/hyphen characters" },
-          { status: 400 }
-        );
-      }
-
-      // Normalise to lowercase for case-insensitive storage + comparison
-      normalizedLoginId = trimmedLoginId.toLowerCase();
-
-      // Check global uniqueness (across all leagues, unless it's the current team's ID) — case-insensitive
-      const existingLoginId = await db
-        .select()
-        .from(teams)
-        .where(sql`LOWER(${teams.teamLoginId}) = ${normalizedLoginId}`)
-        .limit(1);
-      if (existingLoginId.length > 0 && existingLoginId[0].id !== teamId) {
-        return NextResponse.json(
-          { error: "Team ID is already taken" },
-          { status: 400 }
-        );
-      }
-    }
+    // The team keeps its internal team key; setup only names the team and its players.
 
     // Team name: non-empty, unique within league
     if (!teamName || typeof teamName !== "string" || !teamName.trim()) {
@@ -184,10 +130,9 @@ export async function POST(request: NextRequest) {
 
     // Auction format: only needs team name (players acquired via auction)
     if (isAuction) {
-      // Update team: teamLoginId, name, isProfileComplete = true
+      // Update team: name, isProfileComplete = true
       // Also initialize purse from league's initial budget on first-time setup only
       const updateSet: Partial<typeof teams.$inferInsert> = {
-        ...(normalizedLoginId ? { teamLoginId: normalizedLoginId } : {}),
         name: trimmedTeamName,
         isProfileComplete: true,
         updatedAt: new Date(),
@@ -260,11 +205,10 @@ export async function POST(request: NextRequest) {
 
     // ============= Update Team =============
 
-    // Update team: teamLoginId, name, isProfileComplete = true
+    // Update team: name, isProfileComplete = true
     await db
       .update(teams)
       .set({
-        ...(normalizedLoginId ? { teamLoginId: normalizedLoginId } : {}),
         name: trimmedTeamName,
         isProfileComplete: true,
         updatedAt: new Date(),
@@ -321,9 +265,9 @@ export async function POST(request: NextRequest) {
       ]);
     }
 
-    // Members mode: tie each person to their FPL slot — the owner is player 1, a teammate player 2.
-    // Lets captain picks and chips be attributed, and a teammate who joins later lands in the free slot.
-    if (membersMode) {
+    // Tie each person to their FPL slot — the owner is player 1, a teammate player 2. Lets captain
+    // picks and chips be attributed, and a teammate who joins later lands in the free slot.
+    {
       const slots = await db.select({ id: players.id }).from(players).where(eq(players.teamId, teamId)).orderBy(asc(players.createdAt), asc(players.id));
       const members = await db.select({ id: teamMembers.id, role: teamMembers.role, playerId: teamMembers.playerId }).from(teamMembers).where(eq(teamMembers.teamId, teamId));
       const ordered = [...members].sort((a, b) => (a.role === b.role ? 0 : a.role === "owner" ? -1 : 1));

@@ -15,9 +15,7 @@ import {
   apiSignOut,
   createTvtLeague,
   setupAllTeams,
-  teamLoginId,
-  TEAM_RESET_PASSWORD,
-  uiSignIn,
+  uiSignInTeam,
   type LeagueRef,
   type TeamHandle,
 } from "../harness";
@@ -139,8 +137,7 @@ test.describe.serial("Mobile nav drawer", () => {
   });
 
   test("signed in, the drawer gains Feedback and Settings", async ({ page }) => {
-    await uiSignIn(page, teamLoginId(league.slug, 1), TEAM_RESET_PASSWORD);
-    await expect.poll(() => page.url(), { timeout: 15_000 }).not.toContain("/signin");
+    await uiSignInTeam(page, league.slug, 1);
     await page.goto(`/${league.slug}/standings`);
     await hamburger(page).click();
 
@@ -152,10 +149,7 @@ test.describe.serial("Mobile nav drawer", () => {
   });
 
   test("the dashboard collapses the same way", async ({ page }) => {
-    await uiSignIn(page, teamLoginId(league.slug, 1), TEAM_RESET_PASSWORD);
-    await expect.poll(() => page.url(), { timeout: 15_000 }).not.toContain("/signin");
-    await page.goto("/dashboard");
-
+    await uiSignInTeam(page, league.slug, 1);
     await expect(hamburger(page)).toBeVisible();
     await hamburger(page).click();
     // The dashboard used to hand-copy this list; it now draws from the same model as the

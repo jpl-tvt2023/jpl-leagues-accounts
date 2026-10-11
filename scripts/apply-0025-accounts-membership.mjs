@@ -28,7 +28,7 @@ if (!url) {
 }
 
 // Never production. Mirrors src/lib/db/target-guard.ts (plain node can't import TypeScript).
-const ALLOWED_TURSO_DB = "jpl-leagues-accounts";
+const ALLOWED_TURSO_DB = "jpl-india";
 if (!url.startsWith("file:")) {
   let host = "";
   try { host = new URL(url.replace(/^libsql:/, "https:")).hostname; } catch {}

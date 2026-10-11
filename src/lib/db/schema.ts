@@ -10,9 +10,9 @@ import { relations, sql } from "drizzle-orm";
 export const users = sqliteTable("users", {
   id: text("id").primaryKey(),
   email: text("email").notNull().unique(),
-  // bcrypt hash, or "" for an account that signs in with Google only. NOT NULL is kept on purpose:
-  // dropping it would mean rebuilding this table, and league_admins cascades from it. Password
-  // sign-in rejects an empty hash explicitly (see lib/passwords.ts).
+  // Unused: everyone signs in with Google, so new rows store "" and nothing reads it (old admin
+  // rows may still hold a bcrypt hash). NOT NULL is kept on purpose: dropping it would mean
+  // rebuilding this table, and league_admins cascades from it.
   password: text("password").notNull(),
   name: text("name").notNull(),
   // "superadmin" = platform owner (full access); "admin" = league-scoped admin; "user" = player.
@@ -115,17 +115,19 @@ export const groups = sqliteTable("groups", {
   leagueNameUnique: uniqueIndex("groups_league_name_unique").on(table.leagueId, table.name),
 }));
 
-// Team (2 players per team). In a legacy league the team row is also the login account; in a
-// members league people sign in as themselves and team_members says who is on which team.
+// Team (2 players per team). Not a login: people sign in as themselves (Google) and team_members
+// says who is on which team.
 export const teams = sqliteTable("teams", {
   id: text("id").primaryKey(),
   // "Team key": globally unique, human-readable team identifier. Backups, restores and the
-  // captain/chip/fixture importers find teams by it, so members-mode teams get one too. It is a
-  // login credential ONLY in legacy leagues — api/auth/signin refuses it for members leagues.
+  // captain/chip/fixture importers find teams by it. It is not a credential — there is no team
+  // sign-in. (The column name is from when it was one.)
   teamLoginId: text("team_login_id"),
   name: text("name").notNull(), // Team display name (set by team during setup, unique per league)
   leagueId: text("league_id").notNull().references(() => leagues.id, { onDelete: "cascade" }),
-  // Legacy leagues: bcrypt hash for team login. Members leagues: "" (never a usable credential).
+  // Unused: "" on every new row. Old team-login leagues may still hold a bcrypt hash until the
+  // superadmin switches the league to Google sign-in, which wipes them. Nothing reads it; NOT NULL
+  // stays because dropping it would rebuild this table.
   password: text("password").notNull(),
   mustChangePassword: integer("must_change_password", { mode: "boolean" }).notNull().default(true),
   groupId: text("group_id").references(() => groups.id, { onDelete: "set null" }), // Optional: null if group not assigned

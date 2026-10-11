@@ -15,7 +15,6 @@ import {
   type FplClassicStandingsPayload,
 } from "@/lib/fpl/classic-league";
 import { withFplBudget, FplUnavailableError } from "@/lib/fpl/gateway";
-import bcrypt from "bcryptjs";
 import { isReservedLeagueSlug } from "@/lib/reserved-slugs";
 import { createLeagueInvite } from "@/lib/membership";
 
@@ -100,17 +99,17 @@ export async function POST(request: NextRequest) {
     initialBudget, isSimulated, clubAuctionEnabled, auctionTier, startGameweek, releaseCycleGws,
     // fpl-classic only.
     fplLeagueId, scoringMetric, winnerCutPercent,
-    // "members" (default): people join via invite link. "legacy": a login per team, as before.
+    // Optional and only ever "members": people join via invite link and sign in with Google.
     authMode,
   } = body;
 
   const isFplClassic = format === FPL_CLASSIC_FORMAT;
 
-  if (authMode !== undefined && authMode !== "legacy" && authMode !== "members") {
-    return NextResponse.json({ error: "authMode must be \"members\" or \"legacy\"" }, { status: 400 });
+  if (authMode !== undefined && authMode !== "members") {
+    return NextResponse.json({ error: "Team logins are gone: every league uses Google sign-in (authMode \"members\")." }, { status: 400 });
   }
-  // FPL Classic has no accounts at all; legacy keeps every join path closed for it.
-  const resolvedAuthMode: "legacy" | "members" = isFplClassic ? "legacy" : (authMode ?? "members");
+  // FPL Classic has no accounts at all; "legacy" keeps every join path closed for it.
+  const resolvedAuthMode: "legacy" | "members" = isFplClassic ? "legacy" : "members";
 
   // fpl-classic derives both slug and name from the FPL league itself (see below) — the
   // superadmin supplies only the FPL league id, never a slug or a name to remember.
@@ -339,14 +338,12 @@ export async function POST(request: NextRequest) {
       }
 
       // Placeholder teams for every format: fixtures, groups and scoring need a fixed teamSize.
-      // Legacy: each is a login (team key + generated password), completed on first login via /setup.
-      // Members: nobody logs in as a team — people claim these through the invite link. They still
-      // get a team key, which backups/restores and the importers match teams by; password stays "".
+      // Nobody logs in as a team — people claim these through the invite link. They still get a
+      // team key, which backups/restores and the importers match teams by; password stays "".
       // (fpl-classic: resolvedTeamSize is 0, so this loop runs zero times — see the comment on
       // the fpl-classic branch above for why that is how "no login accounts" is guaranteed.)
       for (let i = 1; i <= resolvedTeamSize; i++) {
         const loginId = `${resolvedSlug}-Team${i}`;
-        const hashedPassword = resolvedAuthMode === "legacy" ? await bcrypt.hash(`Team${i}`, 10) : "";
         const groupId = teamIndexToGroupId.get(i);
 
         await tx.insert(teams).values({
@@ -354,8 +351,8 @@ export async function POST(request: NextRequest) {
           teamLoginId: loginId,
           name: `Team ${i}`,
           leagueId: id,
-          password: hashedPassword,
-          mustChangePassword: resolvedAuthMode === "legacy",
+          password: "",
+          mustChangePassword: false,
           isProfileComplete: false,
           ...(groupId ? { groupId } : {}),
           ...(format === "auction" ? { purse: initialBudget ?? 100_000_000 } : {}),
@@ -460,7 +457,7 @@ export async function POST(request: NextRequest) {
 
     if (/UNIQUE constraint failed:\s*teams\.team_login_id/i.test(msg) || /teams_login_id_global_unique/i.test(msg)) {
       return NextResponse.json({
-        error: `Cannot create league: team login IDs like "${slug}Team1" are already in use globally. This usually means a previous creation attempt with this slug partially failed and left orphan team rows. Run scripts/cleanup-orphan-teams.ts or pick a different slug.`,
+        error: `Cannot create league: team keys like "${slug}Team1" are already in use globally. This usually means a previous creation attempt with this slug partially failed and left orphan team rows. Run scripts/cleanup-orphan-teams.ts or pick a different slug.`,
       }, { status: 409 });
     }
     if (/UNIQUE constraint failed:\s*leagues\.slug/i.test(msg)) {

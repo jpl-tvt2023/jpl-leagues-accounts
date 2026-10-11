@@ -3,7 +3,7 @@
  *
  * This repo (jpl-leagues-accounts) carries schema changes — migration 0025, accounts and
  * membership — that production must not receive while they are built and tested. Production's
- * Turso database is `jpl-leagues`; this repo's is `jpl-leagues-accounts`. Anything else is
+ * Turso database is `jpl-leagues`; this repo's is `jpl-india`. Anything else is
  * refused before a connection is opened: the app (src/lib/db/index.ts), drizzle-kit
  * (drizzle.config.ts: db:push / db:migrate / db:studio) and scripts/apply-0025-accounts-membership.mjs,
  * which repeats this check because plain node scripts can't import TypeScript.
@@ -11,7 +11,7 @@
  * Local `file:` databases (tests, dev) are always allowed.
  */
 
-export const ALLOWED_TURSO_DB = "jpl-leagues-accounts";
+export const ALLOWED_TURSO_DB = "jpl-india";
 
 /** Throws unless `url` is a local file: database or this repo's own Turso database. */
 export function assertSafeDbTarget(url: string): void {

@@ -25,12 +25,12 @@ test.describe.serial("FPL Classic — creation wizard", () => {
     await apiSignInSuperadmin(request);
     const db = testDb();
     const stale = await db
-      .select({ id: schema.leagues.id })
+      .select({ id: schema.leagues.id, slug: schema.leagues.slug })
       .from(schema.leagues)
       // Exact slugs only. A `like("league-900001%")` would also match the uniquely-seasoned
       // leagues the sibling fpl-classic specs create against this same stub league id.
       .where(inArray(schema.leagues.slug, [`league-${STUB_LEAGUE_ID}`, `league-${STUB_LEAGUE_ID}-2026-27`]));
-    for (const row of stale) await deleteLeague(request, row.id);
+    for (const row of stale) await deleteLeague(request, row);
   });
 
   test("creates a league end-to-end: verify the id, skip straight to details, submit", async ({ page }) => {

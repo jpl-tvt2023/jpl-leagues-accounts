@@ -10,7 +10,7 @@
 
 import { test, expect, type APIRequestContext } from "@playwright/test";
 import { eq } from "drizzle-orm";
-import { apiSignIn, apiSignInSuperadmin, apiSignInUser, createTvtLeague, testDb, schema } from "../harness";
+import { apiSignInSuperadmin, apiSignInUser, createTvtLeague, testDb, schema } from "../harness";
 
 const run = Date.now().toString(36);
 const email = (who: string) => `${who}-${run}@accounts.test`;
@@ -69,11 +69,21 @@ test.describe("people: sign-in and onboarding", () => {
     expect(leagues).toMatchObject({ teams: [], adminOf: [], allLeagues: false, pending: [] });
   });
 
-  test("password sign-in refuses a Google-only account", async ({ request }) => {
+  test("there is no password sign-in: the old routes are gone", async ({ request }) => {
     await apiSignInUser(request, { email: email("googleonly") });
-    const res = await apiSignIn(request, email("googleonly"), "anything-at-all-1");
-    expect(res.ok).toBe(false);
-    if (!res.ok) expect(res.status).toBe(401);
+    for (const path of ["/api/auth/signin", "/api/auth/change-password"]) {
+      const res = await request.post(path, { data: { identifier: email("googleonly"), password: "anything-at-all-1" }, failOnStatusCode: false });
+      expect(res.status(), path).toBe(404);
+    }
+  });
+
+  test("an old team-login session cookie is not a session", async ({ request, baseURL }) => {
+    // Forged with the right shape but no valid signature — and even a validly signed one is
+    // refused for its type (tests/unit/auth-accounts.test.ts covers that half).
+    const payload = Buffer.from(JSON.stringify({ id: "some-team", type: "team", exp: 9999999999 })).toString("base64url");
+    const res = await request.get("/api/auth/me", { headers: { cookie: `session=${payload}.deadbeef` } });
+    expect((await res.json()).authenticated).toBe(false);
+    expect(baseURL).toBeTruthy();
   });
 });
 
@@ -105,14 +115,13 @@ test.describe("people: devices and deletion", () => {
 });
 
 test.describe("admins: created by email, promoted, demoted", () => {
-  test("superadmin creates an admin with no password; they get league access; removal revokes it on the next request", async ({ request, playwright, baseURL }) => {
+  test("superadmin creates an admin by email; they get league access; removal revokes it on the next request", async ({ request, playwright, baseURL }) => {
     await apiSignInSuperadmin(request);
     const league = await createTvtLeague(request, { teams: 8 });
     const created = await request.post("/api/superadmin/admins", { data: { name: "Email Admin", email: email("emailadmin") } });
     expect(created.status()).toBe(200);
     const admin = await created.json();
     expect(admin.signIn).toBe("pending");
-    expect(admin.mustChangePassword).toBe(false);
     expect((await request.post("/api/superadmin/league-assignments", { data: { userId: admin.id, leagueId: league.id } })).ok()).toBe(true);
 
     // Stands in for their first Google sign-in with that email.
@@ -175,7 +184,7 @@ test.describe("Google entry points", () => {
   test("a regular browser sees Continue with Google first", async ({ page }) => {
     await page.goto("/signin");
     await expect(page.getByRole("link", { name: "Continue with Google" })).toBeVisible();
-    // The team-ID form is still there for legacy leagues (and for the rest of this suite).
-    await expect(page.locator('input[type="password"]')).toBeVisible();
+    // Google is the only way in: no password form.
+    await expect(page.locator('input[type="password"]')).toHaveCount(0);
   });
 });

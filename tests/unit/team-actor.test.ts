@@ -3,8 +3,8 @@
  * (src/lib/viewer.ts), against a real SQLite database built from schema.ts.
  *
  * These are the authorization rules every team-scoped API now goes through, so each case below is
- * a way a request could otherwise act as the wrong team: a legacy login reaching into another
- * league, a person naming a team they are not on, a revoked session still working.
+ * a way a request could otherwise act as the wrong team: an old team-login token, a person naming
+ * a team they are not on, a revoked session still working.
  *
  * Run with: npm run test:unit   (builds ./team-actor-unit.db, gitignored, ~5 s)
  */
@@ -72,25 +72,25 @@ before(async () => {
   await db.insert(leagueAdmins).values({ id: "la1", leagueId: ids.leagueA, userId: ids.admin });
 });
 
-const session = async (id: string, type: "user" | "admin" | "superadmin" | "team", sv?: number) =>
+const session = async (id: string, type: "user" | "admin" | "superadmin", sv?: number) =>
   (await mod.auth.verifySession(await mod.auth.createSession(id, type, { sv })))!;
 
 test("no session → unauthenticated", async () => {
   assert.deepEqual(await mod.actor.resolveTeamActorForSession(null, { league: "alpha" }), { denial: "unauthenticated" });
 });
 
-test("legacy team login acts as its own team, with or without a hint", async () => {
-  const s = await session(ids.teamL1, "team");
-  const expected = { teamId: ids.teamL1, leagueId: ids.leagueL, userId: null, memberRole: "legacy" };
-  assert.deepEqual((await mod.actor.resolveTeamActorForSession(s)).actor, expected);
-  assert.deepEqual((await mod.actor.resolveTeamActorForSession(s, { league: "legacy" })).actor, expected);
-  assert.deepEqual((await mod.actor.resolveTeamActorForSession(s, { teamId: ids.teamL1 })).actor, expected);
+test("an old team-login token no longer verifies, so it can't act as its team", async () => {
+  // Team logins are gone; createSession only signs what it's given.
+  const token = await mod.auth.createSession(ids.teamL1, "team" as never);
+  assert.equal(await mod.auth.verifySession(token), null);
 });
 
-test("legacy team login cannot reach another league or another team", async () => {
-  const s = await session(ids.teamL1, "team");
-  assert.equal((await mod.actor.resolveTeamActorForSession(s, { league: "alpha" })).denial, "forbidden");
-  assert.equal((await mod.actor.resolveTeamActorForSession(s, { teamId: ids.teamL2 })).denial, "forbidden");
+test("nobody acts for a team in a league that hasn't been switched to Google sign-in yet", async () => {
+  for (const id of [ids.alice, ids.bob, ids.admin]) {
+    const s = await session(id, id === ids.admin ? "admin" : "user");
+    assert.equal((await mod.actor.resolveTeamActorForSession(s, { league: "legacy" })).denial, "forbidden");
+    assert.equal((await mod.actor.resolveTeamActorForSession(s, { teamId: ids.teamL2 })).denial, "forbidden");
+  }
 });
 
 test("a person must name a league or a team", async () => {
@@ -156,7 +156,7 @@ test("bumping session_version revokes older tokens immediately", async () => {
 
 test("listSessionTeamIds spans every league a person plays in", async () => {
   assert.deepEqual((await mod.actor.listSessionTeamIds(await session(ids.alice, "user"))).sort(), [ids.teamA1, ids.teamB1]);
-  assert.deepEqual(await mod.actor.listSessionTeamIds(await session(ids.teamL1, "team")), [ids.teamL1]);
+  assert.deepEqual(await mod.actor.listSessionTeamIds(await session(ids.admin, "admin")), [ids.teamB1]);
   assert.deepEqual(await mod.actor.listSessionTeamIds(null), []);
 });
 
@@ -179,10 +179,6 @@ test("viewer: teamId is the viewer's team in THIS league only", async () => {
   assert.equal(inAlpha.teamId, ids.teamA1);
   assert.equal((await mod.viewer.resolveViewerForLeague(alice, ids.leagueB)).teamId, ids.teamB1);
   assert.equal((await mod.viewer.resolveViewerForLeague(alice, ids.leagueL)).teamId, undefined);
-
-  const legacy = await session(ids.teamL1, "team");
-  assert.equal((await mod.viewer.resolveViewerForLeague(legacy, ids.leagueL)).teamId, ids.teamL1);
-  assert.equal((await mod.viewer.resolveViewerForLeague(legacy, ids.leagueA)).teamId, undefined);
 });
 
 test("viewer: isLeagueAdmin for this league's admins only", async () => {

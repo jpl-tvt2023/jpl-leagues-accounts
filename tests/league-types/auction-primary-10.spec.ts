@@ -16,6 +16,7 @@ import { eq } from "drizzle-orm";
 import {
   apiSignInSuperadmin,
   apiSignInTeam,
+  uiSignInTeam,
   apiSignOut,
   createAuctionLeague,
   setupAllTeams,
@@ -98,13 +99,12 @@ test.describe.serial("Auction Primary 10 (admin + user)", () => {
     await apiSignOut(request);
   });
 
-  test("user: dashboard page loads without a client-side error", async ({ page, request }) => {
+  test("user: dashboard page loads without a client-side error", async ({ page }) => {
     // Regression test: the auction dashboard API response has no `submission`
     // field, which used to crash page.tsx's locked-window refetch effect
     // (`data?.submission.state` — the `?.` didn't guard `.submission` itself).
-    await apiSignInTeam(request, league.slug, 1);
-    await expectPageLoadsWithoutError(page, "/dashboard");
-    await apiSignOut(request);
+    await uiSignInTeam(page, league.slug, 1);
+    await expectPageLoadsWithoutError(page, `/${league.slug}/dashboard`);
   });
 
   test("user: finance + marketplace pages load (marketplace renders \"unavailable\" for primary)", async ({ page }) => {

@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Team not found" }, { status: 404 });
   }
 
-  // Any team in the same league (legacy login or member) may view a ledger; admins may too.
+  // Any team in the same league (any member) may view a ledger; admins may too.
   if (!admin && session && session.type !== "admin") {
     if (!(await sessionTeamIdInLeague(session, teamRow[0].leagueId))) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });

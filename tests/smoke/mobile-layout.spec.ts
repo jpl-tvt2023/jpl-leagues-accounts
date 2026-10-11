@@ -31,9 +31,7 @@ import {
   generateFixtures,
   scoreGameweek,
   setupAllTeams,
-  teamLoginId,
-  TEAM_RESET_PASSWORD,
-  uiSignIn,
+  uiSignInTeam,
   type LeagueRef,
 } from "../harness";
 
@@ -165,9 +163,8 @@ test.describe.serial("Phone layout (360px)", () => {
   });
 
   test("TVT signed-in pages fit", async ({ page }) => {
-    await uiSignIn(page, teamLoginId(tvt.slug, 1), TEAM_RESET_PASSWORD);
-    await expect.poll(() => page.url(), { timeout: 15_000 }).not.toContain("/signin");
-    await expectFits(page, "/dashboard", "tvt-dashboard");
+    await uiSignInTeam(page, tvt.slug, 1);
+    await expectFits(page, `/${tvt.slug}/dashboard`, "tvt-dashboard");
 
     // Phone order: Captains & Chips sits directly under the GW Submissions card, ahead of the
     // tables and fixtures that come before it in the desktop left column.
@@ -180,14 +177,13 @@ test.describe.serial("Phone layout (360px)", () => {
     expect(captains, "Captains & Chips should come before Upcoming Fixtures").toBeLessThan(upcoming);
 
     await expectFits(page, `/${tvt.slug}/feedback`, "tvt-feedback");
-    await expectFits(page, "/settings", "account-settings");
+    await expectFits(page, "/account", "account-settings");
     await expectFits(page, "/notifications", "account-notifications");
   });
 
   test("Auction signed-in pages fit", async ({ page }) => {
-    await uiSignIn(page, teamLoginId(auction.slug, 1), TEAM_RESET_PASSWORD);
-    await expect.poll(() => page.url(), { timeout: 15_000 }).not.toContain("/signin");
-    await expectFits(page, "/dashboard", "auction-dashboard");
+    await uiSignInTeam(page, auction.slug, 1);
+    await expectFits(page, `/${auction.slug}/dashboard`, "auction-dashboard");
     for (const p of ["squad", "marketplace", "finance", "players"]) {
       await expectFits(page, `/${auction.slug}/${p}`, `auction-signedin-${p}`);
     }
@@ -222,8 +218,7 @@ test.describe.serial("Phone layout (360px)", () => {
   });
 
   test("phone touch targets: the bell and app-bar buttons are at least 48px", async ({ page }) => {
-    await uiSignIn(page, teamLoginId(tvt.slug, 2), TEAM_RESET_PASSWORD);
-    await expect.poll(() => page.url(), { timeout: 15_000 }).not.toContain("/signin");
+    await uiSignInTeam(page, tvt.slug, 2);
     await visit(page, `/${tvt.slug}/standings`, "tvt-touch-targets");
     for (const name of ["Notifications", "Open menu"]) {
       const box = await page.getByRole("button", { name, exact: true }).boundingBox();

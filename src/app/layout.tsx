@@ -17,15 +17,15 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "JPL_India",
+  title: "JPL India",
   description: "JPL India — Fantasy Football League Management",
-  applicationName: "JPL",
+  applicationName: "JPL India",
   // iOS reads these instead of the manifest when the site is added to the home screen.
   // `black-translucent` lets the page draw under the status bar; the app bar pads itself with
   // `env(safe-area-inset-top)` to stay clear of the notch.
   appleWebApp: {
     capable: true,
-    title: "JPL",
+    title: "JPL India",
     statusBarStyle: "black-translucent",
   },
   formatDetection: { telephone: false },

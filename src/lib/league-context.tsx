@@ -30,7 +30,11 @@ export interface LeagueInfo {
   // stored JSON. Carried here so squad / marketplace / rules copy all name the same
   // gameweeks instead of each hardcoding "GW 10/20/30".
   releaseCycleGws: number[];
-  /** "legacy": teams sign in with a team key. "members": people join via invite (Google sign-in). */
+  /**
+   * "members": people join via invite and sign in with Google. "legacy": a league from before
+   * accounts, whose team logins no longer work — nobody can act for its teams until the superadmin
+   * switches it to "members".
+   */
   authMode: "legacy" | "members";
   // fpl-classic only. Present so the standings/rules pages need no second fetch just to show
   // which official FPL mini-league this page mirrors, and on what terms it is scored.
@@ -41,12 +45,12 @@ export interface LeagueInfo {
 
 export interface ViewerInfo {
   authenticated: boolean;
-  /** "team" = legacy team login; the others are people ("user" = player). */
-  type: "team" | "user" | "admin" | "superadmin" | null;
+  /** A person's platform role ("user" = player), or null when signed out. */
+  type: "user" | "admin" | "superadmin" | null;
   dashboardHref: string;
   /**
-   * Under /[leagueSlug]/*: the viewer's team in THIS league (legacy login for a team of this league,
-   * or a person's membership here); absent when they have none. Use it to decide "my team".
+   * Under /[leagueSlug]/*: the viewer's team in THIS league (their membership here); absent when
+   * they have none. Use it to decide "my team".
    */
   teamId?: string;
   userId?: string;

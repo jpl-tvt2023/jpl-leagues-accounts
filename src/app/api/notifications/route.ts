@@ -28,9 +28,9 @@ export async function GET(request: NextRequest) {
   if (!session) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
-  // A legacy team login sees its own team; a person sees all of their memberships (possibly none).
+  // A person sees all of their memberships (possibly none).
   const teamIds = await listSessionTeamIds(session);
-  if (session.type !== "team" && session.type !== "user" && teamIds.length === 0) {
+  if (session.type !== "user" && teamIds.length === 0) {
     // Admins with no team of their own: unchanged from before people could join teams.
     return NextResponse.json({ error: "Team access required" }, { status: 403 });
   }

@@ -23,10 +23,9 @@ function getRedis(): Redis | null {
  * silently 404 earlier. A named flag says what it means and cannot be set by
  * accident in production.
  *
- * The e2e suite sets this to 0. It runs every request from one IP and signs in
- * up to 32 teams inside a single beforeAll, against a 5/min cap on
- * /api/auth/signin -- so the moment a test Redis is configured, an unflagged
- * limiter would 429 the entire suite.
+ * The e2e suite sets this to 0. It runs every request from one IP and sets up
+ * up to 32 teams inside a single beforeAll -- so the moment a test Redis is
+ * configured, an unflagged limiter would 429 the entire suite.
  */
 function rateLimitEnabled(): boolean {
   const flag = process.env.RATE_LIMIT_ENABLED;
@@ -65,7 +64,6 @@ function getClientIp(request: NextRequest): string {
 // ---------- Route classification ----------
 
 const PUBLIC_ROUTES = [
-  "/api/auth/signin",
   "/api/auth/signout",
   "/api/auth/me",
   "/api/fixtures",
@@ -139,8 +137,6 @@ function isTeamRoute(pathname: string): boolean {
 // ---------- Rate-limited routes ----------
 
 const RATE_LIMITED_ROUTES: Record<string, { max: number; windowMs: number }> = {
-  "/api/auth/signin": { max: 5, windowMs: 60_000 },
-  "/api/auth/change-password": { max: 5, windowMs: 60_000 },
   // iOS sign-in handoff: start / confirm / claim. The app polls claim every 2s for a few minutes.
   "/api/auth/handoff": { max: 60, windowMs: 60_000 },
   // Joining a league claims a team slot.
@@ -281,14 +277,10 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  // Team routes: a legacy team login, or a person (who may be on a team in members-mode leagues).
-  // Which team — and whether the person is on it at all — is decided per request by
-  // resolveTeamActor (src/lib/team-actor.ts), not here: it needs the league from the URL and a
-  // database lookup.
+  // Team routes: any signed-in person, who may be on a team. Which team — and whether the person
+  // is on one at all — is decided per request by resolveTeamActor (src/lib/team-actor.ts), not
+  // here: it needs the league from the URL and a database lookup.
   if (isTeamRoute(pathname)) {
-    if (session.type !== "team" && session.type !== "user" && session.type !== "admin" && session.type !== "superadmin") {
-      return NextResponse.json({ error: "Team access required" }, { status: 403 });
-    }
     const response = NextResponse.next();
     response.headers.set("x-session-id", session.id);
     response.headers.set("x-session-type", session.type);

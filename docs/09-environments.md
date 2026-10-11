@@ -8,10 +8,10 @@ This repo carries the accounts and membership work ([10-accounts-and-membership.
 |---|---|---|---|---|
 | **Local test** | `file:./test.db` | none (optional test Upstash) | test sign-in (`TEST_AUTH_ENABLED=1`, set in `.env.test`) | `localhost:3100` |
 | **Local dev** | `file:./dev.db`, or the accounts Turso DB | none | a dev OAuth client for `http://localhost:3000` | `localhost:3000` |
-| **Accounts deployment** | Turso **`jpl-leagues-accounts`** | none for now | its own OAuth client | Vercel project **`jpl-leagues-accounts`** |
+| **Accounts deployment** | Turso **`jpl-india`** | none for now | its own OAuth client | Vercel project **`jpl-india`** |
 
 Guardrails:
-- `src/lib/db/target-guard.ts` refuses every database except a local `file:` one or `jpl-leagues-accounts`. That covers the app, `drizzle-kit`, and the 0025 apply script.
+- `src/lib/db/target-guard.ts` refuses every database except a local `file:` one or `jpl-india`. That covers the app, `drizzle-kit`, and the 0025 apply script.
 - Git `upstream` (the production repo) is fetch-only: its push URL is deliberately invalid.
 - Never copy production's `.env.local` into this repo.
 - If you add Redis, give it a **new** Upstash database. Never share production's: the `fpl:scoring-active` lock below is global.

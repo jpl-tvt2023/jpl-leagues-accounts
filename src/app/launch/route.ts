@@ -15,11 +15,7 @@ export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   const viewer = await resolveViewer();
   const last = lastLeagueSlug(request.cookies.get(LAST_LEAGUE_COOKIE)?.value);
-  const target = !viewer.authenticated
-    ? "/"
-    : viewer.type !== "team" && last
-      ? `/${last}/dashboard`
-      : viewer.dashboardHref;
+  const target = !viewer.authenticated ? "/" : last ? `/${last}/dashboard` : viewer.dashboardHref;
   return NextResponse.redirect(new URL(target, request.url), {
     headers: { "Cache-Control": "private, no-store" },
   });

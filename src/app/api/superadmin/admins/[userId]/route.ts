@@ -3,11 +3,11 @@ import { db } from "@/lib/db";
 import { users, leagueAdmins, teamMembers, userIdentities } from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { isSuperAdmin } from "@/lib/privilege";
-import bcrypt from "bcryptjs";
 
 /**
  * PATCH /api/superadmin/admins/[userId]
- * Edit an admin user — name, email, or reset password (sets mustChangePassword: true)
+ * Edit an admin user — name or email. Changing the email of an admin who hasn't signed in yet
+ * changes which Google account links to them on first sign-in.
  */
 export async function PATCH(
   request: NextRequest,
@@ -21,7 +21,7 @@ export async function PATCH(
   const body = await request.json();
 
   // Guard: a superadmin may only mutate their OWN superadmin row; mutating
-  // another superadmin's credentials is forbidden (prevents lockout / role-escalation
+  // another superadmin's account is forbidden (prevents lockout / role-escalation
   // between platform owners). Non-superadmin (admin) rows fall through.
   const target = await db.query.users.findFirst({ where: eq(users.id, userId) });
   if (!target) {
@@ -40,8 +40,6 @@ export async function PATCH(
   const updates: {
     name?: string;
     email?: string;
-    password?: string;
-    mustChangePassword?: boolean;
     updatedAt?: Date;
   } = {};
 
@@ -49,13 +47,9 @@ export async function PATCH(
     updates.name = body.name.trim();
   }
   if (typeof body.email === "string" && body.email.trim()) {
-    // Match POST handler's normalization so signin (which compares case-insensitively
-    // via stored-lowercase) and the unique-email index see a consistent value.
+    // Match POST handler's normalization so Google sign-in's link-by-email (which compares
+    // case-insensitively) and the unique-email index see a consistent value.
     updates.email = body.email.trim().toLowerCase();
-  }
-  if (typeof body.password === "string" && body.password) {
-    updates.password = await bcrypt.hash(body.password, 12);
-    updates.mustChangePassword = true;
   }
 
   if (Object.keys(updates).length === 0) {
@@ -75,10 +69,10 @@ export async function PATCH(
 /**
  * DELETE /api/superadmin/admins/[userId]
  * Remove someone as an admin.
- * - An account that is also a person on the platform (plays in a league, or signs in with Google)
- *   is DEMOTED to a player: league assignments removed, role "user", session version bumped so
- *   every open admin session stops working on its next request. Their teams are untouched.
- * - A password-only admin with no team is deleted, as before.
+ * - An account that is also a person on the platform (plays in a league, or has signed in with
+ *   Google) is DEMOTED to a player: league assignments removed, role "user", session version
+ *   bumped so every open admin session stops working on its next request. Their teams are untouched.
+ * - An admin who never signed in and has no team is deleted.
  */
 export async function DELETE(
   request: NextRequest,

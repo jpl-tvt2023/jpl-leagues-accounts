@@ -6,7 +6,6 @@ import { LoadingScreen } from "@/components/LoadingScreen";
 import { AppNav } from "@/components/AppNav";
 
 interface SetupState {
-  teamLoginId: string;
   teamName: string;
   player1Name: string;
   player1FplId: string;
@@ -15,7 +14,6 @@ interface SetupState {
 }
 
 interface Errors {
-  teamLoginId?: string;
   teamName?: string;
   player1Name?: string;
   player1FplId?: string;
@@ -27,18 +25,14 @@ interface Errors {
 type Step = 1 | 2 | 3;
 
 /**
- * Team setup wizard. Without `leagueSlug` it is the legacy flow at /setup (a team login sets its
- * login ID, name and players). With it — /[leagueSlug]/setup — it is a person setting up their team
- * in a members-mode league: no login ID, player 1 prefilled from their own profile, and every API
- * call names the league.
+ * Team setup wizard at /[leagueSlug]/setup: a person setting up their team in that league. Player 1
+ * is prefilled from their own profile, and every API call names the league. There is no login ID
+ * to choose — the team key is internal.
  */
-export function TeamSetup({ leagueSlug }: { leagueSlug?: string } = {}) {
+export function TeamSetup({ leagueSlug }: { leagueSlug: string }) {
   const router = useRouter();
-  const withLeague = (url: string) =>
-    leagueSlug ? `${url}${url.includes("?") ? "&" : "?"}league=${encodeURIComponent(leagueSlug)}` : url;
-  const dashboardPath = leagueSlug ? `/${leagueSlug}/dashboard` : "/dashboard";
-  // Members-mode team: no login ID to choose (the team key is internal).
-  const [membersMode, setMembersMode] = useState(false);
+  const withLeague = (url: string) => `${url}${url.includes("?") ? "&" : "?"}league=${encodeURIComponent(leagueSlug)}`;
+  const dashboardPath = `/${leagueSlug}/dashboard`;
 
   const [isLoading, setIsLoading] = useState(true);
   const [currentStep, setCurrentStep] = useState<Step>(1);
@@ -53,7 +47,6 @@ export function TeamSetup({ leagueSlug }: { leagueSlug?: string } = {}) {
   const totalSteps = isAuction ? 1 : 3;
 
   const [formData, setFormData] = useState<SetupState>({
-    teamLoginId: "",
     teamName: "",
     player1Name: "",
     player1FplId: "",
@@ -61,86 +54,39 @@ export function TeamSetup({ leagueSlug }: { leagueSlug?: string } = {}) {
     player2FplId: "",
   });
 
-  const [currentTeamLoginId, setCurrentTeamLoginId] = useState<string>("");
   const [currentTeamName, setCurrentTeamName] = useState<string>("");
-  const [loginIdCheckLoading, setLoginIdCheckLoading] = useState(false);
 
   // Check auth and load current team info
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        if (leagueSlug) {
-          // A person in a members-mode league: the setup API itself says whose team this is.
-          const setupRes = await fetch(withLeague("/api/team/setup"));
-          if (setupRes.status === 401) {
-            router.push(`/signin?next=${encodeURIComponent(`/${leagueSlug}/setup`)}`);
-            return;
-          }
-          if (!setupRes.ok) {
-            router.push(`/${leagueSlug}`); // not on a team in this league
-            return;
-          }
-          const s = await setupRes.json();
-          if (s.isProfileComplete) {
-            router.push(dashboardPath);
-            return;
-          }
-          setMembersMode(!!s.membersMode);
-          setLeagueFormat(s.leagueFormat ?? "tvt");
-          setClubAuctionEnabled(!!s.clubAuctionEnabled);
-          setCurrentTeamLoginId(s.currentLoginId || "");
-          setCurrentTeamName(s.currentName);
-          const [p1, p2] = s.players ?? [];
-          setFormData((prev) => ({
-            ...prev,
-            teamLoginId: s.currentLoginId || "",
-            teamName: s.currentName,
-            player1Name: p1?.name ?? s.defaults?.player1Name ?? "",
-            player1FplId: p1?.fplId ?? s.defaults?.player1FplId ?? "",
-            player2Name: p2?.name ?? "",
-            player2FplId: p2?.fplId ?? "",
-          }));
+        // The setup API itself says whose team this is.
+        const setupRes = await fetch(withLeague("/api/team/setup"));
+        if (setupRes.status === 401) {
+          router.push(`/signin?next=${encodeURIComponent(`/${leagueSlug}/setup`)}`);
           return;
         }
-
-        const res = await fetch("/api/auth/me");
-        const me = await res.json();
-
-        if (!me.authenticated) {
-          router.push("/signin");
+        if (!setupRes.ok) {
+          router.push(`/${leagueSlug}`); // not on a team in this league
           return;
         }
-        if (me.type !== "team") {
-          router.push("/"); // a person sets up each team from that league's own /[league]/setup
+        const s = await setupRes.json();
+        if (s.isProfileComplete) {
+          router.push(dashboardPath);
           return;
         }
-
-        // Store league format for conditional UI
-        if (me.leagueFormat) {
-          setLeagueFormat(me.leagueFormat);
-        }
-        if (typeof me.clubAuctionEnabled === "boolean") {
-          setClubAuctionEnabled(me.clubAuctionEnabled);
-        }
-
-        // If already completed setup, redirect to dashboard
-        if (me.team.isProfileComplete) {
-          router.push("/dashboard");
-          return;
-        }
-
-        // Fetch current setup info for prefilling
-        const setupRes = await fetch("/api/team/setup");
-        if (setupRes.ok) {
-          const setupData = await setupRes.json();
-          setCurrentTeamLoginId(setupData.currentLoginId || "");
-          setCurrentTeamName(setupData.currentName);
-          setFormData((prev) => ({
-            ...prev,
-            teamLoginId: setupData.currentLoginId || "",
-            teamName: setupData.currentName,
-          }));
-        }
+        setLeagueFormat(s.leagueFormat ?? "tvt");
+        setClubAuctionEnabled(!!s.clubAuctionEnabled);
+        setCurrentTeamName(s.currentName);
+        const [p1, p2] = s.players ?? [];
+        setFormData((prev) => ({
+          ...prev,
+          teamName: s.currentName,
+          player1Name: p1?.name ?? s.defaults?.player1Name ?? "",
+          player1FplId: p1?.fplId ?? s.defaults?.player1FplId ?? "",
+          player2Name: p2?.name ?? "",
+          player2FplId: p2?.fplId ?? "",
+        }));
       } catch (err) {
         console.error("Auth check error:", err);
         router.push("/signin");
@@ -153,25 +99,6 @@ export function TeamSetup({ leagueSlug }: { leagueSlug?: string } = {}) {
     // withLeague and dashboardPath derive from leagueSlug.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router, leagueSlug]);
-
-  const handleLoginIdBlur = async (value: string) => {
-    if (!value.trim() || value === currentTeamLoginId) return;
-
-    setLoginIdCheckLoading(true);
-    try {
-      const res = await fetch(withLeague(`/api/team/setup?checkLoginId=${encodeURIComponent(value)}`));
-      const data = await res.json();
-      if (!data.available) {
-        setErrors((prev) => ({ ...prev, teamLoginId: isAuction ? "Username is already taken" : "Team ID is already taken" }));
-      } else {
-        setErrors((prev) => ({ ...prev, teamLoginId: undefined }));
-      }
-    } catch (err) {
-      console.error("Login ID check error:", err);
-    } finally {
-      setLoginIdCheckLoading(false);
-    }
-  };
 
   const handleTeamNameBlur = async (value: string) => {
     if (!value.trim() || value === currentTeamName) return;
@@ -194,14 +121,6 @@ export function TeamSetup({ leagueSlug }: { leagueSlug?: string } = {}) {
 
   const validateStep1 = () => {
     const newErrors: Errors = {};
-
-    if (membersMode) {
-      // nothing to choose
-    } else if (!formData.teamLoginId.trim()) {
-      newErrors.teamLoginId = isAuction ? "Username is required" : "Team ID is required";
-    } else if (!/^[A-Za-z0-9_-]{3,20}$/.test(formData.teamLoginId)) {
-      newErrors.teamLoginId = "Must be 3–20 alphanumeric/underscore/hyphen characters";
-    }
 
     // Club-auction leagues override the manager name with the owned PL club's name everywhere,
     // so we skip the name field — the admin-assigned default (currentTeamName) is sent on submit.
@@ -307,7 +226,7 @@ export function TeamSetup({ leagueSlug }: { leagueSlug?: string } = {}) {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-900 via-purple-900 to-slate-900">
-      <AppNav context={{ surface: "public", page: "flow" }} activeKey="" brandHref="/" brandLabel="JPL Sports" title="Team setup" />
+      <AppNav context={{ surface: "public", page: "flow" }} activeKey="" brandHref="/" brandLabel="JPL India" title="Team setup" />
       <div className="mx-auto max-w-md w-full px-4 py-6 sm:py-8 sm:px-6">
         {/* Header */}
         <div className="text-center mb-6 sm:mb-8">
@@ -338,29 +257,6 @@ export function TeamSetup({ leagueSlug }: { leagueSlug?: string } = {}) {
         <div className="rounded-2xl border border-white/10 bg-white/5 p-5 sm:p-8 backdrop-blur">
           {currentStep === 1 && (
             <div className="space-y-6">
-              {!membersMode && (
-              <div>
-                <label className="block text-sm font-semibold text-white mb-2">{isAuction ? "Username" : "Team Login ID"}</label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={formData.teamLoginId}
-                    onChange={(e) => handleInputChange("teamLoginId", e.target.value)}
-                    onBlur={(e) => handleLoginIdBlur(e.target.value)}
-                    placeholder={currentTeamLoginId || (isAuction ? "rahul_mgr" : "")}
-                    className="flex-1 rounded-lg border border-white/20 bg-black/40 px-4 py-3 text-white placeholder-gray-500 focus:border-yellow-400 focus:outline-none"
-                  />
-                  {loginIdCheckLoading && <span className="text-xs text-gray-400">Checking...</span>}
-                </div>
-                {errors.teamLoginId && <p className="text-red-400 text-xs mt-1">{errors.teamLoginId}</p>}
-                <p className="text-gray-500 text-xs mt-2">
-                  {isAuction
-                    ? "Choose a unique username. 3–20 chars: letters, numbers, underscore, hyphen. Must be unique across all leagues."
-                    : "Used to sign in. 3–20 chars: letters, numbers, underscore, hyphen."}
-                </p>
-              </div>
-              )}
-
               {hideTeamName ? (
                 <div className="rounded-lg border border-purple-500/30 bg-purple-500/10 px-4 py-3 text-sm text-purple-200">
                   Your team will display as the PL club you buy in the club auction — no display name needed.

@@ -2,6 +2,8 @@
 
 How people sign in, and how one person plays in many leagues. This replaces the original model, where each team row was its own login handed out by an admin.
 
+**Google is the only way to sign in** — for players, league admins and the superadmin alike. There are no passwords anywhere: no team logins, no admin passwords, no break-glass.
+
 ## Status
 
 | Phase | What | State |
@@ -9,24 +11,28 @@ How people sign in, and how one person plays in many leagues. This replaces the 
 | 1 | Schema (migration 0025), `resolveTeamActor`, league-scoped viewer, route refactor, guard tests, database target guard | **Built** |
 | 2 | Google sign-in, usernames, `/onboarding`, `/account`, in-app-browser handling, iOS handoff (behind a flag), role refresh and revocation, passwordless admins | **Built** |
 | 3 | Members-mode leagues: invites, join, approval, partner invites, admin Members tab, league switcher, dashboard under `/[leagueSlug]` | **Built** |
-| 4 | Sunset of legacy team logins after the 2026-27 season | Planned |
+| 4 | Team logins and every password removed (brought forward from "after the 2026-27 season"); old leagues are switched to Google sign-in by the superadmin | **Built** |
 
-Phase 4 (sunset) is the only part not built yet.
+## Leagues and `auth_mode`
 
-## Two kinds of league
+Every session is a **person** — `{ type: "user" | "admin" | "superadmin", id: userId, sv }` — signed in with Google. Who is on a team is `team_members` rows, and one person in many leagues is one identity: switching leagues is navigation.
 
 Every league has an `auth_mode`:
 
-| | `legacy` | `members` |
+| | `members` | `legacy` |
 |---|---|---|
-| Who signs in | The **team**: team key + password the admin generated | A **person**: Google account, unique username |
-| Session | `{ type: "team", id: teamId }` | `{ type: "user" \| "admin" \| "superadmin", id: userId, sv }` |
-| Who is on a team | Whoever has the password | `team_members` rows |
-| One person, many leagues | One login per team, juggled with the device account switcher | One identity; switching leagues is navigation |
+| What it is | Every league created now | A league from before accounts (team key + password per team) that hasn't been switched yet |
+| Who can act for a team | Its members (`team_members`) | Nobody — its team logins no longer work |
+| How people get on a team | Invite link, teammate invite, or the admin's Members tab | None until it's switched |
 
-All leagues that existed before migration 0025 are `legacy`, and stay that way until the 2026-27 season ends. New leagues are created as `members` unless the superadmin picks team logins.
+**Switching an old league** (`switchLeagueToGoogleSignIn` in [`src/lib/membership.ts`](../src/lib/membership.ts); Superadmin → Leagues → *Switch to Google sign-in*, or `PATCH /api/superadmin/leagues/[id] { authMode: "members" }`):
+- sets `auth_mode = "members"` and wipes the old team password hashes; teams, players, fixtures, scores and history are untouched;
+- writes a `LEAGUE_SWITCHED_TO_GOOGLE` audit row, and can't be undone;
+- creates **no** league invite. After the switch every team is open, and a league invite gives whoever opens it the next open team, not their own. So players sign in with Google and send the admin their username, and the admin puts each one on their own team from the Members tab (assign by username).
 
-FPL Classic leagues are public and have no accounts in either mode.
+Until a league is switched, its admin page shows a banner saying so, and its format help tells players what to do.
+
+`POST /api/superadmin/leagues` always creates `members` leagues; `authMode: "legacy"` is refused. FPL Classic leagues are public, have no accounts, and keep `legacy` so every join path stays closed for them.
 
 ## Data model
 
@@ -52,13 +58,13 @@ erDiagram
 | `league_invites` | Invite links. `team_id` null = league invite (claims an open slot); set = partner invite. Has `max_uses`, `use_count`, `expires_at`, `revoked_at`, `requires_approval`. |
 | `join_requests` | Joins waiting for an admin, via invites that require approval. |
 | `auth_handoffs` | Five-minute, single-use records for the iOS home-screen sign-in handoff. |
-| `leagues.auth_mode` | `legacy` (default for every existing row) or `members`. |
-| `teams.team_login_id` | The **Team key**: a stable identifier that backups, restores and importers match teams by. It is a credential *only* in legacy leagues. |
+| `leagues.auth_mode` | `legacy` (default for every existing row: not yet switched) or `members`. |
+| `teams.team_login_id` | The **Team key**: a stable identifier that backups, restores and importers match teams by. It is not a credential. |
 | `audit_logs.user_id`, `.league_id` | Who and where, for membership events. |
 | `submitted_by_user_id` on `gameweek_captains` / `gameweek_chips`; `feedback.submitter_user_id` | Which teammate did it. |
 
 **Why the odd bits.**
-- `users.password` and `teams.password` keep NOT NULL, and members-mode rows store `""`. `users.role` keeps its `"admin"` default, so every insert sets `role` explicitly.
+- `users.password`, `teams.password` and both `must_change_password` columns stay, NOT NULL, but are dead: nothing reads them, and every new row stores `""` / `false`. Old rows may still hold bcrypt hashes; switching a league wipes its teams'. `users.role` keeps its `"admin"` default, so every insert sets `role` explicitly.
 - All three would otherwise mean rebuilding a SQLite table that other tables cascade from.
 
 ## Resolving the acting team
@@ -68,8 +74,7 @@ The rule: **the session says who you are; the URL says which league.**
 [`src/lib/team-actor.ts`](../src/lib/team-actor.ts) is the only place a team-scoped API learns which team it is acting as:
 
 - **`resolveTeamActor(request, { league?, teamId? })`** returns `{ actor: { teamId, leagueId, userId, memberRole } }` or `{ denial }`, where the denial is `"unauthenticated"`, `"league-required"` or `"forbidden"`.
-  - A **legacy team login** is its own team. A `league` or `teamId` hint that disagrees with it is `forbidden`.
-  - A **person** must name the league (`?league=<slug or id>`) or the team. Without one, the result is `league-required`.
+  - A person must name the league (`?league=<slug or id>`) or the team. Without one, the result is `league-required`.
   - One indexed query joins `team_members` to `users` and checks membership *and* `users.session_version == token.sv`. Removing a member, or bumping their session version, takes effect on their next request.
 - **`sessionActsAsTeam(session, teamId)`**: for "only your own X" checks, where the request names the team (most auction routes).
 - **`sessionTeamIdInLeague(session, league)`**: for read endpoints that flag "mine" in league-wide data.
@@ -84,13 +89,13 @@ Because the league comes from the URL and never from the cookie:
 **Middleware** ([`src/middleware.ts`](../src/middleware.ts)) lets any valid session through to `/api/team/*`. It can't decide membership itself: that needs the league from the URL and a database lookup.
 
 **Guard test.** [`tests/unit/team-actor-guard.test.ts`](../tests/unit/team-actor-guard.test.ts) fails if any file under `src/app/api/{team,auction,notifications,feedback}` reads `session.id` or `x-session-id`.
-- In a legacy league that value *is* the team id. For a person it is a users id, so a route that kept reading it would silently skip its ownership check.
+- That value is a users id, not a team id, so a route that read it as a team would silently skip its ownership check.
 - An admin-only line that genuinely wants the users id opts out with `// team-actor-guard-ignore: <reason>`.
 
 ### Pages: the league-scoped viewer
 
 The `[leagueSlug]` layout resolves the viewer with `resolveViewerInLeague(league.id)` ([`src/lib/viewer.ts`](../src/lib/viewer.ts)). Within one league:
-- `viewer.teamId` is **my team in this league**: a legacy login for a team of this league, or a membership. It is absent otherwise.
+- `viewer.teamId` is **my team in this league**: the viewer's membership here. It is absent otherwise.
 - `viewer.isLeagueAdmin` covers superadmins and this league's admins.
 
 League pages read these from `useLeague()` rather than fetching `/api/auth/me` themselves.
@@ -101,7 +106,7 @@ A person whose users row is gone, or whose session version is stale, reads as si
 
 This repo carries schema production must not receive yet. [`src/lib/db/target-guard.ts`](../src/lib/db/target-guard.ts) allows only two kinds of database:
 - local `file:` databases;
-- the **`jpl-leagues-accounts`** Turso database.
+- the **`jpl-india`** Turso database.
 
 It refuses everything else before a connection is opened, in three places:
 
@@ -130,6 +135,8 @@ sequenceDiagram
   C->>B: session cookie; → /onboarding if no username, else next
 ```
 
+- **Only Google.** `/api/auth/signin` and `/api/auth/change-password` are gone, and so are `/change-password` and the team-login settings and setup pages (`/settings` and `/setup` now redirect). `verifySession` refuses any token whose type isn't a person, so an old team-login cookie reads as signed out. Reset season and league deletion, which used to ask for your password, now ask you to type the league's slug.
+- **First superadmin.** `npm run seed:admin` with `SUPERADMIN_EMAIL` (and `DATABASE_URL`) creates the superadmin's users row with no password; their first Google sign-in with that email links it. See [07-deployment.md](07-deployment.md).
 - **Library.** OAuth uses `arctic`, wired into the existing HMAC session. Auth.js and Better Auth would bring their own session and user model.
 - **Admin auto-link.** An existing admin row links on first sign-in through its verified email.
 - **Username rules.** `^[a-z0-9_]{3,20}$`, stored lowercase, with a reserved-words list.
@@ -142,44 +149,47 @@ sequenceDiagram
   - `resolveTeamActor`, the league-scoped viewer and `/api/auth/me`;
   - `isSuperAdmin()` and `getAuthorizedLeagueId()`, through [`src/lib/privilege.ts`](../src/lib/privilege.ts).
 - **Role refresh.** A promoted player keeps working: `/api/auth/me` re-mints their cookie at the new role. Admin pages call it on load.
-- **Admins by email.** The superadmin page can create an admin from just an email, with no password, or promote an existing player.
-  - Removing an admin who also plays, or signs in with Google, demotes them to a player and revokes their sessions.
-  - A password-only admin with no team is deleted, as before.
+- **Admins by email.** The superadmin page creates an admin from a name and an email, or promotes an existing player. Its Admins tab shows whether each has linked Google yet.
+  - Removing an admin who also plays, or has signed in with Google, demotes them to a player and revokes their sessions.
+  - An admin who never signed in and has no team is deleted.
+- **Superadmins never play.** A league admin can also be on a team, but a superadmin can't.
+  - Every path onto a team refuses a superadmin with code `superadmin`: joining, join requests, teammate invites, admin assignment, seat replacement and recovery transfers ([`src/lib/membership.ts`](../src/lib/membership.ts)).
+  - `seed:admin` won't promote an account that's on a team. It cancels the account's pending join requests.
+  - Superadmins skip `/onboarding`, because the username is for playing. They land on `/superadmin`, and `/account` hides the FPL ID field.
 
 | Route / page | Purpose |
 |---|---|
 | `GET /api/auth/google` → `GET /api/auth/google/callback` | Start and finish Google sign-in |
 | `/onboarding` | Pick a username (and optionally your FPL ID) after first sign-in |
-| `/account` | Profile, your leagues, sign out of all other devices, delete account |
+| `/account` | Profile, your leagues, sign out of all other devices, accounts on this device, delete account |
 | `GET/PATCH /api/me/profile` | Profile, live username check, FPL entry preview |
 | `GET /api/me/leagues` | Teams, admin leagues, pending join requests |
 | `POST /api/me/sessions` | Sign out of all other devices |
 | `DELETE /api/me` | Delete account (teams stay; a shared team passes to the teammate) |
 | `POST /api/auth/handoff` + `/auth/handoff` | iOS home-screen handoff (only with `NEXT_PUBLIC_IOS_HANDOFF=1`) |
+| `GET /api/auth/accounts`, `POST /api/auth/switch` | Accounts signed in on this device, and switching between them (e.g. an admin Google account and a personal one) |
 | `POST /api/test-auth/signin` | Test-only sign-in for the e2e suite and previews (`TEST_AUTH_ENABLED=1`; never production) |
 
-## Members-mode leagues
+## Leagues with members
 
 The logic lives in [`src/lib/membership.ts`](../src/lib/membership.ts). Every multi-row change runs in a transaction, and the unique indexes settle races: two people tapping the same invite can't get the same team.
 
-- **League creation** (`POST /api/superadmin/leagues`, `authMode` default `members`).
+- **League creation** (`POST /api/superadmin/leagues`, always `members`).
   - Placeholder teams are still created, because fixtures and groups need a fixed `teamSize`. They get a Team key but no password.
-  - The response includes an invite link: 14 days, one use per team.
-  - The superadmin form asks "How teams sign in" and shows the link.
+  - The response includes an invite link: 14 days, one use per team. The superadmin form shows it.
 - **Join** (`/join/{token}` → `POST /api/join`). The page shows the one next step for this visitor:
   - open in a real browser, sign in, pick a username, join, or wait for approval;
   - or "already in this league", or a clear message for a broken link.
   - Joining claims the first open, non-ghost team as its owner, then lands on `/{slug}/setup`.
   - With approval on, it files a `join_requests` row instead.
-- **Team setup** (`/{slug}/setup`, the same wizard as legacy `/setup`).
-  - No login ID to choose.
+- **Team setup** (`/{slug}/setup`).
+  - No login ID to choose: the team key is internal.
   - Player 1 is prefilled from the person's profile.
   - On save, each member is linked to an FPL slot: owner = player 1, teammate = player 2.
 - **Teammates** (TVT / Continental). From `/{slug}/team`, the owner creates a single-use, 7-day link (`/api/team/invite`). The partner joins as `member` in the free FPL slot.
   - The team can be complete without the partner ever having an account.
 - **Dashboard** at `/{slug}/dashboard`. Every team API call carries `?league=`.
-  - `/dashboard` keeps working for legacy logins.
-  - For a person, it redirects to the league used last (`jpl_last_league` cookie, also used by the PWA `/launch`).
+  - `/dashboard` redirects to the league used last (`jpl_last_league` cookie, also used by the PWA `/launch`), else the viewer's home.
 - **Switching.**
   - `LeagueSwitcher` sits in the drawer (always visible) and in the desktop account menu.
   - `/` shows "Your leagues" above the public list.
@@ -192,9 +202,9 @@ The logic lives in [`src/lib/membership.ts`](../src/lib/membership.ts). Every mu
 - **Recovery.**
   - A league admin's *Replace account* moves one seat.
   - The superadmin **Users** tab (`/api/superadmin/users`, `…/[id]/transfer`) moves every membership and admin right at once, then revokes the old account's sessions.
-- **Backups.** Members leagues leave `Password` blank and add a read-only `Members` column. Restore keeps team rows, so memberships survive it (covered by an e2e test).
+- **Backups.** The teams file has no `Password` column; it has a read-only `Members` column. Restore keeps team rows, so memberships survive it (covered by an e2e test). Bulk team upload ignores a `Password` column in older files.
 - **Format limits** (`MAX_TEAM_MEMBERS`): people per team — TVT 2, Continental 2, auction 1.
-- **Help.** Format help shows sign-in questions by `league.authMode` (`accountFaqs` in `help/shared.tsx`), and admin help gains the invite and members workflows. Public `/help` and `/privacy` need no sign-in.
+- **Help.** Format help shows sign-in questions by `league.authMode` (`accountFaqs` in `help/shared.tsx`; an unswitched league explains the move to Google), and admin help covers the invite and members workflows. Public `/help` and `/privacy` need no sign-in.
 
 ## Known issues and their handling
 
@@ -203,8 +213,6 @@ The logic lives in [`src/lib/membership.ts`](../src/lib/membership.ts). Every mu
 - **`pl-fixture-card` FPL-lookup test** fails without a test Redis. It fails the same way on the untouched production code (checked against a baseline worktree); see `09-environments.md` on adding one.
 - **`next build --webpack`** rejects `src/app/api/auction/redeem-slot/route.ts` for exporting a helper. This also happens on production's code. The real build (`npm run build`, Turbopack) passes.
 
-## Legacy coexistence and sunset
+## Testing without Google
 
-Until the 2026-27 season ends, legacy leagues keep team-key sign-in, `/change-password`, `/settings` and the device account switcher. The account switcher also holds a Google session, so one browser can move between both kinds.
-
-After the season, Phase 4 removes all of that and the legacy branches in `team-actor.ts` and `viewer.ts`. Password sign-in remains only as a superadmin break-glass behind a flag.
+Google can't be driven from a test. The e2e suite signs people in through `POST /api/test-auth/signin`, and "signing in as team N" means signing in as that team's owner: [`tests/harness/auth.ts`](../tests/harness/auth.ts) (`ensureTeamPerson`) gives each team its own test person on first use. Team API calls in specs carry `?league=<slug>`, like the app's.

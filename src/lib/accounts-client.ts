@@ -1,16 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 /** One account signed in on this device, as `/api/auth/accounts` describes it (never the token). */
 export interface DeviceAccount {
   key: string;
-  type: "team" | "user" | "admin" | "superadmin";
-  /** Team name, or the person's name. */
+  type: "user" | "admin" | "superadmin";
+  /** The person's name (or email). */
   label: string;
-  /** League name for a team; role for an admin. */
+  /** Role for an admin, @username for a player. */
   sublabel: string | null;
-  /** Team login ID or admin email — what the sign-in form would need. */
+  /** The account's email. */
   loginId: string | null;
   active: boolean;
 }
@@ -105,80 +105,4 @@ export async function signOutAccounts(opts: { all?: boolean; key?: string } = {}
     body: JSON.stringify(opts),
   }).catch(() => null);
   announceAuthChange({ type: "signed-out" });
-}
-
-/* ── Remembered login IDs ─────────────────────────────────────────────────────
- * Login IDs and display names only — never passwords. Passwords belong in the browser's or OS's
- * password manager, which the sign-in form's autocomplete attributes hand them to. This list just
- * lets /signin offer "sign in again as …" for accounts whose session has expired.
- */
-
-const REMEMBERED_KEY = "jpl.rememberedLogins";
-const MAX_REMEMBERED = 8;
-
-export interface RememberedLogin {
-  loginId: string;
-  label: string;
-}
-
-const rememberedListeners = new Set<() => void>();
-
-function subscribeRemembered(onChange: () => void) {
-  rememberedListeners.add(onChange);
-  window.addEventListener("storage", onChange);
-  return () => {
-    rememberedListeners.delete(onChange);
-    window.removeEventListener("storage", onChange);
-  };
-}
-
-function rememberedSnapshot(): string {
-  try {
-    return window.localStorage.getItem(REMEMBERED_KEY) ?? "[]";
-  } catch {
-    return "[]";
-  }
-}
-
-function parseRemembered(raw: string): RememberedLogin[] {
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (e): e is RememberedLogin =>
-        !!e && typeof e === "object" && typeof (e as RememberedLogin).loginId === "string" && typeof (e as RememberedLogin).label === "string",
-    );
-  } catch {
-    return [];
-  }
-}
-
-export function readRememberedLogins(): RememberedLogin[] {
-  return parseRemembered(rememberedSnapshot());
-}
-
-/** Remembered login IDs, live: updates when this or another tab remembers or forgets one. */
-export function useRememberedLogins(): RememberedLogin[] {
-  const raw = useSyncExternalStore(subscribeRemembered, rememberedSnapshot, () => "[]");
-  return useMemo(() => parseRemembered(raw), [raw]);
-}
-
-export function rememberLogin(entry: RememberedLogin): void {
-  try {
-    const rest = readRememberedLogins().filter((e) => e.loginId.toLowerCase() !== entry.loginId.toLowerCase());
-    window.localStorage.setItem(REMEMBERED_KEY, JSON.stringify([entry, ...rest].slice(0, MAX_REMEMBERED)));
-    rememberedListeners.forEach((l) => l());
-  } catch {
-    // Storage unavailable — nothing to remember, nothing breaks.
-  }
-}
-
-export function forgetLogin(loginId: string): void {
-  try {
-    const rest = readRememberedLogins().filter((e) => e.loginId.toLowerCase() !== loginId.toLowerCase());
-    window.localStorage.setItem(REMEMBERED_KEY, JSON.stringify(rest));
-    rememberedListeners.forEach((l) => l());
-  } catch {
-    // Storage unavailable.
-  }
 }

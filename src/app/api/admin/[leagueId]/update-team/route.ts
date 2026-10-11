@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, teams, players, groups, leagues } from "@/lib/db";
 import { eq, and, sql } from "drizzle-orm";
-import bcrypt from "bcryptjs";
 import { generateId } from "@/lib/id";
 import { getAuthorizedLeagueId } from "@/lib/league-auth";
 import { invalidateLeaguePageCache } from "@/lib/fpl-cache";
@@ -20,7 +19,6 @@ export async function PUT(request: NextRequest) {
       teamId,
       teamLoginId,
       teamName,
-      password, // Optional - only update if provided
       player1Id,
       player1Name,
       player1FplId,
@@ -34,7 +32,7 @@ export async function PUT(request: NextRequest) {
     const groupProvided = Object.prototype.hasOwnProperty.call(body, "group");
 
     // Only teamId (the target identifier) is required. Every other attribute —
-    // teamLoginId, teamName, password, group, player fields — is independently
+    // teamLoginId, teamName, group, player fields — is independently
     // optional: whatever's provided gets validated and updated, whatever's left
     // blank/omitted is left untouched.
     if (!teamId) {
@@ -48,7 +46,7 @@ export async function PUT(request: NextRequest) {
     const teamNameProvided = typeof teamName === "string" && teamName.trim() !== "";
 
     // Preserve the submitted casing for storage; the lowercased copy is used only
-    // for the case-insensitive uniqueness check below. (Login is case-insensitive.)
+    // for the case-insensitive uniqueness check below.
     let trimmedLoginId = "";
     let normalizedLoginId = "";
     if (teamLoginIdProvided) {
@@ -154,19 +152,6 @@ export async function PUT(request: NextRequest) {
     // (important for TC / TVT-32 where the modal hides the Group field).
     if (groupProvided && !isAuction) {
       updateData.groupId = groupId;
-    }
-
-    // Only update password if provided. Match bulk-upload-teams' 4-char minimum
-    // so the single-team-edit path cannot drop below the platform's import-side guarantee.
-    if (password && password.trim() !== "") {
-      if (String(password).length < 4) {
-        return NextResponse.json(
-          { error: "Password must be at least 4 characters" },
-          { status: 400 }
-        );
-      }
-      updateData.password = await bcrypt.hash(password, 10);
-      updateData.mustChangePassword = true;
     }
 
     if (Object.keys(updateData).length > 0) {

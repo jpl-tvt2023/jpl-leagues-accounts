@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, teams, players, groups } from "@/lib/db";
 import { eq, and, sql } from "drizzle-orm";
-import bcrypt from "bcryptjs";
 import { generateId } from "@/lib/id";
 import { getAuthorizedLeagueId } from "@/lib/league-auth";
 import { fetchClubOwnershipMap } from "@/lib/teams/rename-rows";
 
 /**
  * POST /api/admin/[leagueId]/create-team
- * Admin-only endpoint to create a team (team name = login ID)
+ * Admin-only endpoint to create a team. The team key identifies it in backups and imports; people
+ * get onto it through an invite or the Members tab, never with a password.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -19,7 +19,6 @@ export async function POST(request: NextRequest) {
     const {
       teamLoginId,
       teamName,
-      password,
       player1Name,
       player1FplId,
       player2Name,
@@ -28,18 +27,9 @@ export async function POST(request: NextRequest) {
     } = body;
 
     // Validate required fields (group is optional, defaults to "A")
-    if (!teamLoginId || !teamName || !password || !player1Name || !player1FplId || !player2Name || !player2FplId) {
+    if (!teamLoginId || !teamName || !player1Name || !player1FplId || !player2Name || !player2FplId) {
       return NextResponse.json(
         { error: "All fields except group are required" },
-        { status: 400 }
-      );
-    }
-
-    // Enforce the same minimum password length as bulk-upload-teams so the
-    // single-team-create and bulk-import paths cannot diverge in security stance.
-    if (String(password).length < 4) {
-      return NextResponse.json(
-        { error: "Password must be at least 4 characters" },
         { status: 400 }
       );
     }
@@ -53,7 +43,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Preserve the submitted casing for storage; the lowercased copy is used only
-    // for the case-insensitive uniqueness check below. (Login is case-insensitive.)
+    // for the case-insensitive uniqueness check below.
     const trimmedLoginId = String(teamLoginId).trim();
     const normalizedLoginId = trimmedLoginId.toLowerCase();
 
@@ -87,9 +77,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
-
     // Resolve group (null if not provided)
     let groupId: string | null = null;
     if (group) {
@@ -106,18 +93,17 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Create team with password. Match bulk-upload-teams by setting
-    // isProfileComplete=true — the admin already supplied team name + both
-    // players, so the team-side setup wizard has nothing to add. Without this,
-    // single-team-create and bulk-upload land teams in different onboarding
-    // states despite the same input shape.
+    // Match bulk-upload-teams by setting isProfileComplete=true — the admin already supplied team
+    // name + both players, so the team-side setup wizard has nothing to add. Without this,
+    // single-team-create and bulk-upload land teams in different onboarding states despite the
+    // same input shape. teams.password stays NOT NULL; nobody signs in with it ("" — see schema).
     const teamId = generateId();
     await db.insert(teams).values({
       id: teamId,
       teamLoginId: trimmedLoginId,
       name: teamName,
-      password: hashedPassword,
-      mustChangePassword: true,
+      password: "",
+      mustChangePassword: false,
       isProfileComplete: true,
       groupId,
       leagueId,
@@ -131,7 +117,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: "Team created successfully. Team must change password on first login.",
+      message: "Team created. Add its players from the Members tab.",
       team: {
         id: teamId,
         teamLoginId: normalizedLoginId,
@@ -192,7 +178,6 @@ export async function GET(request: NextRequest) {
           rawName: t.name,
           group: t.group?.name || "Unassigned",
           players: t.players.map(p => ({ name: p.name, fplId: p.fplId, id: p.id })),
-          needsPasswordChange: t.mustChangePassword,
           isProfileComplete: t.isProfileComplete,
           ownedClub,
         };

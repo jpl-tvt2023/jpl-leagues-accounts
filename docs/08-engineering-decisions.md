@@ -60,15 +60,13 @@ The `backups` table has `teamsJson`, `fixturesJson`, `captainsJson`, `chipsJson`
 
 The downside: re-rendering on download costs a few hundred ms vs serving a pre-built blob. We accept that tradeoff for snapshot longevity.
 
-## 9. Passwords emitted as `"RESET_REQUIRED"` in backups
+## 9. No passwords in backups
 
-Backup files include a `password` column for each team, populated with the literal string `"RESET_REQUIRED"` instead of the real bcrypt hash or plaintext.
+Backup teams files have no password column at all, and a read-only `Members` column instead (who is on each team).
 
-**Why:** Plaintext passwords are unrecoverable from bcrypt hashes (by design). Including hashes in a downloadable xlsx is a security hole. The placeholder forces the admin to set new passwords on restore — usually via the per-team edit flow or a fresh password reset.
+**Why:** teams don't have passwords any more — everyone signs in with Google ([10-accounts-and-membership.md](10-accounts-and-membership.md)). Restore keeps team rows, so memberships survive it.
 
-This is documented in the Backup UI's helper text under the Download button.
-
-Members-mode leagues have no team passwords at all, so their backups will leave `Password` blank and add a read-only `Members` column instead (Phase 3 of [10-accounts-and-membership.md](10-accounts-and-membership.md)).
+*History:* while team logins existed, the column held the placeholder `"RESET_REQUIRED"`, because bcrypt hashes can't be reversed and putting them in a downloadable xlsx would have been a security hole.
 
 ## 10. Format-aware palette as pure tokens (no CSS variables)
 
@@ -95,7 +93,7 @@ A person's session says who they are. The league they are acting in comes from t
 
 ## 13. No table rebuilds for accounts
 
-`users.password` and `teams.password` stay NOT NULL; members-mode rows store `""`. `users.role` keeps its old `"admin"` default, so every insert sets the role explicitly.
+`users.password` and `teams.password` stay NOT NULL, though nothing reads them any more (decision 17); new rows store `""`. `users.role` keeps its old `"admin"` default, so every insert sets the role explicitly.
 
 **Why:**
 - SQLite can't drop NOT NULL or change a default in place. It rebuilds the table, and both tables have other tables cascading from them.
@@ -104,9 +102,9 @@ A person's session says who they are. The league they are acting in comes from t
 
 ## 14. Team key kept as an internal identifier
 
-Members-mode teams still get a `team_login_id` (`{slug}-team{N}`), shown as "Team key", even though nobody logs in with it.
+Teams still get a `team_login_id` (`{slug}-Team{N}`), shown as "Team key", even though nobody logs in with it.
 
-**Why:** backups, restores and the captain/chip/fixture importers all match teams by it, so keeping it means they work unchanged for both kinds of league. Sign-in explicitly refuses team keys of members leagues.
+**Why:** backups, restores and the captain/chip/fixture importers all match teams by it, so keeping it means they work unchanged. There is no sign-in that accepts it.
 
 ## 15. Hand-wired Google OAuth (planned)
 
@@ -118,9 +116,17 @@ Google sign-in will use the small `arctic` OAuth/PKCE client, wired into the exi
 
 ## 16. One allowed database
 
-[`src/lib/db/target-guard.ts`](../src/lib/db/target-guard.ts) refuses every database except a local `file:` one or the `jpl-leagues-accounts` Turso database. It runs in the app, in `drizzle.config.ts`, and in the 0025 apply script.
+[`src/lib/db/target-guard.ts`](../src/lib/db/target-guard.ts) refuses every database except a local `file:` one or the `jpl-india` Turso database. It runs in the app, in `drizzle.config.ts`, and in the 0025 apply script.
 
 **Why:** this repo carries schema changes production must not receive while they're built and tested. A mis-pasted connection string should fail loudly before connecting, not migrate production.
+
+## 17. Google is the only sign-in
+
+There is no password sign-in of any kind: `/api/auth/signin` and `/api/auth/change-password` are gone, the `team` session type is refused by `verifySession`, and the superadmin has no break-glass password. The first superadmin is seeded by email (`npm run seed:admin`) and links on their first Google sign-in. Confirmations that used to ask for your password (reset season, delete league) ask you to type the league's slug.
+
+**Why:** one way in means one thing to secure, support and explain. Team logins were shared credentials passed around group chats, and admin passwords were the only credentials the platform itself had to store and reset. This brought forward the planned post-2026-27 sunset (phase 4 in [10-accounts-and-membership.md](10-accounts-and-membership.md)) and dropped its break-glass.
+
+**Trade-off:** if Google sign-in is misconfigured, nobody — not even the superadmin — can sign in until it's fixed ([07-deployment.md](07-deployment.md)). Old leagues aren't converted automatically: the superadmin switches each one (`switchLeagueToGoogleSignIn`), and the admin then puts each person on their own team by username, because a league invite would hand out open teams in order.
 
 ## See also
 

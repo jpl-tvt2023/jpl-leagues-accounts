@@ -19,7 +19,6 @@ interface Team {
   rawName?: string;      // Original `teams.name` value — used in edit forms where the underlying name matters.
   group: string;
   players: { id: string; name: string; fplId: string }[];
-  needsPasswordChange: boolean;
   isProfileComplete: boolean;
   ownedClub?: {
     plTeamId: number;
@@ -204,7 +203,6 @@ export default function AdminDashboard() {
   const [formData, setFormData] = useState({
     teamLoginId: "",
     teamName: "",
-    password: "",
     player1Name: "",
     player1FplId: "",
     player2Name: "",
@@ -212,7 +210,7 @@ export default function AdminDashboard() {
     group: "A",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string; credentials?: { loginId: string; password: string } } | null>(null);
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   // Captain Override State
   const [captainTeams, setCaptainTeams] = useState<TeamWithPlayers[]>([]);
@@ -322,8 +320,8 @@ export default function AdminDashboard() {
   // below must still not fire: it would 404 on /api/gameweeks/1 for every such league.
   const isFplClassicFormat = leagueConfig.format === "fpl-classic";
 
-  // Reset Season State
-  const [resetPassword, setResetPassword] = useState("");
+  // Reset Season State — the admin types the league's slug to confirm.
+  const [resetConfirm, setResetConfirm] = useState("");
   const [resetLoading, setResetLoading] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
@@ -333,7 +331,6 @@ export default function AdminDashboard() {
     teamId: "",
     teamLoginId: "",
     teamName: "",
-    password: "",
     player1Id: "",
     player1Name: "",
     player1FplId: "",
@@ -1176,8 +1173,8 @@ export default function AdminDashboard() {
   };
 
   const resetSeason = async () => {
-    if (!resetPassword) {
-      setMessage({ type: "error", text: "Please enter your admin password" });
+    if (!resetConfirm.trim()) {
+      setMessage({ type: "error", text: "Type the league's slug to confirm" });
       return;
     }
     setResetLoading(true);
@@ -1185,13 +1182,13 @@ export default function AdminDashboard() {
       const res = await fetch(`/api/admin/${leagueId}/reset-season`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: resetPassword }),
+        body: JSON.stringify({ confirm: resetConfirm }),
       });
       const data = await res.json();
       if (res.ok) {
         setMessage({ type: "success", text: data.message });
         setShowResetConfirm(false);
-        setResetPassword("");
+        setResetConfirm("");
       } else {
         setMessage({ type: "error", text: data.error || "Failed to reset season" });
       }
@@ -1221,17 +1218,12 @@ export default function AdminDashboard() {
         return;
       }
 
-      setMessage({ 
-        type: "success", 
-        text: "Team created successfully!", 
-        credentials: data.credentials 
-      });
-      
+      setMessage({ type: "success", text: data.message || "Team created." });
+
       // Reset form
       setFormData({
         teamLoginId: "",
         teamName: "",
-        password: "",
         player1Name: "",
         player1FplId: "",
         player2Name: "",
@@ -1369,7 +1361,6 @@ export default function AdminDashboard() {
       const rows = teamsData.map(row => ({
         teamLoginId: String(row["Team ID"] ?? row["teamLoginId"] ?? row["Team Login ID"] ?? row["TeamLoginId"] ?? "").trim(),
         teamName: String(row["Team Name"] ?? row["teamName"] ?? row["TeamName"] ?? "").trim(),
-        password: String(row["Password"] ?? row["password"] ?? "").trim(),
         player1Name: String(row["Player1 Name"] ?? row["Player 1 Name"] ?? row["player1Name"] ?? row["Player1Name"] ?? "").trim(),
         player1FplId: String(row["Player1 FPL ID"] ?? row["Player 1 FPL ID"] ?? row["player1FplId"] ?? row["Player1FplId"] ?? "").trim(),
         player2Name: String(row["Player2 Name"] ?? row["Player 2 Name"] ?? row["player2Name"] ?? row["Player2Name"] ?? "").trim(),
@@ -1747,7 +1738,6 @@ export default function AdminDashboard() {
       teamId: team.id,
       teamLoginId: team.teamLoginId || "",
       teamName: team.name,
-      password: "",
       player1Id: team.players[0]?.id || "",
       player1Name: team.players[0]?.name || "",
       player1FplId: team.players[0]?.fplId || "",
@@ -1938,14 +1928,14 @@ export default function AdminDashboard() {
               {/* Team Details */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">{isAuctionFormat ? "Login ID" : "Team Login ID"}</label>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Team key</label>
                   <input
                     type="text"
                     disabled
                     value={editFormData.teamLoginId}
                     className="w-full rounded-lg border border-white/20 bg-white/5 px-4 py-3 text-gray-400 placeholder-gray-600 cursor-not-allowed opacity-60"
                   />
-                  <p className="text-gray-500 text-xs mt-1">{isAuctionFormat ? "Used for login (cannot be changed)" : "Used for team login (cannot be changed)"}</p>
+                  <p className="text-gray-500 text-xs mt-1">Internal identifier for backups and imports — not a login. Can&apos;t be changed.</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">{isAuctionFormat ? "Manager Name" : "Team Name"}</label>
@@ -1959,18 +1949,8 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
-              {/* Password and Group */}
+              {/* Group */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">New Password (leave blank to keep current)</label>
-                  <input
-                    type="text"
-                    value={editFormData.password}
-                    onChange={(e) => setEditFormData({ ...editFormData, password: e.target.value })}
-                    placeholder="Enter new password"
-                    className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-gray-500 focus:border-yellow-500 focus:outline-none"
-                  />
-                </div>
                 {leagueConfig.groupCount === 2 && (
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">Group</label>
@@ -2070,6 +2050,17 @@ export default function AdminDashboard() {
       />
 
       <div className="mx-auto max-w-7xl px-4 sm:px-6 py-6 sm:py-8">
+        {leagueConfig.authMode === "legacy" && !isFplClassicFormat && (
+          <div role="status" className="mb-6 rounded-xl border border-orange-500/30 bg-orange-500/10 p-4 text-sm text-orange-200">
+            <p className="font-semibold text-orange-100">This league still uses team logins, which no longer work.</p>
+            <p className="mt-1">
+              Everyone now signs in with Google. Until the superadmin switches this league to Google sign-in
+              (Superadmin → Leagues), nobody can act for its teams. Teams, scores and history are kept; afterwards,
+              add each person to their own team from the Members tab.
+            </p>
+          </div>
+        )}
+
         {/* Tabs */}
         <div className="mb-8 border-b border-white/10 pb-4">
           <div className="flex flex-wrap gap-2 sm:gap-4">
@@ -2232,14 +2223,6 @@ export default function AdminDashboard() {
             }`}
           >
             <p>{message.text}</p>
-            {message.credentials && (
-              <div className="mt-4 p-4 bg-slate-800 rounded-lg">
-                <p className="font-semibold text-yellow-400 mb-2">📋 Share these credentials with the team:</p>
-                <p className="font-mono text-white">Login ID: {message.credentials.loginId}</p>
-                <p className="font-mono text-white">Password: {message.credentials.password}</p>
-                <p className="text-sm text-gray-400 mt-2">Team members must change password on first login.</p>
-              </div>
-            )}
           </div>
         )}
 
@@ -2269,7 +2252,7 @@ export default function AdminDashboard() {
                   {/* Team Details */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">{isAuctionFormat ? "Login ID" : "Team Login ID"}</label>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Team key</label>
                       <input
                         type="text"
                         required
@@ -2278,7 +2261,7 @@ export default function AdminDashboard() {
                         placeholder={isAuctionFormat ? "rahul-mgr" : "team-123"}
                         className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-gray-500 focus:border-yellow-500 focus:outline-none"
                       />
-                      <p className="text-xs text-gray-500 mt-1">Used for login. 3–20 alphanumeric/underscore/hyphen.</p>
+                      <p className="text-xs text-gray-500 mt-1">Internal identifier for backups and imports — not a login. 3–30 letters, digits, _ or -.</p>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-300 mb-2">{isAuctionFormat ? "Manager Name" : "Team Name"}</label>
@@ -2294,20 +2277,8 @@ export default function AdminDashboard() {
                     </div>
                   </div>
 
-              {/* Password and Group */}
+              {/* Group */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Initial Password</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    placeholder="Enter initial password"
-                    className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-gray-500 focus:border-yellow-500 focus:outline-none"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Team must change this on first login</p>
-                </div>
                 {leagueConfig.groupCount === 2 && (
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">Group</label>
@@ -2528,17 +2499,11 @@ export default function AdminDashboard() {
                             Delete
                           </button>
                           <span className={`text-xs px-2 py-1 rounded ${
-                            team.needsPasswordChange && !team.isProfileComplete
-                              ? "bg-orange-500/20 text-orange-400"
-                              : !team.isProfileComplete
+                            !team.isProfileComplete
                               ? "bg-yellow-500/20 text-yellow-400"
                               : "bg-green-500/20 text-green-400"
                           }`}>
-                            {team.needsPasswordChange && !team.isProfileComplete
-                              ? "Awaiting Login"
-                              : !team.isProfileComplete
-                              ? "Setup Pending"
-                              : "Active"}
+                            {!team.isProfileComplete ? "Setup Pending" : "Active"}
                           </span>
                         </div>
                       </div>
@@ -2627,17 +2592,11 @@ export default function AdminDashboard() {
                             Delete
                           </button>
                           <span className={`text-xs px-2 py-1 rounded ${
-                            team.needsPasswordChange && !team.isProfileComplete
-                              ? "bg-orange-500/20 text-orange-400"
-                              : !team.isProfileComplete
+                            !team.isProfileComplete
                               ? "bg-yellow-500/20 text-yellow-400"
                               : "bg-green-500/20 text-green-400"
                           }`}>
-                            {team.needsPasswordChange && !team.isProfileComplete
-                              ? "Awaiting Login"
-                              : !team.isProfileComplete
-                              ? "Setup Pending"
-                              : "Active"}
+                            {!team.isProfileComplete ? "Setup Pending" : "Active"}
                           </span>
                         </div>
                       </div>
@@ -3197,9 +3156,8 @@ export default function AdminDashboard() {
                 Each file is ready to re-import via the blocks below — useful for disaster recovery, migration, or end-of-season archiving.
               </p>
               <p className="text-gray-500 text-xs mb-4">
-                Captains and chips files are only included if your league uses them. Passwords in the teams file are
-                emitted as <code className="text-gray-300">RESET_REQUIRED</code> placeholders — bcrypt hashes can&apos;t be reversed,
-                so you&apos;ll need to set new passwords on restore.
+                Captains and chips files are only included if your league uses them. The teams file lists who is on
+                each team for reference; restoring keeps every team&apos;s members as they are.
               </p>
               <div className="flex flex-wrap gap-3">
                 <button
@@ -4614,12 +4572,17 @@ export default function AdminDashboard() {
                 </button>
               ) : (
                 <div className="space-y-4 rounded-xl bg-red-500/10 p-4">
-                  <p className="text-red-300 text-sm font-semibold">⚠️ This action is irreversible. Enter your admin password to confirm.</p>
+                  <p className="text-red-300 text-sm font-semibold">
+                    ⚠️ This action is irreversible. Type <code className="text-red-200">{leagueId}</code> to confirm.
+                  </p>
                   <input
-                    type="password"
-                    value={resetPassword}
-                    onChange={(e) => setResetPassword(e.target.value)}
-                    placeholder="Admin password"
+                    type="text"
+                    value={resetConfirm}
+                    onChange={(e) => setResetConfirm(e.target.value)}
+                    placeholder={leagueId}
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
                     className="w-full rounded-lg border border-red-500/30 bg-black/40 px-4 py-2 text-white placeholder-gray-500 focus:border-red-400 focus:outline-none"
                   />
                   <div className="flex gap-3">
@@ -4631,7 +4594,7 @@ export default function AdminDashboard() {
                       {resetLoading ? "Resetting…" : "Confirm Reset"}
                     </button>
                     <button
-                      onClick={() => { setShowResetConfirm(false); setResetPassword(""); }}
+                      onClick={() => { setShowResetConfirm(false); setResetConfirm(""); }}
                       className="rounded-lg border border-gray-600 px-4 py-2 text-sm text-gray-300 hover:bg-white/5 transition-colors"
                     >
                       Cancel

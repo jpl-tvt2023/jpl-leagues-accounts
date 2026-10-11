@@ -46,11 +46,14 @@ function b64urlDecode(encoded: string): string {
 }
 
 /**
- * Who a session belongs to.
- * - "superadmin" | "admin" | "user": a person — `id` is a users.id. "user" is a player.
- * - "team": a legacy-league team login — `id` is a teams.id.
+ * Who a session belongs to: always a person — `id` is a users.id. "user" is a player.
+ *
+ * Everyone signs in with Google. The old team logins (`type: "team"`, `id` a teams.id) are gone,
+ * and verifySession refuses any token still carrying that type.
  */
-export type SessionType = "superadmin" | "admin" | "user" | "team";
+export type SessionType = "superadmin" | "admin" | "user";
+
+const SESSION_TYPES: ReadonlySet<string> = new Set<SessionType>(["superadmin", "admin", "user"]);
 
 export interface SessionPayload {
   id: string;
@@ -64,9 +67,9 @@ export interface SessionPayload {
   sv?: number;
 }
 
-/** True for sessions that identify a person (a users row) rather than a legacy team login. */
+/** True for sessions that identify a person (a users row). Every verified session does. */
 export function isPersonSession(session: Pick<SessionPayload, "type">): boolean {
-  return session.type === "user" || session.type === "admin" || session.type === "superadmin";
+  return SESSION_TYPES.has(session.type);
 }
 
 /** Create a signed session token encoding id, type, expiration and (for people) session version. */
@@ -97,6 +100,7 @@ export async function verifySession(token: string): Promise<SessionPayload | nul
   try {
     const payload: SessionPayload = JSON.parse(b64urlDecode(encoded));
     if (!payload.id || !payload.type || !payload.exp) return null;
+    if (!isPersonSession(payload)) return null; // e.g. an old team-login token
     if (payload.exp < Math.floor(Date.now() / 1000)) return null;
     return payload;
   } catch {

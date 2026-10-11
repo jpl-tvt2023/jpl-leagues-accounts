@@ -27,7 +27,7 @@ import {
 let league: LeagueRef;
 
 async function card(request: APIRequestContext, gw?: number) {
-  const url = gw ? `/api/team/dashboard/pl-fixture?gw=${gw}` : "/api/team/dashboard/pl-fixture";
+  const url = gw ? `/api/team/dashboard/pl-fixture?gw=${gw}&league=${league.slug}` : `/api/team/dashboard/pl-fixture?league=${league.slug}`;
   const res = await request.get(url);
   expect(res.ok(), `pl-fixture returned ${res.status()}`).toBeTruthy();
   return res.json();
@@ -52,7 +52,7 @@ test.describe.serial("dashboard PL fixture card (TVT)", () => {
   });
 
   test("requires a team session", async ({ request }) => {
-    const res = await request.get("/api/team/dashboard/pl-fixture", { failOnStatusCode: false });
+    const res = await request.get(`/api/team/dashboard/pl-fixture?league=${league.slug}`, { failOnStatusCode: false });
     expect(res.status()).toBe(401);
   });
 

@@ -24,7 +24,6 @@ export type JoinState =
   | { kind: "invalid"; message: string; card?: JoinCard }
   | { kind: "in-app"; card: JoinCard; inApp: InAppBrowserInfo }
   | { kind: "signed-out"; card: JoinCard }
-  | { kind: "team-login"; card: JoinCard }
   | { kind: "needs-username"; card: JoinCard }
   | { kind: "member"; card: JoinCard; href: string }
   | { kind: "pending"; card: JoinCard }
@@ -66,7 +65,7 @@ export function JoinClient({ token, state, selfPath, selfUrl }: { token: string;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-900 via-purple-900 to-slate-900">
-      <AppNav context={{ surface: "public", page: "signin" }} activeKey="" brandHref="/" brandLabel="JPL Sports" title="Join a league" />
+      <AppNav context={{ surface: "public", page: "signin" }} activeKey="" brandHref="/" brandLabel="JPL India" title="Join a league" />
       <main className="mx-auto max-w-md px-4 sm:px-6 py-10 sm:py-16">
         {card && (
           <section aria-labelledby="join-league" className="mb-6 rounded-2xl border border-white/10 bg-white/5 p-5 sm:p-6 text-center backdrop-blur">
@@ -97,15 +96,6 @@ export function JoinClient({ token, state, selfPath, selfUrl }: { token: string;
             <>
               <GoogleSignInButton next={selfPath} label="Continue with Google to join" />
               <p className="text-center text-xs text-gray-500">New here? Signing in creates your account — you&apos;ll pick a username next.</p>
-            </>
-          )}
-
-          {kind === "team-login" && (
-            <>
-              <p className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-gray-300">
-                You&apos;re signed in with a team ID. Leagues you join by invite use your own Google account instead — your team-ID login stays signed in too.
-              </p>
-              <a href={`/api/auth/google?next=${encodeURIComponent(selfPath)}`} className={PRIMARY}>Continue with Google</a>
             </>
           )}
 

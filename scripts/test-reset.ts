@@ -8,7 +8,8 @@
  *    dev.db). This is the only safety net between this script and prod.
  * 2. Deletes the existing SQLite file (and -shm / -wal sidecars).
  * 3. Runs `drizzle-kit push` against the empty file to recreate every table.
- * 4. Seeds one superadmin user that every spec reuses for setup.
+ * 4. Seeds one superadmin user that every spec reuses for setup. Specs sign in as it through the
+ *    test-only POST /api/test-auth/signin — nobody has a password.
  * 5. Flushes the test Redis, if one is configured (see flushTestRedis).
  */
 
@@ -20,14 +21,12 @@ import { createClient } from "@libsql/client";
 import { Redis } from "@upstash/redis";
 import { drizzle } from "drizzle-orm/libsql";
 import { eq } from "drizzle-orm";
-import bcrypt from "bcryptjs";
 import { randomUUID } from "node:crypto";
 import { users } from "../src/lib/db/schema";
 
 const TEST_SUPERADMIN = {
   email: "test-super@jpl.local",
   name: "Test Superadmin",
-  password: "testpass1234",
 };
 
 function guardDatabaseUrl(): string {
@@ -95,16 +94,16 @@ async function seedSuperadmin(url: string) {
     return;
   }
 
-  const hashed = await bcrypt.hash(TEST_SUPERADMIN.password, 10);
   await db.insert(users).values({
     id: randomUUID(),
     email: TEST_SUPERADMIN.email,
     name: TEST_SUPERADMIN.name,
-    password: hashed,
+    password: "",
     role: "superadmin",
     mustChangePassword: false,
+    username: "testsuper",
   });
-  console.log(`  ✓ seeded superadmin (${TEST_SUPERADMIN.email} / ${TEST_SUPERADMIN.password})`);
+  console.log(`  ✓ seeded superadmin (${TEST_SUPERADMIN.email})`);
 }
 
 /**
