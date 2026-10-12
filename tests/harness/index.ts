@@ -12,3 +12,4 @@ export * from "./gameweek";
 export * from "./scores";
 export * from "./auction";
 export * from "./assertions";
+export * from "./cricket";

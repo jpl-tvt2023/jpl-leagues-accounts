@@ -80,6 +80,7 @@ const ICON_BY_KEY: Record<string, NavIconName> = {
   "admin-leagues": "leagues",
   "admin-help": "help",
   superadmin: "admin",
+  "superadmin-cricket": "players",
   "superadmin-help": "help",
   "platform-admin": "admin",
   leagues: "leagues",
@@ -534,6 +535,7 @@ export function buildNavModel(ctx: NavContext, runtime: NavRuntime = {}): NavMod
             heading: "Platform",
             items: [
               { key: "superadmin", label: "Dashboard", href: "/superadmin" },
+              { key: "superadmin-cricket", label: "Cricket Data", href: "/superadmin/cricket" },
               { key: "superadmin-help", label: "Help", href: "/superadmin/help" },
             ],
           },
