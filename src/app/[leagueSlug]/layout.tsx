@@ -6,6 +6,8 @@ import { LeagueProvider, type LeagueInfo } from "@/lib/league-context";
 import { resolveViewerInLeague } from "@/lib/viewer";
 import { getFormatPalette, FPL_CLASSIC_FORMAT } from "@/lib/format-palette";
 import { DEFAULT_RELEASE_CYCLE_GWS, parseReleaseCycleGws } from "@/lib/formats/auction/cycle";
+import { isCricketFormat } from "@/lib/formats/registry";
+import { CricketRouteGuard } from "./_components/cricket/CricketRouteGuard";
 
 function parseEnabledChips(raw: string): string[] {
   try {
@@ -154,7 +156,9 @@ export default async function LeagueLayout({
 
   return (
     <LeagueProvider value={{ league, viewer }}>
-      <div className={`min-h-screen ${palette.pageBg}`}>{children}</div>
+      <div className={`min-h-screen ${palette.pageBg}`}>
+        {isCricketFormat(league.format) ? <CricketRouteGuard slug={league.slug}>{children}</CricketRouteGuard> : children}
+      </div>
     </LeagueProvider>
   );
 }

@@ -10,13 +10,13 @@ assertSafeDbTarget(direct ?? process.env.TURSO_CONNECTION_URL ?? "");
 export default defineConfig(
   isFile
     ? {
-        schema: "./src/lib/db/schema.ts",
+        schema: ["./src/lib/db/schema.ts", "./src/lib/db/schema-cricket.ts"],
         out: "./drizzle",
         dialect: "sqlite",
         dbCredentials: { url: direct! },
       }
     : {
-        schema: "./src/lib/db/schema.ts",
+        schema: ["./src/lib/db/schema.ts", "./src/lib/db/schema-cricket.ts"],
         out: "./drizzle",
         dialect: "turso",
         dbCredentials: {

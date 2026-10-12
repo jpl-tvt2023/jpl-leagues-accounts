@@ -15,6 +15,7 @@ import { resolveFplChipStatuses } from "@/lib/fpl-league/chip-status-map";
 import { tvtChipWasteReasonFor } from "@/lib/formats/tvt/fpl-chip-clash";
 import { chipName as tvtChipName } from "@/lib/formats/tvt/chip-labels";
 import { computeCaptainCap, computeCaptainCheckLimit } from "@/lib/captains";
+import { refuseIfNoGameweeks } from "@/lib/formats/route-guards";
 
 interface RouteParams {
   params: Promise<{ gw: string }>;
@@ -322,6 +323,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         { status: 404 }
       );
     }
+    const noGameweeks = await refuseIfNoGameweeks(leagueId);
+    if (noGameweeks) return noGameweeks;
     const gwWhere = and(eq(gameweeks.number, gameweekNumber), eq(gameweeks.leagueId, leagueId));
 
     const gwList = await db.query.gameweeks.findMany({

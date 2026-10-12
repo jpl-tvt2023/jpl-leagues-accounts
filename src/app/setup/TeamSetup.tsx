@@ -19,6 +19,8 @@ interface SetupInfo {
   needsSetup: boolean;
   role: "owner" | "member";
   leagueFormat: string;
+  /** What setup asks for (src/lib/formats/registry.ts). "name-only" = auction-style: just the team name. */
+  setupMode?: "fpl-players" | "name-only" | "none";
   clubAuctionEnabled: boolean;
   memberCount: number;
   maxMembers: number;
@@ -75,11 +77,13 @@ export function TeamSetup({ leagueSlug }: { leagueSlug: string }) {
   const [teamInfo, setTeamInfo] = useState<TeamInfo | null>(null);
 
   const isAuction = info?.leagueFormat === "auction";
+  // Auction-style formats (FPL auction, cricket) ask only for a name — no FPL team, no partner.
+  const isNameOnly = info?.setupMode ? info.setupMode === "name-only" : isAuction;
   const hideTeamName = isAuction && !!info?.clubAuctionEnabled;
   const isOwner = info?.role === "owner";
   // The owner's steps: name the team, add yourself, then bring in your partner (unless they're
   // already on the team). A partner only adds themselves; auction is the name alone.
-  const steps: Step[] = !info ? ["team"] : isAuction ? ["team"] : !isOwner ? ["me"] : info.memberCount < info.maxMembers ? ["team", "me", "partner"] : ["team", "me"];
+  const steps: Step[] = !info ? ["team"] : isNameOnly ? ["team"] : !isOwner ? ["me"] : info.memberCount < info.maxMembers ? ["team", "me", "partner"] : ["team", "me"];
   const stepIndex = Math.max(0, steps.indexOf(step));
 
   /** The FPL team to pick for a slot choice: the slot's own, if it's one of yours; else your primary. */
@@ -109,7 +113,7 @@ export function TeamSetup({ leagueSlug }: { leagueSlug: string }) {
         }
         setInfo(s);
         setTeamName(s.currentName);
-        setStep(s.leagueFormat !== "auction" && s.role !== "owner" ? "me" : "team");
+        setStep((s.setupMode ? s.setupMode !== "name-only" : s.leagueFormat !== "auction") && s.role !== "owner" ? "me" : "team");
         setFplTeams(s.fplTeams);
         // Which slot is yours: an unlinked one playing as one of your FPL teams; else a new one if
         // there's room; else the first unlinked one (e.g. the details your owner entered for you).
@@ -202,11 +206,11 @@ export function TeamSetup({ leagueSlug }: { leagueSlug: string }) {
 
   /** Save this person's part: auction name, or (TVT / Continental) your FPL team (+ team name if you own it). */
   const handleSave = async () => {
-    if (isAuction ? !validateTeamStep() : !validateMeStep()) return;
+    if (isNameOnly ? !validateTeamStep() : !validateMeStep()) return;
 
     setIsSubmitting(true);
     try {
-      const body = isAuction
+      const body = isNameOnly
         ? { teamName: hideTeamName ? info?.currentName : teamName }
         : { teamName: isOwner ? teamName : undefined, fplId: pickedFpl, slotId: slotChoice === NEW_SLOT ? null : slotChoice };
       const res = await fetch(withLeague("/api/team/setup"), {
@@ -243,7 +247,7 @@ export function TeamSetup({ leagueSlug }: { leagueSlug: string }) {
   // Which unlinked slot is yours: only asked when there's a real choice.
   const slotOptions = info.mySlot ? [] : [...info.openSlots.map((s) => ({ id: s.id, label: `${s.name} · FPL ${s.fplId}` })), ...(info.canAddSlot ? [{ id: NEW_SLOT, label: "Neither, I'm new to this team" }] : [])];
   const takingOverSlot = !info.mySlot && slotOptions.length === 1 && slotChoice !== NEW_SLOT ? info.openSlots.find((s) => s.id === slotChoice) : null;
-  const isLastInputStep = isAuction || step === "me";
+  const isLastInputStep = isNameOnly || step === "me";
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-900 via-purple-900 to-slate-900">
@@ -252,10 +256,10 @@ export function TeamSetup({ leagueSlug }: { leagueSlug: string }) {
         {/* Header */}
         <div className="text-center mb-6 sm:mb-8">
           <h1 className="text-xl sm:text-3xl font-bold text-white mb-2">
-            {!isOwner && !isAuction ? `Join ${info.currentName}` : "Complete Your Profile"}
+            {!isOwner && !isNameOnly ? `Join ${info.currentName}` : "Complete Your Profile"}
           </h1>
           <p className="text-gray-400 text-xs sm:text-sm">
-            {isAuction
+            {isNameOnly
               ? "Step 1 of 1 — Manager profile"
               : !isOwner
                 ? `${info.ownerName ? `With ${info.ownerName} · ` : ""}pick the FPL team you'll play with`

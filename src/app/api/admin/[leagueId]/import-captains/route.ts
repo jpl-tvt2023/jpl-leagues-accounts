@@ -3,6 +3,7 @@ import { db, teams, players, gameweeks, gameweekCaptains, leagues } from "@/lib/
 import { eq, and, inArray, sql } from "drizzle-orm";
 import { generateId } from "@/lib/id";
 import { getAuthorizedLeagueId } from "@/lib/league-auth";
+import { refuseIfNoGameweeks } from "@/lib/formats/route-guards";
 import { invalidateLeaguePageCache } from "@/lib/fpl-cache";
 import { computeCaptainCap, computeCaptainCheckLimit } from "@/lib/captains";
 
@@ -26,6 +27,8 @@ export async function POST(request: NextRequest) {
   try {
     const leagueId = await getAuthorizedLeagueId(request);
     if (!leagueId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const noGameweeks = await refuseIfNoGameweeks(leagueId);
+    if (noGameweeks) return noGameweeks;
 
     const body = await request.json();
     const { captains: captainRows } = body as { captains: CaptainRow[] };
@@ -275,6 +278,8 @@ export async function GET(request: NextRequest) {
   try {
     const leagueId = await getAuthorizedLeagueId(request);
     if (!leagueId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const noGameweeks = await refuseIfNoGameweeks(leagueId);
+    if (noGameweeks) return noGameweeks;
 
     // Get count of captain entries per gameweek — scoped to this league
     const allGameweeks = await db.select({ id: gameweeks.id, number: gameweeks.number })

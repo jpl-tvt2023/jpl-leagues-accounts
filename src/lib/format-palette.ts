@@ -1,7 +1,8 @@
 /**
  * Per-format visual palette tokens.
  *
- * The 5 league variants (TVT-8, TVT-16, TVT-32, Continental Championship, Auction) each get
+ * The league variants (TVT-8, TVT-16, TVT-32, Continental Championship, Auction, FPL Classic,
+ * Classic Cricket Auction) each get
  * their own palette so users immediately see which kind of league they're in
  * without reading the slug. TVT variants share a purple→indigo→violet hue
  * family with subtle size-shift; TC and Auction get distinct hues.
@@ -11,25 +12,22 @@
  * surfaces just means consuming the hook, no per-component branching.
  */
 
-/**
- * Canonical stored value of the JPL Continental Championship format.
- * Imported wherever the format is compared so the token lives in one place.
- */
-export const CONTINENTAL_FORMAT = "continental-championship";
+import { CONTINENTAL_FORMAT, CRICKET_AUCTION_FORMAT, FPL_CLASSIC_FORMAT } from "./formats/registry";
 
 /**
- * Canonical stored value of the public FPL Classic format.
+ * Canonical stored format values. They are defined in `./formats/registry` and re-exported here
+ * because most callers already import them from this file.
  *
- * Named "fpl-classic", not "classic" — `_components/standings/ClassicStandings.tsx` and
- * `_components/playoffs/ClassicPlayoffs.tsx` are the TVT/Continental components. A format
+ * FPL Classic is named "fpl-classic", not "classic" — `_components/standings/ClassicStandings.tsx`
+ * and `_components/playoffs/ClassicPlayoffs.tsx` are the TVT/Continental components. A format
  * literally named `classic` that must NOT render `ClassicStandings` is a trap the next reader
  * would fall straight into.
  */
-export const FPL_CLASSIC_FORMAT = "fpl-classic";
+export { CONTINENTAL_FORMAT, FPL_CLASSIC_FORMAT };
 
 export type FormatPalette = {
   /** Hue family — useful for ad-hoc class composition (e.g. `text-${family}-300`). */
-  family: "purple" | "indigo" | "violet" | "amber" | "emerald" | "sky";
+  family: "purple" | "indigo" | "violet" | "amber" | "emerald" | "sky" | "green";
   /** `from-… to-…` Tailwind classes for accent gradients (e.g. league name). */
   accentGradient: string;
   /** Soft surface tint suitable for cards/sections tied to this format. */
@@ -115,6 +113,19 @@ const FPL_CLASSIC_PALETTE: FormatPalette = {
   pageBg: "bg-gradient-to-b from-slate-900 via-sky-900/40 to-slate-900",
 };
 
+// Green, for the pitch. The FPL auction already owns emerald, and a cricket league should never be
+// mistaken for a football one at a glance.
+const CRICKET_AUCTION_PALETTE: FormatPalette = {
+  family: "green",
+  accentGradient: "from-lime-300 to-green-400",
+  surfaceTint: "bg-green-500/5",
+  borderTint: "border-green-500/30",
+  badgeBg: "bg-green-500/20",
+  badgeText: "text-green-200",
+  label: "CCA",
+  pageBg: "bg-gradient-to-b from-slate-900 via-green-900/40 to-slate-900",
+};
+
 const DEFAULT_PALETTE: FormatPalette = TVT_32_PALETTE;
 
 /**
@@ -125,6 +136,7 @@ export function getFormatPalette(format: string | null | undefined, teamSize: nu
   if (format === "auction") return AUCTION_PALETTE;
   if (format === CONTINENTAL_FORMAT) return TC_PALETTE;
   if (format === FPL_CLASSIC_FORMAT) return FPL_CLASSIC_PALETTE;
+  if (format === CRICKET_AUCTION_FORMAT) return CRICKET_AUCTION_PALETTE;
   if (format === "tvt") {
     if (teamSize === 8) return TVT_8_PALETTE;
     if (teamSize === 16) return TVT_16_PALETTE;

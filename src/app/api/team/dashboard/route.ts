@@ -5,6 +5,7 @@ import { eq, and, gt, asc, desc, or, inArray } from "drizzle-orm";
 import { fplEntryUrl } from "@/lib/fpl-links";
 import { fetchBootstrapData } from "@/lib/fpl";
 import { shouldSyncDeadlines } from "@/lib/fpl-cache";
+import { isCricketFormat } from "@/lib/formats/registry";
 import { getTop2FromGroup, CHIP_GW1_POSITION_REASON } from "@/lib/formats/tvt/chip-validation";
 import { getChipSet } from "@/lib/formats/tvt/scoring";
 import { chipsUsedInSet } from "@/lib/formats/tvt/chip-usage";
@@ -95,6 +96,12 @@ export async function GET(request: NextRequest) {
     // ===== Auction format: separate dashboard payload =====
     if (leagueFormat === "auction" && teamLeagueId) {
       return await getAuctionDashboard(teamId, teamLeagueId, leagueSlug);
+    }
+
+    // Cricket leagues have no FPL gameweeks and their own dashboard (/[slug]/cricket/dashboard).
+    // Stopping here also keeps the FPL deadline sync below from ever touching them.
+    if (isCricketFormat(leagueFormat)) {
+      return NextResponse.json({ error: "Cricket leagues use the cricket dashboard" }, { status: 400 });
     }
 
     if (teamLeagueId) {

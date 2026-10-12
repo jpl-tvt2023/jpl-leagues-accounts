@@ -1,6 +1,7 @@
 import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
-import * as schema from "./schema";
+import * as fplSchema from "./schema";
+import * as cricketSchema from "./schema-cricket";
 import { assertSafeDbTarget } from "./target-guard";
 
 function resolveDbConfig(): { url: string; authToken?: string } {
@@ -29,6 +30,10 @@ const client = createClient(dbConfig);
 // query executes.
 export const fkReady = client.execute("PRAGMA foreign_keys = ON");
 
+// Cricket tables live in their own file (schema-cricket.ts) so the cricket module stays separate;
+// the client sees both.
+const schema = { ...fplSchema, ...cricketSchema };
 export const db = drizzle(client, { schema });
 
 export * from "./schema";
+export * from "./schema-cricket";

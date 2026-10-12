@@ -4,6 +4,7 @@ import { eq, inArray, or } from "drizzle-orm";
 import { playoffTies, challengerSurvivalEntries } from "@/lib/db/schema";
 import { invalidateLeaguePageCache } from "@/lib/fpl-cache";
 import { getAuthorizedLeagueId } from "@/lib/league-auth";
+import { refuseIfNoGameweeks } from "@/lib/formats/route-guards";
 
 /**
  * POST /api/admin/[leagueId]/reset-season { confirm }
@@ -14,6 +15,8 @@ export async function POST(request: NextRequest) {
   try {
     const leagueId = await getAuthorizedLeagueId(request);
     if (!leagueId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const noGameweeks = await refuseIfNoGameweeks(leagueId);
+    if (noGameweeks) return noGameweeks;
 
     const sessionId = request.headers.get("x-session-id");
     if (!sessionId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

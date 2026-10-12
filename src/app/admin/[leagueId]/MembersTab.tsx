@@ -102,7 +102,7 @@ export function MembersTab({ leagueId }: { leagueId: string }) {
   if (!roster) return <p className="text-gray-400">Loading members…</p>;
 
   const inviteUrl = roster.invite ? `${window.location.origin}/join/${roster.invite.token}` : null;
-  // People per team for this format, from the server (lib/membership.ts MAX_TEAM_MEMBERS).
+  // People per team for this format, from the server (maxMembersFor in lib/membership.ts).
   const maxMembers = roster.maxMembers ?? 1;
   const claimed = roster.teams.filter((t) => t.state !== "open").length;
 

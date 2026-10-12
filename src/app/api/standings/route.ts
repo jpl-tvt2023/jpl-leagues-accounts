@@ -13,6 +13,7 @@ import { getActiveFplGameweek } from "@/lib/fpl/event-status";
 import { applyLiveFixtures } from "@/lib/standings/live-overlay";
 import { resolveLiveStandingsContext } from "@/lib/standings/live-context";
 import { getInFlightGameweekNumber } from "@/lib/gameweeks/in-flight";
+import { isCricketFormat } from "@/lib/formats/registry";
 
 interface ChipTooltipEntry {
   label: string;      // "WW1", "DP1", "CC1", "WW2", "DP2", "CC2"
@@ -99,6 +100,11 @@ export async function GET(request: NextRequest) {
     const playoffStartGw = league[0].playoffStartGw ?? 31;
     const leagueTeamSize = league[0].teamSize ?? 32;
     const leagueFormat = league[0].format ?? "tvt";
+    // Cricket standings come from /api/cricket/standings. Refuse here, before the cache read
+    // below, so a cricket league can never be computed (or cached) as TVT.
+    if (isCricketFormat(leagueFormat)) {
+      return NextResponse.json({ error: "Cricket leagues use /api/cricket/standings" }, { status: 400 });
+    }
     let leagueEnabledChips: string[] = ["D", "W", "C"];
     try { leagueEnabledChips = JSON.parse(league[0].enabledChips ?? '["D","W","C"]'); } catch { /* keep default */ }
     // Continental Championship runs PL all 38 GWs; TVT league stage ends at playoffStartGw - 1

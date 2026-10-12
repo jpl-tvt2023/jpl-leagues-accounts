@@ -25,16 +25,11 @@ import {
   type LeagueInvite,
 } from "@/lib/db";
 import { generateId } from "@/lib/id";
+import { formatCaps } from "@/lib/formats/registry";
 
-/** Most people per team, by format. TVT and Continental teams are two FPL managers. */
-export const MAX_TEAM_MEMBERS: Record<string, number> = {
-  tvt: 2,
-  "continental-championship": 2,
-  auction: 1,
-};
-
+/** Most people per team, by format (from the format registry). TVT and Continental teams are two FPL managers. */
 export function maxMembersFor(format: string): number {
-  return MAX_TEAM_MEMBERS[format] ?? 1;
+  return formatCaps(format).maxTeamMembers;
 }
 
 export const LEAGUE_INVITE_DAYS = 14;

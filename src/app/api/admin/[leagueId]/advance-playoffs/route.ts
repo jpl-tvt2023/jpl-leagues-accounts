@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { fixtures, playoffTies, gameweeks, gameweekCaptains, results, groups, challengerSurvivalEntries, leagues } from "@/lib/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { getAuthorizedLeagueId } from "@/lib/league-auth";
+import { refuseIfNoGameweeks } from "@/lib/formats/route-guards";
 import { generateId } from "@/lib/id";
 import { invalidateLeaguePageCache } from "@/lib/fpl-cache";
 
@@ -802,6 +803,8 @@ export async function advancePlayoffsImpl(
 export async function POST(request: NextRequest) {
   const leagueId = await getAuthorizedLeagueId(request);
   if (!leagueId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const noGameweeks = await refuseIfNoGameweeks(leagueId);
+  if (noGameweeks) return noGameweeks;
 
   let gwNumber: number | undefined;
   const queryGw = request.nextUrl.searchParams.get("gw");

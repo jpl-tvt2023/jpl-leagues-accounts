@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, leagues } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { getAuthorizedLeagueId } from "@/lib/league-auth";
+import { refuseIfNoGameweeks } from "@/lib/formats/route-guards";
 import {
   parseRestoreZip,
   loadRestoreSnapshot,
@@ -24,6 +25,8 @@ export const maxDuration = 60;
 export async function POST(request: NextRequest) {
   const leagueId = await getAuthorizedLeagueId(request);
   if (!leagueId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const noGameweeks = await refuseIfNoGameweeks(leagueId);
+  if (noGameweeks) return noGameweeks;
 
   const [league] = await db
     .select({ id: leagues.id, format: leagues.format })
