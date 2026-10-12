@@ -11,14 +11,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, leagues } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { getAuthorizedLeagueId } from "@/lib/league-auth";
-import { refuseIfNoGameweeks } from "@/lib/formats/route-guards";
+import { refuseIfNoGameweeks } from "@/lib/sports/route-guards";
 import {
   parseRestoreZip,
   loadRestoreSnapshot,
   restoreFixtures,
   RestoreGuardError,
   type RestorePayload,
-} from "@/lib/backup/restore-tvt";
+} from "@/lib/sports/fpl/backup/restore-tvt";
 
 export const maxDuration = 60;
 

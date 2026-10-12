@@ -10,7 +10,7 @@
  */
 import { db } from "@/lib/db";
 import { leagues, teams, auctionSessions, auctionClubOwnership } from "@/lib/db/schema";
-import { advanceClubNominator, setClubNominationDeadline, getClubLessTeamIds } from "@/lib/formats/auction/club-auction";
+import { advanceClubNominator, setClubNominationDeadline, getClubLessTeamIds } from "@/lib/sports/fpl/formats/auction/club-auction";
 import { eq } from "drizzle-orm";
 
 const LEAGUE_ID = "zz-verify-club-ring";

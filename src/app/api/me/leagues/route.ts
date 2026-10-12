@@ -4,7 +4,7 @@ import { db, joinRequests, leagueAdmins, leagues, teamMembers, teams } from "@/l
 import { getRequestPerson } from "@/lib/accounts";
 import { jsonNoStore } from "@/lib/http/no-store";
 import { needsSetup } from "@/lib/membership";
-import { myClassicEntries } from "@/lib/fpl-classic/my-entries";
+import { myClassicEntries } from "@/lib/sports/fpl/formats/fpl-classic/my-entries";
 
 export const dynamic = "force-dynamic";
 

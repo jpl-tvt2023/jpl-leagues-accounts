@@ -1,7 +1,7 @@
 "use client";
 
-import type { MatchCenterSide } from "@/lib/match-center/load";
-import type { SheetComparison, SheetRow } from "@/lib/match-center/team-sheet";
+import type { MatchCenterSide } from "@/lib/sports/fpl/match-center/load";
+import type { SheetComparison, SheetRow } from "@/lib/sports/fpl/match-center/team-sheet";
 import { PlayerRow, PlayerRowHeader, type RowComparison } from "./PlayerRow";
 
 /**

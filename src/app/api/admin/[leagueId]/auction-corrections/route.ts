@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, auctionBids, auctionOwnership, auctionSessions, teams } from "@/lib/db";
 import { eq, and, sql } from "drizzle-orm";
 import { getAuthorizedLeagueId } from "@/lib/league-auth";
-import { logTurnEvent } from "@/lib/formats/auction/resolve-bid";
+import { logTurnEvent } from "@/lib/sports/fpl/formats/auction/resolve-bid";
 
 /** Actions that mutate live nomination-turn state, and therefore require a paused session. */
 const TURN_ACTIONS = new Set(["cancel-nomination", "grant-turn", "dequeue-makeup", "set-nominator"]);

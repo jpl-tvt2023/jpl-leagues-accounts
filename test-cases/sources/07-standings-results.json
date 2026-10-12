@@ -55,7 +55,7 @@
         "soThat": "the table matches the authoritative GW-processor values across all 38 GWs",
         "sourceRefs": [
           "jpl-leagues/src/app/api/standings/route.ts:539-543",
-          "jpl-leagues/src/lib/formats/continental-championship/process-gameweek.ts:333-346"
+          "jpl-leagues/src/lib/sports/fpl/formats/continental-championship/process-gameweek.ts:333-346"
         ]
       },
       {
@@ -73,7 +73,7 @@
         "iWant": "standings ranked by cumulative total points with squad value (ascending) and purse (descending) as tie-breakers",
         "soThat": "lean, well-managed squads outrank bloated ones on equal points",
         "sourceRefs": [
-          "jpl-leagues/src/lib/formats/auction/standings.ts:82-92"
+          "jpl-leagues/src/lib/sports/fpl/formats/auction/standings.ts:82-92"
         ]
       },
       {
@@ -82,7 +82,7 @@
         "iWant": "per-GW history showing raw points, synergy bonus, club-result bonus, rank and payout",
         "soThat": "I can audit how my purse changed week by week",
         "sourceRefs": [
-          "jpl-leagues/src/lib/formats/auction/standings.ts:42-63",
+          "jpl-leagues/src/lib/sports/fpl/formats/auction/standings.ts:42-63",
           "jpl-leagues/src/app/api/standings/route.ts:153-178"
         ]
       },
@@ -124,7 +124,7 @@
         "sourceRefs": [
           "jpl-leagues/src/app/api/standings/route.ts:102-108",
           "jpl-leagues/src/app/api/standings/route.ts:673-679",
-          "jpl-leagues/src/lib/fpl-cache.ts:363-378"
+          "jpl-leagues/src/lib/sports/fpl/cache.ts:363-378"
         ]
       }
     ],
@@ -181,7 +181,7 @@
         "rule": "JPL Continental Championship `leaguePoints` is read directly from `teams.leaguePoints` (stored authoritatively by `processContinentalChampionshipGameweek`); the standings route does NOT recompute it.",
         "sourceRefs": [
           "jpl-leagues/src/app/api/standings/route.ts:541-543",
-          "jpl-leagues/src/lib/formats/continental-championship/process-gameweek.ts:333-346"
+          "jpl-leagues/src/lib/sports/fpl/formats/continental-championship/process-gameweek.ts:333-346"
         ]
       },
       {
@@ -230,10 +230,10 @@
       },
       {
         "id": "BR-STAND-014",
-        "rule": "GET /api/standings sorts teams within each group using the canonical TVT 4-tier tiebreaker: 1) Overall Points (leaguePoints) DESC, 2) Max Wins DESC, 3) Head-to-Head match points DESC (the points each team earned against the other using W=2/D=1/L=0), 4) Bonus Points DESC. Matches the spec at src/lib/formats/tvt/scoring.ts:215-246. The previously-used pointsFor and cbpPoints tiers are no longer part of the sort.",
+        "rule": "GET /api/standings sorts teams within each group using the canonical TVT 4-tier tiebreaker: 1) Overall Points (leaguePoints) DESC, 2) Max Wins DESC, 3) Head-to-Head match points DESC (the points each team earned against the other using W=2/D=1/L=0), 4) Bonus Points DESC. Matches the spec at src/lib/sports/fpl/formats/tvt/scoring.ts:215-246. The previously-used pointsFor and cbpPoints tiers are no longer part of the sort.",
         "sourceRefs": [
           "src/app/api/standings/route.ts:626-660",
-          "src/lib/formats/tvt/scoring.ts:215-246"
+          "src/lib/sports/fpl/formats/tvt/scoring.ts:215-246"
         ]
       },
       {
@@ -339,7 +339,7 @@
         "id": "BR-STAND-028",
         "rule": "JPL Auction standings: ranking is `totalPoints DESC` → `squadValue ASC` (lower wins) → `purse DESC` (higher wins); ranks are 1-based, no groups.",
         "sourceRefs": [
-          "jpl-leagues/src/lib/formats/auction/standings.ts:82-92"
+          "jpl-leagues/src/lib/sports/fpl/formats/auction/standings.ts:82-92"
         ]
       },
       {
@@ -347,35 +347,35 @@
         "rule": "Auction `squadValue` is the sum of FMV of every actively-owned player, where FMV uses RAW points only (`rawPoints`, falling back to legacy `points`) — synergy bonus never compounds into FMV/squad value.",
         "sourceRefs": [
           "jpl-leagues/src/app/api/standings/route.ts:138-151",
-          "jpl-leagues/src/lib/formats/auction/economy.ts:62-69"
+          "jpl-leagues/src/lib/sports/fpl/formats/auction/economy.ts:62-69"
         ]
       },
       {
         "id": "BR-STAND-030",
         "rule": "Auction `totalPoints` for a team = `Σ rawPoints + Σ synergyBonus + Σ clubResultBonus` across all GWs the team has been scored.",
         "sourceRefs": [
-          "jpl-leagues/src/lib/formats/auction/standings.ts:48-51"
+          "jpl-leagues/src/lib/sports/fpl/formats/auction/standings.ts:48-51"
         ]
       },
       {
         "id": "BR-STAND-031",
         "rule": "Auction `previousRank`/`rankDelta` are computed using cumulative points through `maxGw - 1`, with the same secondary keys; teams with no GW history at `previousGw` get `previousRank=null` and `rankDelta=null`.",
         "sourceRefs": [
-          "jpl-leagues/src/lib/formats/auction/standings.ts:96-127"
+          "jpl-leagues/src/lib/sports/fpl/formats/auction/standings.ts:96-127"
         ]
       },
       {
         "id": "BR-STAND-032",
         "rule": "GW payout schedule: rank 1=£2.5M, 2=£2.1M, 3=£1.8M, 4=£1.6M, 5=£1.4M, 6=£1.2M, 7=£1.1M, 8=£1.0M, 9=£0.9M, 10=£0.8M; rank 11+ receives the £500K floor.",
         "sourceRefs": [
-          "jpl-leagues/src/lib/formats/auction/economy.ts:8-29"
+          "jpl-leagues/src/lib/sports/fpl/formats/auction/economy.ts:8-29"
         ]
       },
       {
         "id": "BR-STAND-033",
         "rule": "FMV appreciation tiers: 0–100 raw points → £20K/pt, 100–200 → £40K/pt, 200+ → £60K/pt; negative raw points are clamped to 0 before tier accumulation.",
         "sourceRefs": [
-          "jpl-leagues/src/lib/formats/auction/economy.ts:62-69"
+          "jpl-leagues/src/lib/sports/fpl/formats/auction/economy.ts:62-69"
         ]
       },
       {
@@ -440,7 +440,7 @@
         "id": "BR-STAND-042",
         "rule": "Cup-group standings tie-break (computed by `computeCupGroupStandings`): `cupGroupPoints DESC`, then goal-difference (GF − GA) DESC, then `goalFor` DESC. (Detailed cup-group rules deferred to module 09.)",
         "sourceRefs": [
-          "jpl-leagues/src/lib/formats/continental-championship/standings.ts:91-99"
+          "jpl-leagues/src/lib/sports/fpl/formats/continental-championship/standings.ts:91-99"
         ]
       }
     ],
@@ -770,13 +770,13 @@
       "status": "Fixed",
       "discoveredBy": "business-analyst",
       "discoveredDate": "2026-05-23",
-      "description": "The `/api/standings` route sorts teams by `leaguePoints DESC → pointsFor DESC → cbpPoints DESC` (src/app/api/standings/route.ts:616-620). However the TVT scoring spec at src/lib/formats/tvt/scoring.ts:215-246 defines the league-stage tiebreaker as 1) Overall Points, 2) Max Wins, 3) Head-to-Head, 4) Bonus Points. Neither `wins`, `headToHeadRecord`, nor `bonusPoints` are used by the standings sort. Two teams tied on league points and points-for will be ordered by chips+bonus, which can flip the documented ranking.",
+      "description": "The `/api/standings` route sorts teams by `leaguePoints DESC → pointsFor DESC → cbpPoints DESC` (src/app/api/standings/route.ts:616-620). However the TVT scoring spec at src/lib/sports/fpl/formats/tvt/scoring.ts:215-246 defines the league-stage tiebreaker as 1) Overall Points, 2) Max Wins, 3) Head-to-Head, 4) Bonus Points. Neither `wins`, `headToHeadRecord`, nor `bonusPoints` are used by the standings sort. Two teams tied on league points and points-for will be ordered by chips+bonus, which can flip the documented ranking.",
       "expectedBehaviour": "The sort should match `compareTiebreaker` in tvt/scoring.ts — after leaguePoints, break ties by max wins, then head-to-head record, then bonus points.",
       "actualBehaviour": "Sort uses `pointsFor` then `cbpPoints` and ignores wins, H2H, and (stored) bonus points entirely. The previous-GW snapshot sort at route.ts:459-463 has the same divergence.",
       "sourceRefs": [
         "jpl-leagues/src/app/api/standings/route.ts:616-620",
         "jpl-leagues/src/app/api/standings/route.ts:459-463",
-        "jpl-leagues/src/lib/formats/tvt/scoring.ts:215-246"
+        "jpl-leagues/src/lib/sports/fpl/formats/tvt/scoring.ts:215-246"
       ],
       "linkedBusinessRules": [
         "BR-STAND-014"
@@ -790,7 +790,7 @@
         "TC-STAND-023"
       ],
       "notes": "Options: (a) replace the standings sort with `compareTiebreaker` from tvt/scoring.ts (requires materialising W and H2H records here); (b) update the spec to match the simpler sort if product owner approves. Risk: any cup-tied podium decided by current sort may be product-incorrect. Cross-check with playoffs.ts which uses its own `getGroupStandings`. [DEV] Self-verified: tsc clean. [QA-VERIFIED]: 2026-05-27 — pinning TC(s) inverted. [BA-UPDATED]: 2026-05-27 — BR/AC text refreshed.",
-      "resolution": "Standings sort now uses the canonical 4-tier TVT tiebreaker from src/lib/formats/tvt/scoring.ts:215-246: leaguePoints DESC -> wins DESC -> head-to-head match points DESC -> bonusPoints DESC. Each TeamStanding now carries a `headToHeadRecord: Record<opponentTeamId, matchPts>` built during the fixture loop (W=2, D=1, L=0 against each opponent). The field is internal-only — toResponseRow strips it before serialization so the public API shape is unchanged. Replaces the previous (leaguePoints, pointsFor, cbpPoints) sort that diverged from the documented rule.",
+      "resolution": "Standings sort now uses the canonical 4-tier TVT tiebreaker from src/lib/sports/fpl/formats/tvt/scoring.ts:215-246: leaguePoints DESC -> wins DESC -> head-to-head match points DESC -> bonusPoints DESC. Each TeamStanding now carries a `headToHeadRecord: Record<opponentTeamId, matchPts>` built during the fixture loop (W=2, D=1, L=0 against each opponent). The field is internal-only — toResponseRow strips it before serialization so the public API shape is unchanged. Replaces the previous (leaguePoints, pointsFor, cbpPoints) sort that diverged from the documented rule.",
       "resolutionDate": "2026-05-27"
     },
     {
@@ -828,13 +828,13 @@
       "status": "Fixed",
       "discoveredBy": "business-analyst",
       "discoveredDate": "2026-05-23",
-      "description": "`getCachedStandings`/`setCachedStandings` use the key `standings:v2:{leagueId}` (src/lib/fpl-cache.ts:365-378). The standings route applies the `group` query param AFTER the cache lookup (src/app/api/standings/route.ts:102-108 vs 332-335), so a payload cached from an unfiltered request is returned verbatim to a caller asking for `?group=B`, and vice-versa. The cache also does not key on `leagueSlug` vs `leagueId` aliasing.",
+      "description": "`getCachedStandings`/`setCachedStandings` use the key `standings:v2:{leagueId}` (src/lib/sports/fpl/cache.ts:365-378). The standings route applies the `group` query param AFTER the cache lookup (src/app/api/standings/route.ts:102-108 vs 332-335), so a payload cached from an unfiltered request is returned verbatim to a caller asking for `?group=B`, and vice-versa. The cache also does not key on `leagueSlug` vs `leagueId` aliasing.",
       "expectedBehaviour": "Either skip the cache when a `group` filter is present, or include the group token in the cache key (`standings:v2:{leagueId}:group=B`).",
       "actualBehaviour": "First requester wins the cache slot; subsequent requesters with different `group` filters receive the wrong slice until TTL expiry.",
       "sourceRefs": [
         "jpl-leagues/src/app/api/standings/route.ts:102-108",
         "jpl-leagues/src/app/api/standings/route.ts:332-335",
-        "jpl-leagues/src/lib/fpl-cache.ts:363-378"
+        "jpl-leagues/src/lib/sports/fpl/cache.ts:363-378"
       ],
       "linkedBusinessRules": [
         "BR-STAND-038"

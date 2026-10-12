@@ -12,7 +12,7 @@
  * surfaces just means consuming the hook, no per-component branching.
  */
 
-import { CONTINENTAL_FORMAT, CRICKET_AUCTION_FORMAT, FPL_CLASSIC_FORMAT } from "./formats/registry";
+import { CONTINENTAL_FORMAT, CRICKET_AUCTION_FORMAT, FPL_CLASSIC_FORMAT } from "./sports/registry";
 
 /**
  * Canonical stored format values. They are defined in `./formats/registry` and re-exported here

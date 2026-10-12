@@ -25,7 +25,7 @@ import {
   type LeagueInvite,
 } from "@/lib/db";
 import { generateId } from "@/lib/id";
-import { formatCaps } from "@/lib/formats/registry";
+import { formatCaps } from "@/lib/sports/registry";
 
 /** Most people per team, by format (from the format registry). TVT and Continental teams are two FPL managers. */
 export function maxMembersFor(format: string): number {

@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, users, teams, players, gameweeks, fixtures, results, gameweekCaptains, gameweekChips, auditLogs, leagues } from "@/lib/db";
 import { eq, inArray, or } from "drizzle-orm";
 import { playoffTies, challengerSurvivalEntries } from "@/lib/db/schema";
-import { invalidateLeaguePageCache } from "@/lib/fpl-cache";
+import { invalidateLeaguePageCache } from "@/lib/sports/fpl/cache";
 import { getAuthorizedLeagueId } from "@/lib/league-auth";
-import { refuseIfNoGameweeks } from "@/lib/formats/route-guards";
+import { refuseIfNoGameweeks } from "@/lib/sports/route-guards";
 
 /**
  * POST /api/admin/[leagueId]/reset-season { confirm }

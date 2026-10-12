@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useWishlist } from "@/hooks/useWishlist";
 import { WishlistList, type WishlistElement, type WishlistPlTeam } from "@/components/WishlistList";
-import { POSITION_LABELS, POSITION_ORDER } from "@/lib/fpl/positions";
+import { POSITION_LABELS, POSITION_ORDER } from "@/lib/sports/fpl/positions";
 import { formatCurrency } from "@/lib/format/currency";
 
 type BootstrapElement = WishlistElement & { total_points: number };

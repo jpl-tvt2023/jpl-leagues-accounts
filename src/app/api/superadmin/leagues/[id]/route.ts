@@ -8,9 +8,9 @@ import {
 } from "@/lib/db/schema";
 import { eq, inArray } from "drizzle-orm";
 import { isSuperAdmin } from "@/lib/privilege";
-import { invalidateLeaguePageCache } from "@/lib/fpl-cache";
-import { validateEnabledChipsArray } from "@/lib/formats/tvt/chip-validation";
-import { findEnabledChipsLock } from "@/lib/formats/tvt/enabled-chips-lock";
+import { invalidateLeaguePageCache } from "@/lib/sports/fpl/cache";
+import { validateEnabledChipsArray } from "@/lib/sports/fpl/formats/tvt/chip-validation";
+import { findEnabledChipsLock } from "@/lib/sports/fpl/formats/tvt/enabled-chips-lock";
 import { MembershipError, switchLeagueToGoogleSignIn } from "@/lib/membership";
 
 /**

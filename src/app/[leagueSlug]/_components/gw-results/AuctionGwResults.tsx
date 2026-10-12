@@ -6,10 +6,10 @@ import { LeagueNav } from "@/components/LeagueNav";
 import { LoadingScreen } from "@/components/LoadingScreen";
 import { useLeague } from "@/lib/league-context";
 import { TierChip } from "@/components/TierChip";
-import type { TeamClubOwnership } from "@/lib/teams/display-name";
-import { getTeamDisplayName } from "@/lib/teams/display-name";
+import type { TeamClubOwnership } from "@/lib/sports/fpl/teams/display-name";
+import { getTeamDisplayName } from "@/lib/sports/fpl/teams/display-name";
 import { formatPts } from "@/lib/format-points";
-import { normalizeClubSummary } from "@/lib/formats/auction/club-summary";
+import { normalizeClubSummary } from "@/lib/sports/fpl/formats/auction/club-summary";
 
 interface BreakdownPlayer {
   elementId: number;

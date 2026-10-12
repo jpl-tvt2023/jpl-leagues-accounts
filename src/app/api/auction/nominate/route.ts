@@ -7,12 +7,12 @@ import { generateId } from "@/lib/id";
 import {
   resolveExpiredBid,
   logTurnEvent,
-} from "@/lib/formats/auction/resolve-bid";
-import { calculatePurse } from "@/lib/formats/auction/economy";
-import { countsFromOwnership, validateAddPlayer } from "@/lib/formats/auction/squad-rules";
-import { ownerOfPlayer } from "@/lib/formats/auction/ownership";
-import { fetchElementInfo } from "@/lib/fpl";
-import { CLUB_AUCTION_SESSION_TYPE, nominateClub } from "@/lib/formats/auction/club-auction";
+} from "@/lib/sports/fpl/formats/auction/resolve-bid";
+import { calculatePurse } from "@/lib/sports/fpl/formats/auction/economy";
+import { countsFromOwnership, validateAddPlayer } from "@/lib/sports/fpl/formats/auction/squad-rules";
+import { ownerOfPlayer } from "@/lib/sports/fpl/formats/auction/ownership";
+import { fetchElementInfo } from "@/lib/sports/fpl/api";
+import { CLUB_AUCTION_SESSION_TYPE, nominateClub } from "@/lib/sports/fpl/formats/auction/club-auction";
 
 const DEFAULT_MIN_BID = 500_000; // 500K minimum starting bid
 

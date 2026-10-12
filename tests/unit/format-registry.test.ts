@@ -1,6 +1,6 @@
 /**
- * Format registry (src/lib/formats/registry.ts) and the cricket page redirects
- * (src/lib/cricket/routes.ts): what keeps a cricket league out of the FPL/TVT code paths.
+ * Format registry (src/lib/sports/registry.ts) and the cricket page redirects
+ * (src/lib/sports/cricket/routes.ts): what keeps a cricket league out of the FPL/TVT code paths.
  *
  * Run with: npm run test:unit
  */
@@ -10,13 +10,16 @@ import assert from "node:assert/strict";
 import {
   CRICKET_AUCTION_FORMAT,
   NON_GAMEWEEK_FORMATS,
+  SPORTS,
+  formatBelongsToSport,
   formatCaps,
   formatsForSport,
   isCricketFormat,
   isKnownFormat,
   usesGameweeks,
-} from "../../src/lib/formats/registry";
-import { cricketRedirectTarget } from "../../src/lib/cricket/routes";
+} from "../../src/lib/sports/registry";
+import { cricketRedirectTarget } from "../../src/lib/sports/cricket/routes";
+import { sportInfo } from "../../src/lib/sports";
 import { buildNavModel } from "../../src/lib/nav-links";
 
 test("FPL formats run on gameweeks; fpl-classic and cricket don't", () => {
@@ -36,6 +39,18 @@ test("cricket is its own sport, named-only setup, one person per team", () => {
   assert.equal(isCricketFormat("auction"), false);
   assert.deepEqual(formatsForSport("cricket"), [CRICKET_AUCTION_FORMAT]);
   assert.ok(!formatsForSport("fpl").includes(CRICKET_AUCTION_FORMAT));
+});
+
+test("every format belongs to exactly one sport, and sport labels come from the registry", () => {
+  const all = Object.values(SPORTS).flatMap((s) => s.formats);
+  assert.equal(new Set(all).size, all.length);
+  assert.deepEqual(formatsForSport("fpl"), ["tvt", "continental-championship", "auction", "fpl-classic"]);
+  assert.deepEqual(formatsForSport("kabaddi"), []);
+  assert.equal(formatBelongsToSport("auction", "fpl"), true);
+  assert.equal(formatBelongsToSport("auction", "cricket"), false);
+  assert.equal(formatBelongsToSport(CRICKET_AUCTION_FORMAT, "cricket"), true);
+  assert.equal(formatCaps("tvt").sport, "fpl");
+  assert.deepEqual(sportInfo("cricket"), { sport: "cricket", label: SPORTS.cricket.label, icon: SPORTS.cricket.icon });
 });
 
 test("team sizes match what membership used before the registry", () => {

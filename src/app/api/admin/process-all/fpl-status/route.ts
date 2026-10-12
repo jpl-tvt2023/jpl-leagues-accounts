@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getActiveFplGameweek } from "@/lib/fpl/event-status";
+import { getActiveFplGameweek } from "@/lib/sports/fpl/event-status";
 import { isSuperAdmin } from "@/lib/privilege";
 
 export const maxDuration = 30;

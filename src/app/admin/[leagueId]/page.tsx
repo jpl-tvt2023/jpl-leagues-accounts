@@ -10,8 +10,8 @@ import { AppNav } from "@/components/AppNav";
 import { formatCurrency } from "@/lib/format/currency";
 import { FeedbackTab } from "./FeedbackTab";
 import { MembersTab } from "./MembersTab";
-import { DEFAULT_RELEASE_CYCLE_GWS, formatReleaseCycleGws, parseReleaseCycleGws } from "@/lib/formats/auction/cycle";
-import { isCricketFormat } from "@/lib/formats/registry";
+import { DEFAULT_RELEASE_CYCLE_GWS, formatReleaseCycleGws, parseReleaseCycleGws } from "@/lib/sports/fpl/formats/auction/cycle";
+import { isCricketFormat } from "@/lib/sports/registry";
 
 interface Team {
   id: string;

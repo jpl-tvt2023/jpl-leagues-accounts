@@ -16,7 +16,7 @@ import {
 } from "@/lib/db";
 import { eq, and, inArray, ne, sql } from "drizzle-orm";
 import { getAuthorizedLeagueId } from "@/lib/league-auth";
-import { invalidateLeaguePageCache } from "@/lib/fpl-cache";
+import { invalidateLeaguePageCache } from "@/lib/sports/fpl/cache";
 
 /**
  * POST /api/admin/[leagueId]/reset-auction

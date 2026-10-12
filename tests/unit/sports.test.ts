@@ -1,5 +1,5 @@
 /**
- * Sport labels and grouping (src/lib/sports.ts): every league list — home, landing page, league
+ * Sport labels and grouping (src/lib/sports/index.ts): every league list — home, landing page, league
  * picker — is grouped through this, Football first.
  *
  * Run with: npm run test:unit

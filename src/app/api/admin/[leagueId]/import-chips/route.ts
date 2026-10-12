@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, teams, gameweeks, gameweekChips, groups, leagues } from "@/lib/db";
 import { eq, and, inArray } from "drizzle-orm";
-import { getChipSet } from "@/lib/formats/tvt/chip-validation";
+import { getChipSet } from "@/lib/sports/fpl/formats/tvt/chip-validation";
 import { generateId } from "@/lib/id";
-import { invalidateLeaguePageCache } from "@/lib/fpl-cache";
+import { invalidateLeaguePageCache } from "@/lib/sports/fpl/cache";
 import { getAuthorizedLeagueId } from "@/lib/league-auth";
-import { refuseIfNoGameweeks } from "@/lib/formats/route-guards";
+import { refuseIfNoGameweeks } from "@/lib/sports/route-guards";
 
 // Safely convert any value to a trimmed string
 function toStr(value: unknown): string {

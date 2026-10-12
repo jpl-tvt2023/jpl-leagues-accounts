@@ -27,7 +27,7 @@ import {
   advanceNominator,
   setNominationDeadline,
   resolveExpiredBid,
-} from "@/lib/formats/auction/resolve-bid";
+} from "@/lib/sports/fpl/formats/auction/resolve-bid";
 import { eq, and, isNotNull, asc } from "drizzle-orm";
 
 const LEAGUE_ID = "zz-soak-turn";

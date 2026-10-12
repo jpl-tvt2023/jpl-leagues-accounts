@@ -7,7 +7,7 @@
  * routes would triple the round trips for nothing.
  *
  * The only FPL traffic this route can cause is the live standings refresh in
- * lib/fpl-classic/standings.ts, and that is behind a single-flight lock with a bounded call
+ * lib/sports/fpl/formats/fpl-classic/standings.ts, and that is behind a single-flight lock with a bounded call
  * count — this route itself never calls FPL directly. See PUBLIC_ROUTES in middleware.ts for
  * why this is safe to leave open to anyone with the URL.
  */
@@ -17,7 +17,7 @@ import { jsonNoStore } from "@/lib/http/no-store";
 import { db, leagues } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { FPL_CLASSIC_FORMAT } from "@/lib/format-palette";
-import { buildClassicStandingsPayload } from "@/lib/fpl-classic/standings";
+import { buildClassicStandingsPayload } from "@/lib/sports/fpl/formats/fpl-classic/standings";
 
 export const maxDuration = 60;
 

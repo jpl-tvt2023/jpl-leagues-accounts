@@ -7,9 +7,9 @@ import {
   FplUnavailableError,
   getFplGatewayState,
   withFplBudget,
-} from "@/lib/fpl/gateway";
-import { getActiveFplGameweek } from "@/lib/fpl/event-status";
-import { isScoringActive } from "@/lib/fpl-cache";
+} from "@/lib/sports/fpl/gateway";
+import { getActiveFplGameweek } from "@/lib/sports/fpl/event-status";
+import { isScoringActive } from "@/lib/sports/fpl/cache";
 
 /**
  * GET /api/admin/fpl-probe[?gw=N]

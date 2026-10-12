@@ -76,7 +76,7 @@ The agent **must** touch every domain. For domains where the agent finds nothing
    - `src/app/[leagueSlug]/squad/page.tsx`, `src/app/[leagueSlug]/teams/page.tsx`.
 6. **Marketplace / Trade** — propose → accept/reject/expire/admin-veto lifecycle; cash flow; FMV
    floor; new `bonusSlots` validation in `validateTradeProposal`.
-   - `src/app/api/auction/trade/*`, `src/lib/formats/auction/marketplace.ts`.
+   - `src/app/api/auction/trade/*`, `src/lib/sports/fpl/formats/auction/marketplace.ts`.
 7. **Players page** — filters (position/team/ownership/search), pagination, sort stability.
    - `src/app/[leagueSlug]/players/page.tsx`, `src/app/api/auction/players/route.ts`.
 8. **Admin (per-league)** — bulk upload, captain override, scoring re-process, restore, manager
@@ -88,23 +88,23 @@ The agent **must** touch every domain. For domains where the agent finds nothing
     - `src/lib/notifications.ts`, `src/app/api/notifications/route.ts`, `NotificationBell` component.
 11. **Backup / Restore** — snapshot creation, restore from .zip vs DB row, cross-league + cross-format
     guards, restore-auction route, auto-snapshot triggers.
-    - `src/lib/backup/*`, `src/app/api/admin/[leagueId]/backups/**`,
+    - `src/lib/sports/fpl/backup/*`, `src/app/api/admin/[leagueId]/backups/**`,
       `src/app/api/admin/[leagueId]/restore-auction/route.ts`.
 12. **Cron / process-all** — GW finalization, playoff brackets/advance, finance settlement, FPL
     bootstrap caching.
-    - `src/lib/cron/process-all.ts`, `src/app/api/cron/process-scores/route.ts`,
-      `src/lib/playoffs/*`.
+    - `src/lib/sports/fpl/cron/process-all.ts`, `src/app/api/cron/process-scores/route.ts`,
+      `src/lib/sports/fpl/playoffs/*`.
 13. **TVT format** — H2H scheduling, byes, captain enforcement.
-    - `src/lib/formats/triple-crown/process-gameweek.ts` (shared), TVT scoring path.
+    - `src/lib/sports/fpl/formats/triple-crown/process-gameweek.ts` (shared), TVT scoring path.
 14. **Triple Crown format** — cup groups, ghost team, snake seeding.
-    - `src/lib/formats/triple-crown/*`, `src/app/api/triple-crown/cup-standings/route.ts`.
+    - `src/lib/sports/fpl/formats/triple-crown/*`, `src/app/api/triple-crown/cup-standings/route.ts`.
 15. **Auction format — Primary tier** (`leagues.auctionTier = "primary"`) — feature surface
     differs from `complete`. Confirm what's disabled stays disabled; what's enabled works.
 16. **Auction format — Complete tier** (`leagues.auctionTier = "complete"`) — full feature surface.
     Re-test recent fix wave (A-E) for regressions: nominate, bid, resolve, club-auction, wishlist+
     unsold tabs, releases (incl. pending_release), pause/resume time-shift, composition warning,
     snapshot triggers, trade validation with bonus slots, double-sell guards.
-    - `src/lib/formats/auction/*`, all `src/app/api/auction/**`,
+    - `src/lib/sports/fpl/formats/auction/*`, all `src/app/api/auction/**`,
       `src/app/[leagueSlug]/auction/page.tsx`.
 17. **Mobile / responsive layout** — render every page mentally at ~375px (iPhone SE) and ~768px
     (iPad portrait). Flag any text truncation, overlapping controls, hidden buttons, tables that

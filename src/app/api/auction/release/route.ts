@@ -4,14 +4,14 @@ import { db, leagues, auctionOwnership, auctionScores } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
 import { verifySession, SESSION_COOKIE_NAME } from "@/lib/auth";
 import { isSuperAdmin } from "@/lib/privilege";
-import { calculateFMV } from "@/lib/formats/auction/economy";
-import { isAuctionLive } from "@/lib/formats/auction/live-session";
-import { invalidateLeaguePageCache } from "@/lib/fpl-cache";
+import { calculateFMV } from "@/lib/sports/fpl/formats/auction/economy";
+import { isAuctionLive } from "@/lib/sports/fpl/formats/auction/live-session";
+import { invalidateLeaguePageCache } from "@/lib/sports/fpl/cache";
 
 /**
  * POST /api/auction/release
  * Mark a player for pending release. The release only finalizes at the league's configured
- * release-cycle gameweeks (see lib/formats/auction/cycle.ts; default GW 10/20/30).
+ * release-cycle gameweeks (see lib/sports/fpl/formats/auction/cycle.ts; default GW 10/20/30).
  * Player continues scoring for the team until then. Refund is NOT credited yet.
  *
  * Body: { ownershipId }

@@ -3,9 +3,9 @@ import { db } from "@/lib/db";
 import { fixtures, playoffTies, gameweeks, gameweekCaptains, results, groups, challengerSurvivalEntries, leagues } from "@/lib/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { getAuthorizedLeagueId } from "@/lib/league-auth";
-import { refuseIfNoGameweeks } from "@/lib/formats/route-guards";
+import { refuseIfNoGameweeks } from "@/lib/sports/route-guards";
 import { generateId } from "@/lib/id";
-import { invalidateLeaguePageCache } from "@/lib/fpl-cache";
+import { invalidateLeaguePageCache } from "@/lib/sports/fpl/cache";
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
@@ -377,7 +377,7 @@ async function markLeg2Done(tieId: string, leagueId: string) {
  */
 /**
  * Pure-function variant of the POST handler. Callable in-process from the
- * superadmin "Run Auto-Processing" orchestrator (src/lib/cron/process-all.ts)
+ * superadmin "Run Auto-Processing" orchestrator (src/lib/sports/fpl/cron/process-all.ts)
  * to avoid HTTP roundtrips and the Vercel Deployment Protection 401 wall.
  *
  * Returns { status, body } — caller wraps in NextResponse.json or interprets
@@ -1342,8 +1342,8 @@ async function advanceGW33(groupId: string, leagueId: string, actions: string[])
     .where(eq(challengerSurvivalEntries.gameweekId, gw33.id));
 
   const { players: playersTable } = await import("@/lib/db/schema");
-  const { calculateTeamGameweekScore } = await import("@/lib/fpl");
-  const { pickTempCaptain } = await import("@/lib/scoring/temp-captain");
+  const { calculateTeamGameweekScore } = await import("@/lib/sports/fpl/api");
+  const { pickTempCaptain } = await import("@/lib/sports/fpl/scoring/temp-captain");
 
   // Lookup announced captains for GW33 and GW32 (for temp-cap rotation tiebreak)
   const gw32 = await db.query.gameweeks.findFirst({ where: and(eq(gameweeks.number, 32), eq(gameweeks.leagueId, leagueId)) });

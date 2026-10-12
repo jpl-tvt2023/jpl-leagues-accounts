@@ -9,8 +9,8 @@ import {
   type Fixture,
   type LiveFixtureScore,
 } from "@/app/[leagueSlug]/_components/fixtures/shared";
-import { chipState, type ChipState, type FplChipStatus } from "@/lib/fpl-league/chips";
-import { chipCode, chipName } from "@/lib/formats/tvt/chip-labels";
+import { chipState, type ChipState, type FplChipStatus } from "@/lib/sports/fpl/fpl-league/chips";
+import { chipCode, chipName } from "@/lib/sports/fpl/formats/tvt/chip-labels";
 
 /**
  * The dashboard's PL Fixture card.

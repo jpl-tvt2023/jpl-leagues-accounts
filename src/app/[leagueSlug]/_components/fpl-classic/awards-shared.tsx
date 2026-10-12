@@ -9,7 +9,7 @@
  *
  * ⚠️ NO PRIZE, AMOUNT, OR CURRENCY IS RENDERED HERE, AND NONE MAY BE ADDED. This platform
  * announces winners; it does not list prizes. The same warning appears on the award registry
- * (lib/fpl-classic/awards.ts) and the awards table (lib/db/schema.ts).
+ * (lib/sports/fpl/formats/fpl-classic/awards.ts) and the awards table (lib/db/schema.ts).
  */
 
 /**

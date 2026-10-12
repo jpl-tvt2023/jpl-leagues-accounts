@@ -12,7 +12,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, teams, fixtures, groups, results, gameweeks } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
-import { computeCupGroupStandings } from "@/lib/formats/continental-championship/standings";
+import { computeCupGroupStandings } from "@/lib/sports/fpl/formats/continental-championship/standings";
 
 export async function GET(request: NextRequest) {
   try {

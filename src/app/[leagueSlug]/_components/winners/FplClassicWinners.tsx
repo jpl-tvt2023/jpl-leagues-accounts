@@ -13,7 +13,7 @@
  * that person a winner would be a false claim about a live competition.
  *
  * ⚠️ NO PRIZES. This page announces names and figures only — see the warning in
- * lib/fpl-classic/awards.ts.
+ * lib/sports/fpl/formats/fpl-classic/awards.ts.
  */
 
 import { useEffect, useState } from "react";

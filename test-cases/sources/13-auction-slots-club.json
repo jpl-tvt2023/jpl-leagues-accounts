@@ -18,7 +18,7 @@
         "soThat": "I can expand my squad beyond the base 15-player cap up to the absolute ceiling of 18",
         "sourceRefs": [
           "src/app/api/auction/unlock-slot/route.ts:24-166",
-          "src/lib/formats/auction/squad-rules.ts:6-32"
+          "src/lib/sports/fpl/formats/auction/squad-rules.ts:6-32"
         ]
       },
       {
@@ -37,7 +37,7 @@
         "soThat": "my effective squad cap is restored by one slot",
         "sourceRefs": [
           "src/app/api/auction/redeem-slot/route.ts:99-222",
-          "src/lib/formats/auction/squad-rules.ts:18-25"
+          "src/lib/sports/fpl/formats/auction/squad-rules.ts:18-25"
         ]
       },
       {
@@ -56,7 +56,7 @@
         "soThat": "every team in the league has a chance to own one PL club whose results feed into per-GW bonus scoring",
         "sourceRefs": [
           "src/app/api/auction/session/route.ts:163-223",
-          "src/lib/formats/auction/club-auction.ts:191-216"
+          "src/lib/sports/fpl/formats/auction/club-auction.ts:191-216"
         ]
       },
       {
@@ -65,7 +65,7 @@
         "iWant": "to take a turn nominating a specific PL club I choose, becoming its opening bidder",
         "soThat": "I get the first shot at a club I want before other club-less teams can outbid me",
         "sourceRefs": [
-          "src/lib/formats/auction/club-auction.ts:291-402"
+          "src/lib/sports/fpl/formats/auction/club-auction.ts:291-402"
         ]
       },
       {
@@ -74,7 +74,7 @@
         "iWant": "to be the highest bidder when an open club nomination's timer expires",
         "soThat": "I take ownership of that PL club for the season, with its tier snapshotted at purchase",
         "sourceRefs": [
-          "src/lib/formats/auction/club-auction.ts:421-515"
+          "src/lib/sports/fpl/formats/auction/club-auction.ts:421-515"
         ]
       },
       {
@@ -83,7 +83,7 @@
         "iWant": "the club-auction session to auto-allocate one PL club per team at the floor price when started",
         "soThat": "simulated leagues can short-circuit live bidding while still producing valid club ownerships",
         "sourceRefs": [
-          "src/lib/formats/auction/club-auction.ts:588-671",
+          "src/lib/sports/fpl/formats/auction/club-auction.ts:588-671",
           "src/app/api/auction/session/route.ts:339-349"
         ]
       },
@@ -93,8 +93,8 @@
         "iWant": "the system to auto-pick a random available club on my behalf, with me as its floor bidder",
         "soThat": "the club auction keeps moving without me losing my chance to end up with a club",
         "sourceRefs": [
-          "src/lib/formats/auction/club-auction.ts:408-428",
-          "src/lib/formats/auction/club-auction.ts:241-248"
+          "src/lib/sports/fpl/formats/auction/club-auction.ts:408-428",
+          "src/lib/sports/fpl/formats/auction/club-auction.ts:241-248"
         ]
       },
       {
@@ -103,7 +103,7 @@
         "iWant": "to be excluded from bidding on further clubs and skipped by the nomination turn order",
         "soThat": "the one-club-per-team rule is enforced and only club-less teams can nominate or bid",
         "sourceRefs": [
-          "src/lib/formats/auction/club-auction.ts:224-235",
+          "src/lib/sports/fpl/formats/auction/club-auction.ts:224-235",
           "src/lib/db/schema.ts:434-435"
         ]
       },
@@ -113,7 +113,7 @@
         "iWant": "the club auction session to go idle once every team owns a club, and to be able to mark it completed myself",
         "soThat": "the initial player auction is unblocked and a completion snapshot is taken once I confirm the club auction is done",
         "sourceRefs": [
-          "src/lib/formats/auction/club-auction.ts:260-283",
+          "src/lib/sports/fpl/formats/auction/club-auction.ts:260-283",
           "src/app/api/auction/session/route.ts:427-433"
         ]
       },
@@ -123,7 +123,7 @@
         "iWant": "to receive a 'club_purchased' notification confirming the club, tier and price",
         "soThat": "I have an audit trail of my purchase and know my season-long team-display name",
         "sourceRefs": [
-          "src/lib/formats/auction/club-auction.ts:483-493"
+          "src/lib/sports/fpl/formats/auction/club-auction.ts:483-493"
         ]
       },
       {
@@ -185,15 +185,15 @@
         "rule": "Maximum bonus slots per team is 3 (MAX_BONUS_SLOTS); reaching the cap returns 400 'All bonus slots already unlocked (squad cap 18)' (= MAX_SQUAD_SIZE 15 + MAX_BONUS_SLOTS 3).",
         "sourceRefs": [
           "src/app/api/auction/unlock-slot/route.ts:67-73",
-          "src/lib/formats/auction/squad-rules.ts:6-9"
+          "src/lib/sports/fpl/formats/auction/squad-rules.ts:6-9"
         ]
       },
       {
         "id": "BR-SLOTS-008",
         "rule": "Bonus-slot pricing is sequential: 1st unlock (slot 16) costs £10M, 2nd (slot 17) £20M, 3rd (slot 18) £30M. nextBonusSlotCost(bonusSlots) returns the next price or null when at cap.",
         "sourceRefs": [
-          "src/lib/formats/auction/squad-rules.ts:11",
-          "src/lib/formats/auction/squad-rules.ts:28-32",
+          "src/lib/sports/fpl/formats/auction/squad-rules.ts:11",
+          "src/lib/sports/fpl/formats/auction/squad-rules.ts:28-32",
           "src/app/api/auction/unlock-slot/route.ts:95-98"
         ]
       },
@@ -215,7 +215,7 @@
         "id": "BR-SLOTS-011",
         "rule": "Available purse = initialBudget + totalIncome + totalRefunds − totalSpent (calculatePurse). Unlock rejects with 400 'Insufficient purse: need £X.XXM, have £Y.YYM' when available purse < next unlock cost.",
         "sourceRefs": [
-          "src/lib/formats/auction/economy.ts:34-41",
+          "src/lib/sports/fpl/formats/auction/economy.ts:34-41",
           "src/app/api/auction/unlock-slot/route.ts:100-112"
         ]
       },
@@ -359,7 +359,7 @@
         "rule": "Club-auction creation calls fetchAllPLClubsWithTiers (FPL bootstrap + standings config). Failures return 502 'Failed to load PL clubs from FPL'; an empty list returns 502 'FPL bootstrap returned no PL clubs'.",
         "sourceRefs": [
           "src/app/api/auction/session/route.ts:197-206",
-          "src/lib/formats/auction/club-auction.ts:191-200"
+          "src/lib/sports/fpl/formats/auction/club-auction.ts:191-200"
         ]
       },
       {
@@ -373,51 +373,51 @@
         "id": "BR-SLOTS-033",
         "rule": "resolveClubBid calls resolveTier(plTeamId, plStandingsConfig). When resolveTier returns null (PL team id is in none of top8/mid/promoted — i.e., standings config is misconfigured or outdated), the route refuses to write an auctionClubOwnership row. The bid is left marked 'sold' with an audit-log entry, and a console.error is emitted with the failure context. Operator must repair the standings config and re-allocate via auction-corrections.",
         "sourceRefs": [
-          "src/lib/formats/auction/club-auction.ts:438-466"
+          "src/lib/sports/fpl/formats/auction/club-auction.ts:438-466"
         ]
       },
       {
         "id": "BR-SLOTS-034",
         "rule": "nominateClub(sessionId, teamId, plTeamId) rejects with 409 'A club is already on the block' if the session already has an open auctionBids row; it also validates the session is type='club-auction' AND status='active', the nominating team is still club-less, and the chosen plTeamId is still unowned.",
         "sourceRefs": [
-          "src/lib/formats/auction/club-auction.ts:338-367"
+          "src/lib/sports/fpl/formats/auction/club-auction.ts:338-367"
         ]
       },
       {
         "id": "BR-SLOTS-035",
         "rule": "Eligibility for the club auction: a team may bid only if it is non-ghost AND has no auctionClubOwnership row in the league (getClubLessTeamIds). When zero club-less teams remain the session is marked 'completed' immediately.",
         "sourceRefs": [
-          "src/lib/formats/auction/club-auction.ts:224-235",
-          "src/lib/formats/auction/club-auction.ts:300-305"
+          "src/lib/sports/fpl/formats/auction/club-auction.ts:224-235",
+          "src/lib/sports/fpl/formats/auction/club-auction.ts:300-305"
         ]
       },
       {
         "id": "BR-SLOTS-036",
         "rule": "Advancing the club-less nominator scans the fixed team snakeOrder ring from the current index (wrapping modulo its length), skipping any team that already owns a club, and arms the first club-less team found. When no club-less team remains, the session goes idle (nominationDeadline cleared) but is NOT auto-completed — status stays as-is until an admin explicitly completes it (see BR-SLOTS-043).",
         "sourceRefs": [
-          "src/lib/formats/auction/club-auction.ts:260-283",
-          "src/lib/formats/auction/club-auction.ts:291-319"
+          "src/lib/sports/fpl/formats/auction/club-auction.ts:260-283",
+          "src/lib/sports/fpl/formats/auction/club-auction.ts:291-319"
         ]
       },
       {
         "id": "BR-SLOTS-037",
         "rule": "Each club nomination creates an auctionBids row with currentHighBid=minBid=£500K (CLUB_FLOOR_BID), fplElementId set to the PL team id, playerName set to the PL team name, status='open', and expiresAt=now+bidTimerSeconds. nominatorTeamId/currentHighBidderId are the actual nominating team (the club-less team whose turn it is, or who was auto-picked on timeout) — never a sentinel — and a 'nomination' auctionBidLog row is inserted.",
         "sourceRefs": [
-          "src/lib/formats/auction/club-auction.ts:373-393"
+          "src/lib/sports/fpl/formats/auction/club-auction.ts:373-393"
         ]
       },
       {
         "id": "BR-SLOTS-038",
         "rule": "Club-bid resolution is idempotent and unconditionally sells to currentHighBidderId — the nominator is always the opening floor bidder, so there is no 'unsold' outcome for club bids. Status is flipped from 'open' to 'sold' atomically (via a conditional UPDATE ... WHERE status='open'); an already-resolved bid returns 'already-resolved'.",
         "sourceRefs": [
-          "src/lib/formats/auction/club-auction.ts:451-546"
+          "src/lib/sports/fpl/formats/auction/club-auction.ts:451-546"
         ]
       },
       {
         "id": "BR-SLOTS-039",
         "rule": "resolveClubBid does NOT silently fall back to tier='mid' when resolveTier returns null. The previous fallback masked misconfigured standings (e.g., promoted teams not refreshed after season rollover) and resulted in clubs being assigned the wrong tier bonus. Now the fallback is loud — operator intervention required.",
         "sourceRefs": [
-          "src/lib/formats/auction/club-auction.ts:438-466"
+          "src/lib/sports/fpl/formats/auction/club-auction.ts:438-466"
         ]
       },
       {
@@ -431,21 +431,21 @@
         "id": "BR-SLOTS-041",
         "rule": "On SOLD a best-effort 'club_purchased' notification is created with title 'You bought <plTeamName>' and a body stating price (in M to 1dp) and tier. Failures are logged, never throwing.",
         "sourceRefs": [
-          "src/lib/formats/auction/club-auction.ts:483-493"
+          "src/lib/sports/fpl/formats/auction/club-auction.ts:483-493"
         ]
       },
       {
         "id": "BR-SLOTS-042",
         "rule": "There is no UNSOLD outcome for club bids in the current design — every resolved club bid is either 'sold' (ownership row written, purse deducted) or 'already-resolved' (a no-op on a bid another caller already resolved). BR-SLOTS-038 is authoritative; this rule id is retained only to avoid renumbering downstream references.",
         "sourceRefs": [
-          "src/lib/formats/auction/club-auction.ts:451-546"
+          "src/lib/sports/fpl/formats/auction/club-auction.ts:451-546"
         ]
       },
       {
         "id": "BR-SLOTS-043",
         "rule": "advanceClubNominator re-scans the snakeOrder ring for the next club-less team (arming their nomination deadline) after a club bid resolves. It does not auto-nominate a club itself and does not mark the session 'completed' — completion only happens when an admin calls POST /api/auction/session with action='complete', which sets status='completed' and invokes writeAuctionCompleteSnapshot.",
         "sourceRefs": [
-          "src/lib/formats/auction/club-auction.ts:326-331",
+          "src/lib/sports/fpl/formats/auction/club-auction.ts:326-331",
           "src/app/api/auction/session/route.ts:427-433,547"
         ]
       },
@@ -453,15 +453,15 @@
         "id": "BR-SLOTS-044",
         "rule": "simulateClubAuction is the auto-allocator for isSimulated leagues: it shuffles non-ghost teams and the 20 PL clubs (with tier), pairs index-by-index up to min(teams.length, clubs.length), inserts auctionClubOwnership rows at the £500K floor, decrements purse / increments totalSpent per allocated team, then marks the session 'completed' and writes a snapshot. Pairings whose club.tier is null are skipped with a warning.",
         "sourceRefs": [
-          "src/lib/formats/auction/club-auction.ts:588-671"
+          "src/lib/sports/fpl/formats/auction/club-auction.ts:588-671"
         ]
       },
       {
         "id": "BR-SLOTS-045",
         "rule": "fetchAllPLClubsWithTiers expects exactly the 20 PL clubs from FPL bootstrap and resolves each through the active standings config (top8 length 8, mid length 9, promoted length 3 ⇒ 20 total). Returned rows include {id, name, short, tier|null}.",
         "sourceRefs": [
-          "src/lib/formats/auction/club-auction.ts:180-200",
-          "src/lib/data/pl-standings-seed.ts:23-37"
+          "src/lib/sports/fpl/formats/auction/club-auction.ts:180-200",
+          "src/lib/sports/fpl/data/pl-standings-seed.ts:23-37"
         ]
       },
       {
@@ -473,7 +473,7 @@
       },
       {
         "id": "BR-SLOTS-047",
-        "rule": "Schema comments for teamSlotUnlocks.slotNumber and teams.bonusSlots correctly describe the current code: slot numbers 16/17/18, prices 10M/20M/30M, canonical pricing in src/lib/formats/auction/squad-rules.ts. No legacy 25M reference remains.",
+        "rule": "Schema comments for teamSlotUnlocks.slotNumber and teams.bonusSlots correctly describe the current code: slot numbers 16/17/18, prices 10M/20M/30M, canonical pricing in src/lib/sports/fpl/formats/auction/squad-rules.ts. No legacy 25M reference remains.",
         "sourceRefs": [
           "src/lib/db/schema.ts:108-115",
           "src/lib/db/schema.ts:518-528"
@@ -2117,7 +2117,7 @@
       "sourceRefs": [
         "src/app/api/auction/redeem-slot/route.ts:181-196",
         "src/app/api/auction/unlock-slot/route.ts:117-139",
-        "src/lib/formats/auction/economy.ts:34-41"
+        "src/lib/sports/fpl/formats/auction/economy.ts:34-41"
       ],
       "linkedBusinessRules": [
         "BR-SLOTS-012",
@@ -2144,7 +2144,7 @@
       "status": "Fixed",
       "discoveredBy": "business-analyst",
       "discoveredDate": "2026-05-23",
-      "description": "src/lib/db/schema.ts:525 documents teamSlotUnlocks.slotNumber as '15 or 16'; route code writes 16/17/18 (src/app/api/auction/unlock-slot/route.ts:114). src/lib/db/schema.ts:113-114 mentions a legacy £25M price; current code uses £10M/£20M/£30M (src/lib/formats/auction/squad-rules.ts:11). The doc comment block above POST /unlock-slot (src/app/api/auction/unlock-slot/route.ts:18-22) is also out of date — refers to 'slot 15, then 16'.",
+      "description": "src/lib/db/schema.ts:525 documents teamSlotUnlocks.slotNumber as '15 or 16'; route code writes 16/17/18 (src/app/api/auction/unlock-slot/route.ts:114). src/lib/db/schema.ts:113-114 mentions a legacy £25M price; current code uses £10M/£20M/£30M (src/lib/sports/fpl/formats/auction/squad-rules.ts:11). The doc comment block above POST /unlock-slot (src/app/api/auction/unlock-slot/route.ts:18-22) is also out of date — refers to 'slot 15, then 16'.",
       "expectedBehaviour": "Comments match code: slot numbers stored are 16/17/18; bonus-slot prices are £10M/£20M/£30M.",
       "actualBehaviour": "Documentation conflicts with implementation, which can confuse downstream readers, QA, and finance ledger consumers reading slotNumber.",
       "sourceRefs": [
@@ -2171,13 +2171,13 @@
       "status": "Fixed",
       "discoveredBy": "business-analyst",
       "discoveredDate": "2026-05-23",
-      "description": "When resolveClubBid creates an auctionClubOwnership row on SOLD, it calls resolveTier(fresh.fplElementId, config) and falls back to 'mid' if the PL team id is in none of the standings lists (src/lib/formats/auction/club-auction.ts:439-440). resolveTier itself is documented to return null only if the team isn't in any tier list ('shouldn't happen for the 20 PL clubs' — src/lib/data/pl-standings-seed.ts:42-44). The silent fallback means a misconfigured plStandingsConfig (e.g. a 19-club list after a manual edit, or a season-rollover seed mismatch) results in the owning team getting 'mid' scoring quietly instead of an error or admin alert.",
+      "description": "When resolveClubBid creates an auctionClubOwnership row on SOLD, it calls resolveTier(fresh.fplElementId, config) and falls back to 'mid' if the PL team id is in none of the standings lists (src/lib/sports/fpl/formats/auction/club-auction.ts:439-440). resolveTier itself is documented to return null only if the team isn't in any tier list ('shouldn't happen for the 20 PL clubs' — src/lib/sports/fpl/data/pl-standings-seed.ts:42-44). The silent fallback means a misconfigured plStandingsConfig (e.g. a 19-club list after a manual edit, or a season-rollover seed mismatch) results in the owning team getting 'mid' scoring quietly instead of an error or admin alert.",
       "expectedBehaviour": "Either fail the resolution and surface the misconfiguration to the admin, or log a loud warning so it can be corrected before the season scores any GWs.",
-      "actualBehaviour": "Owner team silently gets 'mid' tier with no log line, no notification, no admin alert. simulateClubAuction takes a stricter approach (it skips and warns — src/lib/formats/auction/club-auction.ts:625-631), so the two flows are inconsistent.",
+      "actualBehaviour": "Owner team silently gets 'mid' tier with no log line, no notification, no admin alert. simulateClubAuction takes a stricter approach (it skips and warns — src/lib/sports/fpl/formats/auction/club-auction.ts:625-631), so the two flows are inconsistent.",
       "sourceRefs": [
-        "src/lib/formats/auction/club-auction.ts:436-463",
-        "src/lib/formats/auction/club-auction.ts:625-644",
-        "src/lib/data/pl-standings-seed.ts:39-51"
+        "src/lib/sports/fpl/formats/auction/club-auction.ts:436-463",
+        "src/lib/sports/fpl/formats/auction/club-auction.ts:625-644",
+        "src/lib/sports/fpl/data/pl-standings-seed.ts:39-51"
       ],
       "linkedBusinessRules": [
         "BR-SLOTS-033",
@@ -2191,7 +2191,7 @@
         "TC-SLOTS-061"
       ],
       "notes": "Fix options: (a) match simulateClubAuction — refuse to write an ownership row with a null tier and emit a warning; (b) emit a notification to superadmin when fallback triggers; (c) accept current behaviour but log at warn level. Risk/impact: incorrect club-result bonus scoring for the affected team for the rest of the season; hard to detect after the fact because the row still looks valid. [DEV] Self-verified: tsc clean. [QA-VERIFIED] Pinning TC(s) inverted. [BA-UPDATED] BR/AC text refreshed.",
-      "resolution": "resolveClubBid no longer falls back to 'mid' when resolveTier returns null (src/lib/formats/auction/club-auction.ts:438-466). On null tier the route logs an error to the console, writes a sold audit-log entry for the bid, and returns 'already-resolved' WITHOUT inserting an auctionClubOwnership row. The standings config is misconfigured if this happens — superadmin must repair it and re-allocate via auction-corrections. Silent 'mid' fallback that masked the misconfiguration is gone.",
+      "resolution": "resolveClubBid no longer falls back to 'mid' when resolveTier returns null (src/lib/sports/fpl/formats/auction/club-auction.ts:438-466). On null tier the route logs an error to the console, writes a sold audit-log entry for the bid, and returns 'already-resolved' WITHOUT inserting an auctionClubOwnership row. The standings config is misconfigured if this happens — superadmin must repair it and re-allocate via auction-corrections. Silent 'mid' fallback that masked the misconfiguration is gone.",
       "resolutionDate": "2026-05-26"
     }
   ]

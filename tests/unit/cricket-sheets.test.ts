@@ -1,5 +1,5 @@
 /**
- * Cricket tournament upload sheets (src/lib/cricket/sheets/*): column aliases, IST times, row
+ * Cricket tournament upload sheets (src/lib/sports/cricket/sheets/*): column aliases, IST times, row
  * validation, and the full-list / per-fixture replace plans.
  *
  * Run with: npm run test:unit
@@ -7,13 +7,13 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mapSheet } from "../../src/lib/cricket/sheets/columns";
-import { formatIst, parseClock, parseIstDateTime } from "../../src/lib/cricket/sheets/ist";
-import { parseTeamsSheet, planTeams } from "../../src/lib/cricket/sheets/teams";
-import { parsePlayersSheet, parseRole, planPlayers, type ExistingPlayer } from "../../src/lib/cricket/sheets/players";
-import { parseFixturesSheet, parseMatchFormat, planFixtures, type ExistingFixture } from "../../src/lib/cricket/sheets/fixtures";
-import { parsePointsSheet, type PointsFixture } from "../../src/lib/cricket/sheets/points";
-import { blockingIssues } from "../../src/lib/cricket/sheets/types";
+import { mapSheet } from "../../src/lib/sports/cricket/sheets/columns";
+import { formatIst, parseClock, parseIstDateTime } from "../../src/lib/sports/cricket/sheets/ist";
+import { parseTeamsSheet, planTeams } from "../../src/lib/sports/cricket/sheets/teams";
+import { parsePlayersSheet, parseRole, planPlayers, type ExistingPlayer } from "../../src/lib/sports/cricket/sheets/players";
+import { parseFixturesSheet, parseMatchFormat, planFixtures, type ExistingFixture } from "../../src/lib/sports/cricket/sheets/fixtures";
+import { parsePointsSheet, type PointsFixture } from "../../src/lib/sports/cricket/sheets/points";
+import { blockingIssues } from "../../src/lib/sports/cricket/sheets/types";
 
 const errors = (issues: { level: string; message: string }[]) => issues.filter((i) => i.level === "error").map((i) => i.message);
 

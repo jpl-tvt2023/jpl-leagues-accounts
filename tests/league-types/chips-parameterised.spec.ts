@@ -9,7 +9,7 @@
  *
  * Scoring is the other half. api/gameweeks/[gw] only processes W, D and C; SL/CB/UD score
  * nothing, so they are surfaced as ineligible rather than offered — playing one would burn
- * the set slot for no points. See IMPLEMENTED_TVT_CHIPS in lib/formats/tvt/chip-labels.ts.
+ * the set slot for no points. See IMPLEMENTED_TVT_CHIPS in lib/sports/fpl/formats/tvt/chip-labels.ts.
  *
  * Run with: npm run test:e2e -- tests/league-types/chips-parameterised.spec.ts
  */

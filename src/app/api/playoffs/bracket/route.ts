@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { playoffTies, challengerSurvivalEntries, fixtures, results, gameweeks, teams, groups, gameweekCaptains, leagues } from "@/lib/db/schema";
 import { eq, and, desc, inArray, sql } from "drizzle-orm";
-import { getLiveCachedScores, getCachedPlayoffBracket, setCachedPlayoffBracket } from "@/lib/fpl-cache";
+import { getLiveCachedScores, getCachedPlayoffBracket, setCachedPlayoffBracket } from "@/lib/sports/fpl/cache";
 import {
   CHAMP_GA_MATCHES,
   CHAMP_GB_MATCHES,
@@ -12,7 +12,7 @@ import {
   C31_SEEDING_32 as C31_SEEDING,
   getGroupStandings,
   type GSMatch16,
-} from "@/lib/formats/tvt/playoffs";
+} from "@/lib/sports/fpl/formats/tvt/playoffs";
 
 // Bracket-paired pyramid order: feeders for SF-A on top half (QF-A=A+H, QF-D=D+E),
 // feeders for SF-B on bottom half (QF-B=B+G, QF-C=C+F). Lets the visual flow read
@@ -417,11 +417,11 @@ async function fetchAndCacheLiveScoresForGw(gameweek: number, leagueId: string |
     });
     if (playoffFixtures.length === 0) return;
 
-    const { computeLiveFixtureScores } = await import("@/lib/fpl-live/tvt-live-scores");
+    const { computeLiveFixtureScores } = await import("@/lib/sports/fpl/live/tvt-live-scores");
     const liveFixtures = await computeLiveFixtureScores({ leagueId, gwNumber: gameweek });
     if (liveFixtures.length === 0) return;
 
-    const { setLiveCachedScores } = await import("@/lib/fpl-cache");
+    const { setLiveCachedScores } = await import("@/lib/sports/fpl/cache");
     await setLiveCachedScores(
       gameweek,
       {
@@ -450,8 +450,8 @@ async function computeLiveSurvivalScores(
   const out = new Map<string, { score: number; playerScores: SurvivalPlayerScore[] }>();
   if (teamIds.length === 0) return out;
 
-  const { calculateTeamGameweekScore } = await import("@/lib/fpl");
-  const { pickTempCaptain } = await import("@/lib/scoring/temp-captain");
+  const { calculateTeamGameweekScore } = await import("@/lib/sports/fpl/api");
+  const { pickTempCaptain } = await import("@/lib/sports/fpl/scoring/temp-captain");
   const { players: playersTable } = await import("@/lib/db/schema");
 
   const gw = await db.query.gameweeks.findFirst({
@@ -534,7 +534,7 @@ async function getCupGroupProjectedSeeds(
 ): Promise<Record<string, Record<number, { teamId: string; name: string }>>> {
   if (!leagueId) return {};
   try {
-    const { computeCupGroupStandings } = await import("@/lib/formats/continental-championship/standings");
+    const { computeCupGroupStandings } = await import("@/lib/sports/fpl/formats/continental-championship/standings");
     const cupGroups = await db.select().from(groups).where(
       and(eq(groups.leagueId, leagueId), eq(groups.groupType, "cup")),
     );
@@ -1500,7 +1500,7 @@ async function buildLiveBracket(latestCompletedGw: number, leagueId?: string | n
 // ============================================
 /**
  * Tentative/projected brackets are seeded from the SAME `getGroupStandings` the
- * admin generator uses (src/lib/formats/tvt/playoffs.ts), so the bracket a user
+ * admin generator uses (src/lib/sports/fpl/formats/tvt/playoffs.ts), so the bracket a user
  * previews matches the bracket that actually gets generated.
  *
  * The private copy that used to live here drifted in two ways: it omitted the

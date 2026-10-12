@@ -8,7 +8,7 @@ import {
   getAllCachedScoresForIds,
   clearLiveCache,
   clearCachedElementPoints,
-} from "@/lib/fpl-cache";
+} from "@/lib/sports/fpl/cache";
 import { getAuthorizedLeagueId } from "@/lib/league-auth";
 
 /** Fetch all FPL IDs for players in teams belonging to this league */

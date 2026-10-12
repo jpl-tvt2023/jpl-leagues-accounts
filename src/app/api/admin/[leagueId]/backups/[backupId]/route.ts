@@ -3,8 +3,8 @@ import { db } from "@/lib/db";
 import { backups, leagues } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { getAuthorizedLeagueId } from "@/lib/league-auth";
-import { buildBackupZip, backupZipFilename } from "@/lib/backup/xlsx-zip";
-import type { BackupRows } from "@/lib/backup/generate";
+import { buildBackupZip, backupZipFilename } from "@/lib/sports/fpl/backup/xlsx-zip";
+import type { BackupRows } from "@/lib/sports/fpl/backup/generate";
 
 interface RouteParams {
   params: Promise<{ leagueId: string; backupId: string }>;

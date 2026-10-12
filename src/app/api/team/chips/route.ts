@@ -3,13 +3,13 @@ import { leagueFromRequest, resolveTeamActor, teamActorDenied } from "@/lib/team
 import { db, teams, gameweeks, gameweekChips, settings, leagues, fixtures, auditLogs } from "@/lib/db";
 import { eq, and, asc } from "drizzle-orm";
 import { generateId } from "@/lib/id";
-import { getChipSet } from "@/lib/formats/tvt/scoring";
-import { chipsUsedInSet } from "@/lib/formats/tvt/chip-usage";
-import { resolveSubmissionWindow, formatLateness } from "@/lib/gameweek-window";
-import { getFinishedGwNumbers } from "@/lib/gameweeks/finished-set";
-import { refuseIfNoGameweeks } from "@/lib/formats/route-guards";
-import { getDoublePointerEligibility } from "@/lib/formats/tvt/double-pointer-eligibility";
-import { CHIP_GW1_POSITION_REASON, getTop2FromGroup } from "@/lib/formats/tvt/chip-validation";
+import { getChipSet } from "@/lib/sports/fpl/formats/tvt/scoring";
+import { chipsUsedInSet } from "@/lib/sports/fpl/formats/tvt/chip-usage";
+import { resolveSubmissionWindow, formatLateness } from "@/lib/sports/fpl/gameweeks/window";
+import { getFinishedGwNumbers } from "@/lib/sports/fpl/gameweeks/finished-set";
+import { refuseIfNoGameweeks } from "@/lib/sports/route-guards";
+import { getDoublePointerEligibility } from "@/lib/sports/fpl/formats/tvt/double-pointer-eligibility";
+import { CHIP_GW1_POSITION_REASON, getTop2FromGroup } from "@/lib/sports/fpl/formats/tvt/chip-validation";
 
 const ALL_CHIP_CODES = ["W", "D", "C", "SL", "CB", "UD"] as const;
 type ChipCode = typeof ALL_CHIP_CODES[number];

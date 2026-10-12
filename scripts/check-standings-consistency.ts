@@ -36,9 +36,9 @@
  */
 import { db, leagues, teams, groups } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
-import { computeLeagueStageStandings } from "@/lib/standings/league-stage";
-import { getTop2FromGroup, getGroupRankingsBeforeGW } from "@/lib/formats/tvt/chip-validation";
-import { getGroupStandings } from "@/lib/formats/tvt/playoffs";
+import { computeLeagueStageStandings } from "@/lib/sports/fpl/standings/league-stage";
+import { getTop2FromGroup, getGroupRankingsBeforeGW } from "@/lib/sports/fpl/formats/tvt/chip-validation";
+import { getGroupStandings } from "@/lib/sports/fpl/formats/tvt/playoffs";
 
 const SLUG = "tvt-26-27";
 

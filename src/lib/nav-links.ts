@@ -17,7 +17,7 @@
  */
 
 import { CONTINENTAL_FORMAT, FPL_CLASSIC_FORMAT } from "./format-palette";
-import { isCricketFormat, type LeagueFormat } from "./formats/registry";
+import { isCricketFormat, type LeagueFormat } from "./sports/registry";
 
 export type { LeagueFormat };
 

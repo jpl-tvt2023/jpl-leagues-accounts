@@ -3,10 +3,10 @@ import { db, auctionBids, auctionBidLogs, auctionSessions, auctionOwnership, auc
 import { eq, and } from "drizzle-orm";
 import { getRequestSession, resolveTeamActorForSession } from "@/lib/team-actor";
 import { generateId } from "@/lib/id";
-import { calculatePurse } from "@/lib/formats/auction/economy";
-import { countsFromOwnership, validateAddPlayer } from "@/lib/formats/auction/squad-rules";
-import { fetchElementInfo } from "@/lib/fpl";
-import { CLUB_AUCTION_SESSION_TYPE } from "@/lib/formats/auction/club-auction";
+import { calculatePurse } from "@/lib/sports/fpl/formats/auction/economy";
+import { countsFromOwnership, validateAddPlayer } from "@/lib/sports/fpl/formats/auction/squad-rules";
+import { fetchElementInfo } from "@/lib/sports/fpl/api";
+import { CLUB_AUCTION_SESSION_TYPE } from "@/lib/sports/fpl/formats/auction/club-auction";
 
 // Anti-snipe: every bid pushes the timer out by ANTI_SNIPE_EXTENSION_MS, hard-capped at the admin's
 // configured bidTimerSeconds (the countdown can never exceed the set timer).

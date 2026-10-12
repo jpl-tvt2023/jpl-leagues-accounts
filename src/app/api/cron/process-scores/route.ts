@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { processAllLeagues } from "@/lib/cron/process-all";
+import { processAllLeagues } from "@/lib/sports/fpl/cron/process-all";
 
 export const maxDuration = 60; // seconds — Vercel Hobby ceiling
 

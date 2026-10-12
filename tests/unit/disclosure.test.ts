@@ -11,7 +11,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { disclosedGwCount } from "../../src/lib/gameweeks/disclosure";
+import { disclosedGwCount } from "../../src/lib/sports/fpl/gameweeks/disclosure";
 
 const at = (iso: string) => ({ deadline: new Date(iso) });
 const NOW = new Date("2026-09-05T00:00:00Z");

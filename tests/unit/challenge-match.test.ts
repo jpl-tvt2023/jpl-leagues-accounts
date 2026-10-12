@@ -18,11 +18,11 @@ import {
   resultKey,
   type ChallengeChipRow,
   type TeamGwResult,
-} from "../../src/lib/formats/tvt/challenge-match";
+} from "../../src/lib/sports/fpl/formats/tvt/challenge-match";
 import {
   buildLiveChallengeMatch,
   indexLiveSides,
-} from "../../src/lib/formats/tvt/challenge-match-live";
+} from "../../src/lib/sports/fpl/formats/tvt/challenge-match-live";
 
 const GW = "gw2";
 const CHALLENGER = "t1";

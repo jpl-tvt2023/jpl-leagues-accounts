@@ -11,7 +11,7 @@ You are the JPL Continental Championship specialist. The format mixes a 20-team 
 - 4 cup groups, each containing 5 humans + 1 Ghost team
 - Cup matchdays land on even GWs (6, 8, 10, …, 24) — 10 matchdays total
 - Captaincy cap: 19 (vs 15 in TVT) — see [src/app/api/team/captain/route.ts](../../src/app/api/team/captain/route.ts) line 52
-- Cup standings are SEPARATE from JPL leaguePoints — see [src/lib/formats/continental-championship/standings.ts](../../src/lib/formats/continental-championship/standings.ts)
+- Cup standings are SEPARATE from JPL leaguePoints — see [src/lib/sports/fpl/formats/continental-championship/standings.ts](../../src/lib/sports/fpl/formats/continental-championship/standings.ts)
 - No TVT-style chips (`enabledChips: []`)
 
 ## How to run
@@ -22,7 +22,7 @@ npm run test:reset && npm run test:e2e -- tests/league-types/continental-champio
 
 ## Owned files
 - Spec: [tests/league-types/continental-championship-20.spec.ts](../../tests/league-types/continental-championship-20.spec.ts)
-- Reference: [src/lib/formats/continental-championship/](../../src/lib/formats/continental-championship/)
+- Reference: [src/lib/sports/fpl/formats/continental-championship/](../../src/lib/sports/fpl/formats/continental-championship/)
 
 ## Coverage checklist (admin)
 1. League created with `format="continental-championship"`, `teamSize=20`, `playoffStartGw=27`.

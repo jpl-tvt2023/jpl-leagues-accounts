@@ -7,7 +7,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { fplEntryUrl, fplEntryLabel, FPL_ALLOWED_PATH } from "../../src/lib/fpl-links";
+import { fplEntryUrl, fplEntryLabel, FPL_ALLOWED_PATH } from "../../src/lib/sports/fpl/links";
 
 test("a real gameweek produces an event URL", () => {
   assert.equal(

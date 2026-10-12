@@ -8,7 +8,7 @@ The auto-processing orchestrator (`processOneLeagueOneGw`) imports the score / g
 
 **Why:** Vercel Deployment Protection blocks internal HTTP roundtrips with an HTML SSO redirect, breaking JSON parsing on every call. The earlier `fetch`-based architecture also paid ~250ms of edge + middleware overhead per call, and ~70 calls per per-league run added up to minutes of pure roundtrip time.
 
-In-process invocation costs ~microseconds, sidesteps the edge entirely, and reuses the same Drizzle connection pool. Helper: `callHandlerDirect(handler, url, ctx, opts)` in [`src/lib/cron/process-all.ts`](../src/lib/cron/process-all.ts).
+In-process invocation costs ~microseconds, sidesteps the edge entirely, and reuses the same Drizzle connection pool. Helper: `callHandlerDirect(handler, url, ctx, opts)` in [`src/lib/sports/fpl/cron/process-all.ts`](../src/lib/sports/fpl/cron/process-all.ts).
 
 ## 2. Per-(league × GW) unit of work
 

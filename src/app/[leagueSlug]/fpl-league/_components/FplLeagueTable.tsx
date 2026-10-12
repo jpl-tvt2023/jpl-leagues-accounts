@@ -1,9 +1,9 @@
 "use client";
 
-import { fplEntryUrl } from "@/lib/fpl-links";
+import { fplEntryUrl } from "@/lib/sports/fpl/links";
 import { ChipPill, FplChipRow } from "@/components/ChipPill";
-import type { FplLeagueTeam, TeamChipSlot } from "@/lib/fpl-league/team-stats";
-import type { FplChipStatus } from "@/lib/fpl-league/chips";
+import type { FplLeagueTeam, TeamChipSlot } from "@/lib/sports/fpl/fpl-league/team-stats";
+import type { FplChipStatus } from "@/lib/sports/fpl/fpl-league/chips";
 
 export interface ManagerRowData {
   rank: number;

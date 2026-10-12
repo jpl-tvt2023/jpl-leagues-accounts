@@ -3,10 +3,10 @@ import { leagueFromRequest, resolveTeamActor, teamActorDenied } from "@/lib/team
 import { db, gameweeks, gameweekCaptains, teams, settings, leagues, auditLogs } from "@/lib/db";
 import { eq, and, asc } from "drizzle-orm";
 import { generateId } from "@/lib/id";
-import { computeCaptainCap, computeCaptainCheckLimit } from "@/lib/captains";
-import { resolveSubmissionWindow, formatLateness } from "@/lib/gameweek-window";
-import { getFinishedGwNumbers } from "@/lib/gameweeks/finished-set";
-import { refuseIfNoGameweeks } from "@/lib/formats/route-guards";
+import { computeCaptainCap, computeCaptainCheckLimit } from "@/lib/sports/fpl/captains";
+import { resolveSubmissionWindow, formatLateness } from "@/lib/sports/fpl/gameweeks/window";
+import { getFinishedGwNumbers } from "@/lib/sports/fpl/gameweeks/finished-set";
+import { refuseIfNoGameweeks } from "@/lib/sports/route-guards";
 
 /**
  * POST /api/team/captain

@@ -7,8 +7,8 @@ import { db, teams, groups, gameweeks, fixtures, leagues } from "@/lib/db";
 import { eq, and, inArray } from "drizzle-orm";
 import { generateId } from "@/lib/id";
 import { getAuthorizedLeagueId } from "@/lib/league-auth";
-import { refuseIfNoGameweeks } from "@/lib/formats/route-guards";
-import { invalidateLeaguePageCache } from "@/lib/fpl-cache";
+import { refuseIfNoGameweeks } from "@/lib/sports/route-guards";
+import { invalidateLeaguePageCache } from "@/lib/sports/fpl/cache";
 
 interface FixtureRow {
   gameweek: string | number;

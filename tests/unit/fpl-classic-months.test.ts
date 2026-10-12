@@ -16,7 +16,7 @@ import {
   monthLabel,
   buildMonthBuckets,
   defaultMonthKey,
-} from "../../src/lib/fpl-classic/months";
+} from "../../src/lib/sports/fpl/formats/fpl-classic/months";
 
 test("a deadline late in the month buckets by DEADLINE month, not by when matches are played", () => {
   // Friday 18:30 UTC, 29 Nov — the gameweek's matches run into December, but the gameweek itself

@@ -3,15 +3,15 @@ import { jsonNoStore } from "@/lib/http/no-store";
 import { db } from "@/lib/db";
 import { leagues } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import type { LiveGameweekData } from "@/lib/fpl-cache";
+import type { LiveGameweekData } from "@/lib/sports/fpl/cache";
 import {
   getLiveCachedScores,
   setLiveCachedScores,
   claimRefreshSlot,
   releaseRefreshSlot,
-} from "@/lib/fpl-cache";
-import { computeLiveFixtureScores } from "@/lib/fpl-live/tvt-live-scores";
-import { withFplBudget, FplUnavailableError } from "@/lib/fpl/gateway";
+} from "@/lib/sports/fpl/cache";
+import { computeLiveFixtureScores } from "@/lib/sports/fpl/live/tvt-live-scores";
+import { withFplBudget, FplUnavailableError } from "@/lib/sports/fpl/gateway";
 
 /**
  * GET /api/fixtures/live/refresh?gameweek=N&leagueSlug=slug[&fixtureId=a,b]

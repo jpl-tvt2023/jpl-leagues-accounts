@@ -2,8 +2,8 @@ import { notFound, redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { db, fixtures, gameweeks, leagues } from "@/lib/db";
 import { resolveViewerInLeague } from "@/lib/viewer";
-import { MATCH_CENTER_FORMATS } from "@/lib/match-center/load";
-import { pickDefaultFixture } from "@/lib/match-center/default-fixture";
+import { MATCH_CENTER_FORMATS } from "@/lib/sports/fpl/match-center/load";
+import { pickDefaultFixture } from "@/lib/sports/fpl/match-center/default-fixture";
 
 export const dynamic = "force-dynamic";
 

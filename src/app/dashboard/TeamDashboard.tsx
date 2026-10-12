@@ -8,18 +8,18 @@ import { LeagueNav } from "@/components/LeagueNav";
 import { InstallBanner } from "@/components/pwa/InstallBanner";
 import { TierChip } from "@/components/TierChip";
 import { GwNavigator } from "@/components/GwNavigator";
-import { DOUBLE_HEADER_GWS } from "@/lib/gameweeks/double-headers";
+import { DOUBLE_HEADER_GWS } from "@/lib/sports/fpl/gameweeks/double-headers";
 import { HelpTip } from "@/components/HelpTip";
 import { ChallengeTip } from "../[leagueSlug]/_components/fixtures/ChallengeTip";
-import type { ChallengeMatch } from "@/lib/formats/tvt/challenge-match";
+import type { ChallengeMatch } from "@/lib/sports/fpl/formats/tvt/challenge-match";
 import { LAST_LEAGUE_COOKIE } from "@/lib/last-league";
 import { PlayerScoreFormula } from "@/app/[leagueSlug]/_components/playoffs/shared";
-import { fplEntryUrl, fplEntryLabel } from "@/lib/fpl-links";
+import { fplEntryUrl, fplEntryLabel } from "@/lib/sports/fpl/links";
 import { PlFixtureCard } from "./_components/PlFixtureCard";
 import { EconomyCard } from "@/app/dashboard/_components/EconomyCard";
 import { EligibilitySelect } from "@/app/dashboard/_components/EligibilitySelect";
 import { WishlistManager } from "@/components/WishlistManager";
-import { chipCode, chipName } from "@/lib/formats/tvt/chip-labels";
+import { chipCode, chipName } from "@/lib/sports/fpl/formats/tvt/chip-labels";
 
 // Format an ISO timestamp as a short local clock time, e.g. "6:30 PM" — used
 // for "reopens at ..." messaging when the submission window is locked.

@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getRequestPerson } from "@/lib/accounts";
 import { jsonNoStore } from "@/lib/http/no-store";
-import { FplTeamError, addFplTeam, listFplTeams, removeFplTeam, setPrimaryFplTeam } from "@/lib/fpl-teams";
+import { FplTeamError, addFplTeam, listFplTeams, removeFplTeam, setPrimaryFplTeam } from "@/lib/sports/fpl/user-teams";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
  * PATCH  /api/me/fpl-teams { id }             → makes that one the primary (setup's default pick)
  * DELETE /api/me/fpl-teams { id }             → takes one off the list
  *
- * A person picks one of these for each league they join; see lib/fpl-teams.ts.
+ * A person picks one of these for each league they join; see lib/sports/fpl/user-teams.ts.
  */
 export async function GET(request: NextRequest) {
   const user = await getRequestPerson(request);

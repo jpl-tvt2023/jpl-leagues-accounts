@@ -7,7 +7,7 @@ import {
   seasonChipSlots,
   type ChipState,
   type FplChipStatus,
-} from "@/lib/fpl-league/chips";
+} from "@/lib/sports/fpl/fpl-league/chips";
 import { HelpTip } from "./HelpTip";
 
 /**

@@ -2,34 +2,34 @@ import { NextRequest, NextResponse } from "next/server";
 import { leagueFromRequest, resolveTeamActor, teamActorDenied } from "@/lib/team-actor";
 import { db, teams, players, groups, results, gameweeks, gameweekCaptains, gameweekChips, settings, leagues } from "@/lib/db";
 import { eq, and, gt, asc, desc, or, inArray } from "drizzle-orm";
-import { fplEntryUrl } from "@/lib/fpl-links";
-import { fetchBootstrapData } from "@/lib/fpl";
-import { shouldSyncDeadlines } from "@/lib/fpl-cache";
-import { isCricketFormat } from "@/lib/formats/registry";
-import { getTop2FromGroup, CHIP_GW1_POSITION_REASON } from "@/lib/formats/tvt/chip-validation";
-import { getChipSet } from "@/lib/formats/tvt/scoring";
-import { chipsUsedInSet } from "@/lib/formats/tvt/chip-usage";
-import { computeLeagueStageStandings } from "@/lib/standings/league-stage";
-import { chipCode, chipName, isChipImplemented } from "@/lib/formats/tvt/chip-labels";
-import { buildChallengeMatches } from "@/lib/formats/tvt/challenge-match-query";
+import { fplEntryUrl } from "@/lib/sports/fpl/links";
+import { fetchBootstrapData } from "@/lib/sports/fpl/api";
+import { shouldSyncDeadlines } from "@/lib/sports/fpl/cache";
+import { isCricketFormat } from "@/lib/sports/registry";
+import { getTop2FromGroup, CHIP_GW1_POSITION_REASON } from "@/lib/sports/fpl/formats/tvt/chip-validation";
+import { getChipSet } from "@/lib/sports/fpl/formats/tvt/scoring";
+import { chipsUsedInSet } from "@/lib/sports/fpl/formats/tvt/chip-usage";
+import { computeLeagueStageStandings } from "@/lib/sports/fpl/standings/league-stage";
+import { chipCode, chipName, isChipImplemented } from "@/lib/sports/fpl/formats/tvt/chip-labels";
+import { buildChallengeMatches } from "@/lib/sports/fpl/formats/tvt/challenge-match-query";
 import {
   buildLeagueCaptains,
   findGameweekId,
   resolveCaptainsWindow,
   type LeagueCaptainRow,
 } from "@/lib/dashboard/league-captains";
-import type { ChallengeMatch } from "@/lib/formats/tvt/challenge-match";
-import { cupGroupPosition } from "@/lib/formats/continental-championship/cup-progress";
+import type { ChallengeMatch } from "@/lib/sports/fpl/formats/tvt/challenge-match";
+import { cupGroupPosition } from "@/lib/sports/fpl/formats/continental-championship/cup-progress";
 import { auctionOwnership, auctionScores, auctionSessions } from "@/lib/db/schema";
-import { calculatePurse, calculateRefund, calculateFMV } from "@/lib/formats/auction/economy";
-import { fetchClubOwnershipMap } from "@/lib/teams/rename-rows";
-import { buildTeamLedger } from "@/lib/formats/auction/finance";
-import { computeCaptainCap, computeCaptainCheckLimit } from "@/lib/captains";
-import { resolveSubmissionWindow } from "@/lib/gameweek-window";
-import { getFinishedGwNumbers } from "@/lib/gameweeks/finished-set";
-import { getDoublePointerEligibility } from "@/lib/formats/tvt/double-pointer-eligibility";
+import { calculatePurse, calculateRefund, calculateFMV } from "@/lib/sports/fpl/formats/auction/economy";
+import { fetchClubOwnershipMap } from "@/lib/sports/fpl/teams/rename-rows";
+import { buildTeamLedger } from "@/lib/sports/fpl/formats/auction/finance";
+import { computeCaptainCap, computeCaptainCheckLimit } from "@/lib/sports/fpl/captains";
+import { resolveSubmissionWindow } from "@/lib/sports/fpl/gameweeks/window";
+import { getFinishedGwNumbers } from "@/lib/sports/fpl/gameweeks/finished-set";
+import { getDoublePointerEligibility } from "@/lib/sports/fpl/formats/tvt/double-pointer-eligibility";
 
-import { DOUBLE_HEADER_GWS } from "@/lib/gameweeks/double-headers";
+import { DOUBLE_HEADER_GWS } from "@/lib/sports/fpl/gameweeks/double-headers";
 
 // ⚠️ TEST OVERRIDE: set to null to use live GW detection
 const TEST_GW_OVERRIDE: number | null = null;
@@ -506,7 +506,7 @@ export async function GET(request: NextRequest) {
 
     // Usage comes from the chip rows, not the teams.<chip>Set<N>Used columns. Nothing on
     // a normal submission path ever wrote those columns, so a chip played in an earlier
-    // gameweek read back as available for ever - see lib/formats/tvt/chip-usage.ts.
+    // gameweek read back as available for ever - see lib/sports/fpl/formats/tvt/chip-usage.ts.
     const usageRows = allTeamChips.map((c) => ({
       chipType: c.chipType,
       gameweekNumber: c.gameweek.number,

@@ -3,9 +3,9 @@ import { db, teams, players, gameweeks, gameweekCaptains, leagues } from "@/lib/
 import { eq, and, inArray, sql } from "drizzle-orm";
 import { generateId } from "@/lib/id";
 import { getAuthorizedLeagueId } from "@/lib/league-auth";
-import { refuseIfNoGameweeks } from "@/lib/formats/route-guards";
-import { invalidateLeaguePageCache } from "@/lib/fpl-cache";
-import { computeCaptainCap, computeCaptainCheckLimit } from "@/lib/captains";
+import { refuseIfNoGameweeks } from "@/lib/sports/route-guards";
+import { invalidateLeaguePageCache } from "@/lib/sports/fpl/cache";
+import { computeCaptainCap, computeCaptainCheckLimit } from "@/lib/sports/fpl/captains";
 
 // Safely convert any value to a trimmed string
 function toStr(value: unknown): string {

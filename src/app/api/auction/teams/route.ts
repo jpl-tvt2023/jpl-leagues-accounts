@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, teams, leagues, auctionOwnership, auctionScores, gameweeks } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
 import { getRequestSession, sessionTeamIdInLeague } from "@/lib/team-actor";
-import { calculateFMV } from "@/lib/formats/auction/economy";
-import { computeAuctionStandings } from "@/lib/formats/auction/standings";
-import { fetchElementInfo } from "@/lib/fpl";
-import { fetchClubOwnershipMap } from "@/lib/teams/rename-rows";
-import { MAX_SQUAD_SIZE } from "@/lib/formats/auction/squad-rules";
+import { calculateFMV } from "@/lib/sports/fpl/formats/auction/economy";
+import { computeAuctionStandings } from "@/lib/sports/fpl/formats/auction/standings";
+import { fetchElementInfo } from "@/lib/sports/fpl/api";
+import { fetchClubOwnershipMap } from "@/lib/sports/fpl/teams/rename-rows";
+import { MAX_SQUAD_SIZE } from "@/lib/sports/fpl/formats/auction/squad-rules";
 
 /**
  * GET /api/auction/teams?leagueId=xxx

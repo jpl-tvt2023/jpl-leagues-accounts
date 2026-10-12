@@ -145,7 +145,7 @@ export const cricketUploads = sqliteTable("cricket_uploads", {
 /**
  * One cricket league's settings. Created with the league.
  *
- * `squadRules` is JSON parsed by parseSquadRules (src/lib/cricket/squad-rules.ts):
+ * `squadRules` is JSON parsed by parseSquadRules (src/lib/sports/cricket/squad-rules.ts):
  *   { minSize, maxSize, roleMin: {WK,BAT,AR,BOWL}, roleMax: {…}, maxPerRealTeam, maxOverseas }
  */
 export const cricketLeagueConfig = sqliteTable("cricket_league_config", {
@@ -190,7 +190,7 @@ export const cricketTeamState = sqliteTable("cricket_team_state", {
 
 // ─── Auction ─────────────────────────────────────────────────────────────────
 //
-// The cricket auction engine (src/lib/cricket/auction/) runs on these tables. It follows the FPL
+// The cricket auction engine (src/lib/sports/cricket/auction/) runs on these tables. It follows the FPL
 // auction's proven turn/lot mechanics but owns its own state, so neither format can disturb the
 // other. Two session types: "franchise" (one IPL franchise per team, run first when the league has
 // it switched on) and "player". There are no mini-auctions: squads are final once the player

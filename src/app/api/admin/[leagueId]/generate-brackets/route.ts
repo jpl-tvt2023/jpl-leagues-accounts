@@ -14,9 +14,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, teams, fixtures, gameweeks, groups, playoffTies, leagues } from "@/lib/db";
 import { eq, and, inArray } from "drizzle-orm";
 import { getAuthorizedLeagueId } from "@/lib/league-auth";
-import { refuseIfNoGameweeks } from "@/lib/formats/route-guards";
+import { refuseIfNoGameweeks } from "@/lib/sports/route-guards";
 import { generateId } from "@/lib/id";
-import { invalidateLeaguePageCache } from "@/lib/fpl-cache";
+import { invalidateLeaguePageCache } from "@/lib/sports/fpl/cache";
 
 interface CupGroupStanding {
   teamId: string;

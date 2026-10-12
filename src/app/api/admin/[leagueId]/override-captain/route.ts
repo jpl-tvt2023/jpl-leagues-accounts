@@ -3,9 +3,9 @@ import { db, teams, players, gameweeks, gameweekCaptains, auditLogs } from "@/li
 import { leagues } from "@/lib/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { generateId } from "@/lib/id";
-import { invalidateLeaguePageCache, clearLiveCache } from "@/lib/fpl-cache";
+import { invalidateLeaguePageCache, clearLiveCache } from "@/lib/sports/fpl/cache";
 import { getAuthorizedLeagueId } from "@/lib/league-auth";
-import { refuseIfNoGameweeks } from "@/lib/formats/route-guards";
+import { refuseIfNoGameweeks } from "@/lib/sports/route-guards";
 
 /**
  * POST /api/admin/[leagueId]/override-captain

@@ -3,8 +3,8 @@ import { db, gameweeks, leagues } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
 import { generateId } from "@/lib/id";
 import { getAuthorizedLeagueId } from "@/lib/league-auth";
-import { refuseIfNoGameweeks } from "@/lib/formats/route-guards";
-import { fetchBootstrapData } from "@/lib/fpl";
+import { refuseIfNoGameweeks } from "@/lib/sports/route-guards";
+import { fetchBootstrapData } from "@/lib/sports/fpl/api";
 
 /**
  * POST /api/admin/[leagueId]/create-gameweeks

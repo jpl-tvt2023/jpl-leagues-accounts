@@ -7,9 +7,9 @@ import {
   getCachedGwStats,
   releaseGwStatsBuild,
   setCachedGwStats,
-} from "@/lib/fpl-cache";
-import { buildGwStats, GwStatsError, resolveStatsTarget } from "@/lib/fixtures-stats/build";
-import type { GwStatsPayload } from "@/lib/fixtures-stats/aggregate";
+} from "@/lib/sports/fpl/cache";
+import { buildGwStats, GwStatsError, resolveStatsTarget } from "@/lib/sports/fpl/fixtures-stats/build";
+import type { GwStatsPayload } from "@/lib/sports/fpl/fixtures-stats/aggregate";
 
 // A cold build reads one transfers list per manager behind the gateway's pacing.
 export const maxDuration = 60;
@@ -21,7 +21,7 @@ const PARTIAL_TTL = 120;
  * GET /api/fixtures/stats?leagueSlug=&gameweek=
  *
  * Compact per-manager facts (picks, chip, hits, transfers) for one gameweek; the fixtures page
- * folds them into the stats sidebar client-side (lib/fixtures-stats/aggregate.ts). Public under
+ * folds them into the stats sidebar client-side (lib/sports/fpl/fixtures-stats/aggregate.ts). Public under
  * the /api/fixtures prefix. Nothing is sent before the deadline — picks are secret until then.
  */
 export async function GET(request: NextRequest) {

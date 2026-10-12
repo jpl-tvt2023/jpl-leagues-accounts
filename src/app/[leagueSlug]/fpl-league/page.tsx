@@ -6,7 +6,7 @@ import { LeagueNav } from "@/components/LeagueNav";
 import { LoadingScreen } from "@/components/LoadingScreen";
 import { useLeague, useEnforceFormat } from "@/lib/league-context";
 import { FplLeagueTable, type ManagerRowData } from "./_components/FplLeagueTable";
-import type { FplLeagueTeam } from "@/lib/fpl-league/team-stats";
+import type { FplLeagueTeam } from "@/lib/sports/fpl/fpl-league/team-stats";
 
 interface Payload {
   rows: ManagerRowData[];

@@ -31,19 +31,27 @@ A local SQLite file (`dev.db`) is supported as an alternative to Turso for offli
 
 ## Where things live (one-pager)
 
+Library code is organised **by sport**. Each sport's own logic lives in `src/lib/sports/<sport>/`
+(football on top of FPL in `fpl/`, and `cricket/`). Only generic plumbing is shared: leagues, team
+identity and membership, auth, and the UI shell. `src/lib/sports/registry.ts` lists the sports and
+the league formats each one offers; adding a sport starts there.
+
 | Concern | Path |
 |---|---|
+| Sports, their formats, format capabilities | `src/lib/sports/registry.ts` (labels and grouping in `src/lib/sports/index.ts`) |
+| Football (FPL) code | `src/lib/sports/fpl/` — API client, cache, formats, gameweeks, standings, playoffs, cron, backup |
+| Cricket code | `src/lib/sports/cricket/` (see [11-cricket.md](11-cricket.md)) |
 | App Router pages | `src/app/**` |
-| Per-league public pages | `src/app/[leagueSlug]/**` |
+| Per-league public pages | `src/app/[leagueSlug]/**` (cricket leagues: `src/app/[leagueSlug]/cricket/**`) |
 | Admin dashboard | `src/app/admin/[leagueId]/page.tsx` |
 | Superadmin dashboard | `src/app/superadmin/page.tsx` |
-| Drizzle schema | `src/lib/db/schema.ts` |
+| Drizzle schema | `src/lib/db/schema.ts` (shared + FPL tables), `src/lib/db/schema-cricket.ts` (cricket tables) |
 | Auth + sessions | `src/lib/auth.ts`, `src/middleware.ts`, `src/lib/viewer.ts` |
 | Which team a request acts as | `src/lib/team-actor.ts` (see [10-accounts-and-membership.md](10-accounts-and-membership.md)) |
 | Allowed databases | `src/lib/db/target-guard.ts` — local `file:` or the `jpl-india` Turso DB only |
-| FPL client + cache | `src/lib/fpl.ts`, `src/lib/fpl-cache.ts` |
-| Format scoring | `src/lib/formats/tvt/`, `src/lib/formats/continental-championship/`, `src/lib/formats/auction/` |
-| Playoff windows + advance | `src/lib/playoffs/advance-windows.ts`, `src/app/api/admin/[leagueId]/advance-playoffs/route.ts` |
-| Auto-processing orchestration | `src/lib/cron/process-all.ts` |
-| Backup generation | `src/lib/backup/generate.ts`, `src/lib/backup/xlsx-zip.ts` |
+| FPL client + cache | `src/lib/sports/fpl/api.ts`, `src/lib/sports/fpl/cache.ts` |
+| FPL format scoring | `src/lib/sports/fpl/formats/tvt/`, `src/lib/sports/fpl/formats/continental-championship/`, `src/lib/sports/fpl/formats/auction/`, `src/lib/sports/fpl/formats/fpl-classic/` |
+| Playoff windows + advance | `src/lib/sports/fpl/playoffs/advance-windows.ts`, `src/app/api/admin/[leagueId]/advance-playoffs/route.ts` |
+| Auto-processing orchestration | `src/lib/sports/fpl/cron/process-all.ts` |
+| Backup generation | `src/lib/sports/fpl/backup/generate.ts`, `src/lib/sports/fpl/backup/xlsx-zip.ts` |
 | Format-aware palette | `src/lib/format-palette.ts` |

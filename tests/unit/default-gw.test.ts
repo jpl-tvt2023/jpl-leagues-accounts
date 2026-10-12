@@ -10,7 +10,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { pickDefaultGameweek, type GameweekChoice } from "../../src/lib/gameweeks/default-gw";
+import { pickDefaultGameweek, type GameweekChoice } from "../../src/lib/sports/fpl/gameweeks/default-gw";
 
 const HOUR = 60 * 60 * 1000;
 const NOW = Date.parse("2026-08-30T05:00:00.000Z");

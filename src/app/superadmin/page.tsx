@@ -7,7 +7,7 @@ import { FeedbackTab } from "../admin/[leagueId]/FeedbackTab";
 import { AppNav } from "@/components/AppNav";
 import { UsersPanel } from "./UsersPanel";
 import { Tabs } from "@/components/ui/Tabs";
-import { isChipImplemented } from "@/lib/formats/tvt/chip-labels";
+import { isChipImplemented } from "@/lib/sports/fpl/formats/tvt/chip-labels";
 
 interface League {
   id: string;
@@ -66,7 +66,7 @@ import {
   emptyLeagueResult,
   foldLeagueGwResult,
   finalizeLeagueResult,
-} from "@/lib/cron/league-result";
+} from "@/lib/sports/fpl/cron/league-result";
 
 // ── Operations: process-all run summary ──
 type ProcessAllLeagueResult = {

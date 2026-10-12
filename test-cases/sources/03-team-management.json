@@ -113,7 +113,7 @@
         "soThat": "I have a single source of truth for the active roster",
         "sourceRefs": [
           "src/app/api/admin/[leagueId]/create-team/route.ts:136-173",
-          "src/lib/teams/rename-rows.ts:28-51"
+          "src/lib/sports/fpl/teams/rename-rows.ts:28-51"
         ]
       },
       {
@@ -135,7 +135,7 @@
         "soThat": "the league UI stays consistent with the club-auction rename rule",
         "sourceRefs": [
           "src/app/api/admin/[leagueId]/create-team/route.ts:141-165",
-          "src/lib/teams/rename-rows.ts:28-71"
+          "src/lib/sports/fpl/teams/rename-rows.ts:28-71"
         ]
       }
     ],
@@ -423,7 +423,7 @@
         "rule": "GET /api/admin/[leagueId]/create-team applies the PL Club Auction rename: a team that owns a PL club via `auctionClubOwnership` is returned with `name` = club's full PL name (e.g. \"Liverpool\") while `rawName` preserves the original team name.",
         "sourceRefs": [
           "src/app/api/admin/[leagueId]/create-team/route.ts:150-164",
-          "src/lib/teams/rename-rows.ts:28-51"
+          "src/lib/sports/fpl/teams/rename-rows.ts:28-51"
         ]
       },
       {

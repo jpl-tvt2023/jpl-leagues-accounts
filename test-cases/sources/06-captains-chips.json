@@ -185,9 +185,9 @@
       },
       {
         "id": "BR-CHIP-004",
-        "rule": "Per-player captaincy cap is `Math.ceil(nonPlayoffGws / 2)`, where `nonPlayoffGws = leagueFormat === 'continental-championship' ? 38 : (playoffStartGw - 1)`. captainCheckLimit (upper GW boundary of league stage) is the same nonPlayoffGws value. Below or at this limit the captaincy counts toward the cap; above it the captain is treated as a playoff captaincy with unlimited chips remaining. The cap is computed via `computeCaptainCap()` and the limit via `computeCaptainCheckLimit()` in `src/lib/captains.ts`; both consumed by `src/app/api/team/captain/route.ts`, `import-captains/route.ts`, and `team/dashboard/route.ts`.",
+        "rule": "Per-player captaincy cap is `Math.ceil(nonPlayoffGws / 2)`, where `nonPlayoffGws = leagueFormat === 'continental-championship' ? 38 : (playoffStartGw - 1)`. captainCheckLimit (upper GW boundary of league stage) is the same nonPlayoffGws value. Below or at this limit the captaincy counts toward the cap; above it the captain is treated as a playoff captaincy with unlimited chips remaining. The cap is computed via `computeCaptainCap()` and the limit via `computeCaptainCheckLimit()` in `src/lib/sports/fpl/captains.ts`; both consumed by `src/app/api/team/captain/route.ts`, `import-captains/route.ts`, and `team/dashboard/route.ts`.",
         "sourceRefs": [
-          "src/lib/captains.ts:1-9",
+          "src/lib/sports/fpl/captains.ts:1-9",
           "src/app/api/team/captain/route.ts:67-69",
           "src/app/api/admin/[leagueId]/import-captains/route.ts:65-66",
           "src/app/api/team/dashboard/route.ts:452-462"
@@ -284,7 +284,7 @@
         "rule": "Chips cannot be submitted for playoff gameweeks (gameweek >= league.playoffStartGw); returns 400 'TVT chips cannot be used in playoffs (GW<N>+)'.",
         "sourceRefs": [
           "src/app/api/team/chips/route.ts:121-128",
-          "src/lib/formats/tvt/scoring.ts:192-196"
+          "src/lib/sports/fpl/formats/tvt/scoring.ts:192-196"
         ]
       },
       {
@@ -292,7 +292,7 @@
         "rule": "Set boundaries are dynamic and derived from league.playoffStartGw: Set 1 = GW1..ceil((playoffStartGw-1)/2), Set 2 = GW(midpoint+1)..(playoffStartGw-1). For default playoffStartGw=31 this yields Set 1 = GW1-15, Set 2 = GW16-30; for playoffStartGw=36 it yields Set 1 = GW1-17, Set 2 = GW18-35.",
         "sourceRefs": [
           "src/app/api/team/chips/route.ts:131-134",
-          "src/lib/formats/tvt/scoring.ts:183-196"
+          "src/lib/sports/fpl/formats/tvt/scoring.ts:183-196"
         ]
       },
       {
@@ -578,9 +578,9 @@
         "id": "BR-CHIP-057",
         "rule": "When a team fails to announce a captain by the GW deadline, `autoAssignDefaultCaptain` (TVT) / `persistAutoCaptain` (TC) selects the lowest-scoring player irrespective of remaining cap. The captaincy row is written with `isValid=false`; when the picked player would exceed `computeCaptainCap()` for the GW, `bypassReason` is set to 'Auto-fallback: team {teamName} failed to announce in GW{gw}; lowest scorer {playerName} selected despite cap of {cap} reached'. `players.captaincyChipsUsed` is incremented when the GW counts toward the cap (so the counter reflects reality, including past-cap counts via bypass).",
         "sourceRefs": [
-          "src/lib/scoring/temp-captain.ts:1-90",
+          "src/lib/sports/fpl/scoring/temp-captain.ts:1-90",
           "src/app/api/gameweeks/[gw]/route.ts:170-256",
-          "src/lib/formats/continental-championship/process-gameweek.ts:185-208"
+          "src/lib/sports/fpl/formats/continental-championship/process-gameweek.ts:185-208"
         ]
       },
       {
@@ -3006,8 +3006,8 @@
       "pinningTestCases": [
         "TC-CHIP-077"
       ],
-      "notes": "Read leagues.playoffStartGw alongside format and compute captainCheckLimit = playoffStartGw - 1. Coordinate with module 05 to confirm what 'League Stage' means in the captaincy cap. [DEV] Self-verified: read playoffStartGw alongside format; derived limit dynamically. [QA] Re-run TC-CHIP-077 against TVT-8 league and confirm captain at GW31..GW35 counts toward the per-player cap. [BA] BR-CHIP-004 + AC-CHIP-013 describe the hardcoded-30 behaviour; rewrite to playoffStartGw-1. [BA-UPDATED]: 2026-05-26 — BR-CHIP-004 + AC-CHIP-013 updated. [BA-UPDATED]: 2026-05-28 — BR-CHIP-004 rewritten to describe the ceil(nonPlayoffGws/2) formula; AC-CHIP-004 + AC-CHIP-005 updated; new boundary AC added for TVT-8.\n[DEV 2026-05-28] Client revision: cap is now ceil(nonPlayoffGws/2), not hardcoded 15/19. Helper extracted to @/lib/captains. All 3 production callsites swapped. Dashboard route had pre-existing drift (hardcoded 30/19:15) — also corrected.",
-      "resolution": "Captain cap now derives from formula ceil(nonPlayoffGws / 2) instead of hardcoded 15/19. Shared helper in src/lib/captains.ts (computeCaptainCap + computeCaptainCheckLimit). Replaced 3 callsites: team/captain/route.ts, admin/[leagueId]/import-captains/route.ts, team/dashboard/route.ts. TVT default 31 → 15 unchanged; TVT-8 36 → 18 (was incorrectly 15); TC 38 → 19 unchanged.",
+      "notes": "Read leagues.playoffStartGw alongside format and compute captainCheckLimit = playoffStartGw - 1. Coordinate with module 05 to confirm what 'League Stage' means in the captaincy cap. [DEV] Self-verified: read playoffStartGw alongside format; derived limit dynamically. [QA] Re-run TC-CHIP-077 against TVT-8 league and confirm captain at GW31..GW35 counts toward the per-player cap. [BA] BR-CHIP-004 + AC-CHIP-013 describe the hardcoded-30 behaviour; rewrite to playoffStartGw-1. [BA-UPDATED]: 2026-05-26 — BR-CHIP-004 + AC-CHIP-013 updated. [BA-UPDATED]: 2026-05-28 — BR-CHIP-004 rewritten to describe the ceil(nonPlayoffGws/2) formula; AC-CHIP-004 + AC-CHIP-005 updated; new boundary AC added for TVT-8.\n[DEV 2026-05-28] Client revision: cap is now ceil(nonPlayoffGws/2), not hardcoded 15/19. Helper extracted to @/lib/sports/fpl/captains. All 3 production callsites swapped. Dashboard route had pre-existing drift (hardcoded 30/19:15) — also corrected.",
+      "resolution": "Captain cap now derives from formula ceil(nonPlayoffGws / 2) instead of hardcoded 15/19. Shared helper in src/lib/sports/fpl/captains.ts (computeCaptainCap + computeCaptainCheckLimit). Replaced 3 callsites: team/captain/route.ts, admin/[leagueId]/import-captains/route.ts, team/dashboard/route.ts. TVT default 31 → 15 unchanged; TVT-8 36 → 18 (was incorrectly 15); TC 38 → 19 unchanged.",
       "resolutionDate": "2026-05-28"
     },
     {

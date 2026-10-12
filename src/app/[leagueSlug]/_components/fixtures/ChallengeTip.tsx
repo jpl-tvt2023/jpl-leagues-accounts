@@ -5,7 +5,7 @@ import { PlayerBreakdown, type Fixture } from "./shared";
 import {
   challengeOutcomeLabel,
   type ChallengeMatch,
-} from "@/lib/formats/tvt/challenge-match";
+} from "@/lib/sports/fpl/formats/tvt/challenge-match";
 
 /**
  * A chip pill that, for a Challenge Chip, reveals the challenge match on hover OR tap.

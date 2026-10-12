@@ -3,10 +3,10 @@ import { db, teams, auditLogs, gameweekChips, gameweeks } from "@/lib/db";
 import { leagues } from "@/lib/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { generateId } from "@/lib/id";
-import { invalidateLeaguePageCache } from "@/lib/fpl-cache";
+import { invalidateLeaguePageCache } from "@/lib/sports/fpl/cache";
 import { getAuthorizedLeagueId } from "@/lib/league-auth";
-import { refuseIfNoGameweeks } from "@/lib/formats/route-guards";
-import { isChipWasted } from "@/lib/formats/tvt/chip-waste";
+import { refuseIfNoGameweeks } from "@/lib/sports/route-guards";
+import { isChipWasted } from "@/lib/sports/fpl/formats/tvt/chip-waste";
 
 // Valid chip types (existing + 3 new chips)
 const VALID_CHIPS = [

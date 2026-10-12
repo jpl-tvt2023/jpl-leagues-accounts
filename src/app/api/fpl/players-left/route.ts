@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { countPlayersLeftToPlay } from "@/lib/fpl-live/players-left";
+import { countPlayersLeftToPlay } from "@/lib/sports/fpl/live/players-left";
 
 /**
  * GET /api/fpl/players-left?gw=N&elements=1,2,3,...

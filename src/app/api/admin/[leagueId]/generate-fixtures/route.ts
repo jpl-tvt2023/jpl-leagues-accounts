@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, gameweeks, fixtures, results, groups, leagues, teams } from "@/lib/db";
-import { generateRoundRobinFixtures, generateGameweeks } from "@/lib/formats/tvt/fixtures";
+import { generateRoundRobinFixtures, generateGameweeks } from "@/lib/sports/fpl/formats/tvt/fixtures";
 import { eq, and, asc, count, inArray } from "drizzle-orm";
 import { generateId } from "@/lib/id";
-import { invalidateLeaguePageCache } from "@/lib/fpl-cache";
+import { invalidateLeaguePageCache } from "@/lib/sports/fpl/cache";
 import { getAuthorizedLeagueId } from "@/lib/league-auth";
-import { refuseIfNoGameweeks } from "@/lib/formats/route-guards";
+import { refuseIfNoGameweeks } from "@/lib/sports/route-guards";
 
 /**
  * POST /api/admin/[leagueId]/generate-fixtures

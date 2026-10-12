@@ -4,7 +4,7 @@ import { eq, and, desc, count } from "drizzle-orm";
 import { isSuperAdmin } from "@/lib/privilege";
 import { getRequestSession, sessionTeamIdInLeague } from "@/lib/team-actor";
 import { generateId } from "@/lib/id";
-import { generateSnakeOrder } from "@/lib/formats/auction/mini-auction";
+import { generateSnakeOrder } from "@/lib/sports/fpl/formats/auction/mini-auction";
 import {
   resolveExpiredBid,
   advanceNominator,
@@ -12,20 +12,20 @@ import {
   auditAuctionComposition,
   findCompositionOffenders,
   allSquadsFull,
-} from "@/lib/formats/auction/resolve-bid";
-import { simulateAuction } from "@/lib/formats/auction/simulate";
-import { finalizePendingReleasesNow } from "@/lib/formats/auction/process-gameweek";
-import { purgePendingTrades } from "@/lib/formats/auction/live-session";
-import { invalidateLeaguePageCache } from "@/lib/fpl-cache";
-import { buildLotMetaResolver } from "@/lib/formats/auction/lot-meta";
+} from "@/lib/sports/fpl/formats/auction/resolve-bid";
+import { simulateAuction } from "@/lib/sports/fpl/formats/auction/simulate";
+import { finalizePendingReleasesNow } from "@/lib/sports/fpl/formats/auction/process-gameweek";
+import { purgePendingTrades } from "@/lib/sports/fpl/formats/auction/live-session";
+import { invalidateLeaguePageCache } from "@/lib/sports/fpl/cache";
+import { buildLotMetaResolver } from "@/lib/sports/fpl/formats/auction/lot-meta";
 import {
   CLUB_AUCTION_SESSION_TYPE,
   fetchAllPLClubsWithTiers,
   setClubNominationDeadline,
   simulateClubAuction,
   getClubLessTeamIds,
-} from "@/lib/formats/auction/club-auction";
-import { writeAuctionCompleteSnapshot } from "@/lib/backup/snapshot";
+} from "@/lib/sports/fpl/formats/auction/club-auction";
+import { writeAuctionCompleteSnapshot } from "@/lib/sports/fpl/backup/snapshot";
 
 /**
  * Auto-resolve expired open bids that SSE may have missed.

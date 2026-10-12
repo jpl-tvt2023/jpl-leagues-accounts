@@ -446,7 +446,7 @@ Bonus points (BP) are awarded based on match margin:
 
 ### League Point Tiebreakers
 
-Defined once in `src/lib/formats/tvt/tiebreaker.ts` (`compareTiebreaker`) and shared by
+Defined once in `src/lib/sports/fpl/formats/tvt/tiebreaker.ts` (`compareTiebreaker`) and shared by
 `/api/standings`, playoff seeding and the bracket preview — the displayed table and the
 generated bracket always resolve ties identically.
 

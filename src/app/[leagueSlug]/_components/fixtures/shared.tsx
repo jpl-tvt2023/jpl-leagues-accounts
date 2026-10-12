@@ -2,13 +2,13 @@
 
 import { PlayerScoreFormula } from "../playoffs/shared";
 import { FplEntryLink } from "@/components/FplEntryLink";
-import { fplEntryLabel } from "@/lib/fpl-links";
+import { fplEntryLabel } from "@/lib/sports/fpl/links";
 import { ChipPill, FplChipRow, FplChipsPlayedInGw } from "@/components/ChipPill";
 import {
   chipState,
   type ChipState,
   type FplChipStatus,
-} from "@/lib/fpl-league/chips";
+} from "@/lib/sports/fpl/fpl-league/chips";
 
 /**
  * Chip state for one side of a fixture, folded into the points breakdown.

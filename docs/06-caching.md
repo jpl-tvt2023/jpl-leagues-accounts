@@ -1,6 +1,6 @@
 # 06 · Caching
 
-Three Upstash Redis layers handle different latency vs freshness tradeoffs. All live in [`src/lib/fpl-cache.ts`](../src/lib/fpl-cache.ts).
+Three Upstash Redis layers handle different latency vs freshness tradeoffs. All live in [`src/lib/sports/fpl/cache.ts`](../src/lib/sports/fpl/cache.ts).
 
 | Layer | Keys | TTL | Written by | Read by | Invalidation |
 |---|---|---|---|---|---|

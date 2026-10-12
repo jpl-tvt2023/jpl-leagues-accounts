@@ -18,14 +18,14 @@ import {
 } from "@/lib/db";
 import { CONTINENTAL_FORMAT } from "@/lib/format-palette";
 import { needsSetup, hasPlayerSlots } from "@/lib/membership";
-import { computeLeagueStageStandings } from "@/lib/standings/league-stage";
-import { resolveSubmissionWindow } from "@/lib/gameweek-window";
-import { getFinishedGwNumbers } from "@/lib/gameweeks/finished-set";
-import { cupGroupPosition } from "@/lib/formats/continental-championship/cup-progress";
-import { loadAuctionStandings } from "@/lib/formats/auction/standings-load";
-import { buildTeamLedger } from "@/lib/formats/auction/finance";
-import { rankRows } from "@/lib/fpl-classic/leaderboard";
-import { myClassicEntries, type MyClassicEntry } from "@/lib/fpl-classic/my-entries";
+import { computeLeagueStageStandings } from "@/lib/sports/fpl/standings/league-stage";
+import { resolveSubmissionWindow } from "@/lib/sports/fpl/gameweeks/window";
+import { getFinishedGwNumbers } from "@/lib/sports/fpl/gameweeks/finished-set";
+import { cupGroupPosition } from "@/lib/sports/fpl/formats/continental-championship/cup-progress";
+import { loadAuctionStandings } from "@/lib/sports/fpl/formats/auction/standings-load";
+import { buildTeamLedger } from "@/lib/sports/fpl/formats/auction/finance";
+import { rankRows } from "@/lib/sports/fpl/formats/fpl-classic/leaderboard";
+import { myClassicEntries, type MyClassicEntry } from "@/lib/sports/fpl/formats/fpl-classic/my-entries";
 import {
   buildOverview,
   type AuctionStatus,

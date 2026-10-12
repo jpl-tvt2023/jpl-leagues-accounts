@@ -3,8 +3,8 @@ import { db } from "@/lib/db";
 import { leagues } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { getAuthorizedLeagueId } from "@/lib/league-auth";
-import { generateBackupRows } from "@/lib/backup/generate";
-import { buildBackupZip, backupZipFilename } from "@/lib/backup/xlsx-zip";
+import { generateBackupRows } from "@/lib/sports/fpl/backup/generate";
+import { buildBackupZip, backupZipFilename } from "@/lib/sports/fpl/backup/xlsx-zip";
 
 export const maxDuration = 60;
 

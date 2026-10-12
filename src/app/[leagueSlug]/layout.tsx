@@ -5,8 +5,8 @@ import { fplClassicConfig } from "@/lib/db/schema";
 import { LeagueProvider, type LeagueInfo } from "@/lib/league-context";
 import { resolveViewerInLeague } from "@/lib/viewer";
 import { getFormatPalette, FPL_CLASSIC_FORMAT } from "@/lib/format-palette";
-import { DEFAULT_RELEASE_CYCLE_GWS, parseReleaseCycleGws } from "@/lib/formats/auction/cycle";
-import { isCricketFormat } from "@/lib/formats/registry";
+import { DEFAULT_RELEASE_CYCLE_GWS, parseReleaseCycleGws } from "@/lib/sports/fpl/formats/auction/cycle";
+import { isCricketFormat } from "@/lib/sports/registry";
 import { CricketRouteGuard } from "./_components/cricket/CricketRouteGuard";
 
 function parseEnabledChips(raw: string): string[] {

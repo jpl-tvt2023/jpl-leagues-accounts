@@ -11,7 +11,7 @@ You are the TVT-32 specialist. The 32-team variant is the most complex TVT shape
 - 2 repetitions per group ⇒ 30 league-stage GWs
 - Playoffs start at GW31
 - Main bracket: RO16 → QF → SF → Final
-- Challenger Cup: C-31 onwards (see [src/lib/formats/tvt/playoffs.ts](../../src/lib/formats/tvt/playoffs.ts))
+- Challenger Cup: C-31 onwards (see [src/lib/sports/fpl/formats/tvt/playoffs.ts](../../src/lib/sports/fpl/formats/tvt/playoffs.ts))
 - Default enabled chips: `["D","W","C"]`
 
 ## How to run
@@ -24,7 +24,7 @@ Setup takes longer than smaller formats (32 teams × per-team password change + 
 
 ## Owned files
 - Spec: [tests/league-types/tvt-32.spec.ts](../../tests/league-types/tvt-32.spec.ts)
-- Reference: [src/lib/formats/tvt/playoffs.ts](../../src/lib/formats/tvt/playoffs.ts), [src/lib/formats/tvt/fixtures.ts](../../src/lib/formats/tvt/fixtures.ts)
+- Reference: [src/lib/sports/fpl/formats/tvt/playoffs.ts](../../src/lib/sports/fpl/formats/tvt/playoffs.ts), [src/lib/sports/fpl/formats/tvt/fixtures.ts](../../src/lib/sports/fpl/formats/tvt/fixtures.ts)
 
 ## Coverage checklist (admin)
 1. League created with `teamSize=32`, `groupCount=2`, `playoffStartGw=31`.
@@ -44,6 +44,6 @@ Setup takes longer than smaller formats (32 teams × per-team password change + 
 5. Cross-group Challenge Chip target validation works (player must pick a team from the OTHER group).
 
 ## Workflow
-Same as other TVT testers. If 32-team setup is slow, that's expected — don't shortcut it. If a real bug surfaces in bracket seeding or Challenger Cup logic, cite [src/lib/formats/tvt/playoffs.ts](../../src/lib/formats/tvt/playoffs.ts) line numbers in the report.
+Same as other TVT testers. If 32-team setup is slow, that's expected — don't shortcut it. If a real bug surfaces in bracket seeding or Challenger Cup logic, cite [src/lib/sports/fpl/formats/tvt/playoffs.ts](../../src/lib/sports/fpl/formats/tvt/playoffs.ts) line numbers in the report.
 
 Report under 250 words.

@@ -18,7 +18,7 @@
         "soThat": "the bracket reflects the correct rank-vs-rank matchups (RO16+C-31 for 32T, four playoff groups for 16T, SF only for 8T)",
         "sourceRefs": [
           "src/app/api/admin/[leagueId]/generate-playoffs/route.ts:91-378",
-          "src/lib/formats/tvt/playoffs.ts:16-44"
+          "src/lib/sports/fpl/formats/tvt/playoffs.ts:16-44"
         ]
       },
       {
@@ -65,7 +65,7 @@
         "soThat": "I can recover from a botched gameweek without re-entering data team-by-team",
         "sourceRefs": [
           "src/app/api/admin/[leagueId]/restore-tvt/route.ts:23-101",
-          "src/lib/backup/restore-tvt.ts:103-186"
+          "src/lib/sports/fpl/backup/restore-tvt.ts:103-186"
         ]
       },
       {
@@ -114,7 +114,7 @@
         "iWant": "playoff GWs (31-38, or 36-38 for TVT-8) to be auto-created with real FPL deadlines if available",
         "soThat": "I don't have to manually populate gameweek rows before generating the bracket",
         "sourceRefs": [
-          "src/lib/formats/tvt/playoffs.ts:253-283"
+          "src/lib/sports/fpl/formats/tvt/playoffs.ts:253-283"
         ]
       },
       {
@@ -124,7 +124,7 @@
         "soThat": "lower-ranked teams have a meaningful path through to the Challenger Final instead of being eliminated outright",
         "sourceRefs": [
           "src/app/api/admin/[leagueId]/advance-playoffs/route.ts:1210-1586",
-          "src/lib/formats/tvt/playoffs.ts:27-34"
+          "src/lib/sports/fpl/formats/tvt/playoffs.ts:27-34"
         ]
       }
     ],
@@ -144,7 +144,7 @@
         "rule": "POST /api/admin/[leagueId]/generate-playoffs is idempotent-protected: if any tie with one of the initial round names for the variant (TVT-8 = ['8T-SF']; TVT-16 = ['16T-CA','16T-CB','16T-XA','16T-XB']; TVT-32 = ['RO16','C-31']) already exists for the league, returns 400 with 'Initial playoff ties already exist for this league. Delete them first to regenerate.'",
         "sourceRefs": [
           "src/app/api/admin/[leagueId]/generate-playoffs/route.ts:108-120",
-          "src/lib/formats/tvt/playoffs.ts:288-292"
+          "src/lib/sports/fpl/formats/tvt/playoffs.ts:288-292"
         ]
       },
       {
@@ -152,29 +152,29 @@
         "rule": "League stage end is computed as playoffStartGw - 1; standings used to seed the bracket count only results from GW1 through that boundary (chips processed after that boundary are excluded).",
         "sourceRefs": [
           "src/app/api/admin/[leagueId]/generate-playoffs/route.ts:104-105",
-          "src/lib/formats/tvt/playoffs.ts:122-169"
+          "src/lib/sports/fpl/formats/tvt/playoffs.ts:122-169"
         ]
       },
       {
         "id": "BR-PLAYOFF-004",
         "rule": "Standings sort order for seeding is leaguePoints desc → pointsFor desc → cbpPoints desc; group A/B rankings are assigned independently when both groups exist, else all teams collapse into groupA with a single 1-N ranking.",
         "sourceRefs": [
-          "src/lib/formats/tvt/playoffs.ts:228-241"
+          "src/lib/sports/fpl/formats/tvt/playoffs.ts:228-241"
         ]
       },
       {
         "id": "BR-PLAYOFF-005",
         "rule": "TVT-32 seeding for RO16 is cross-group: A1-B8, B1-A8, A2-B7, B2-A7, A3-B6, B3-A6, A4-B5, B4-A5 (RO16-A through RO16-H), played 2-legged at playoffStartGw + 0/+1.",
         "sourceRefs": [
-          "src/lib/formats/tvt/playoffs.ts:16-25",
+          "src/lib/sports/fpl/formats/tvt/playoffs.ts:16-25",
           "src/app/api/admin/[leagueId]/generate-playoffs/route.ts:283-333"
         ]
       },
       {
         "id": "BR-PLAYOFF-006",
-        "rule": "TVT-32 Challenger C-31 seeding pairs A9-B14, A10-B13, A11-B12, A12-B11, A13-B10, A14-B9 (single-leg, GW31) with the A-side always home. The canonical C31_SEEDING_32 table in src/lib/formats/tvt/playoffs.ts is the single source of truth — both the admin generate-playoffs endpoint and the public bracket route import and use this table, so the projected/tentative bracket and the live ties created by generate-playoffs always agree on pairings and home/away orientation.",
+        "rule": "TVT-32 Challenger C-31 seeding pairs A9-B14, A10-B13, A11-B12, A12-B11, A13-B10, A14-B9 (single-leg, GW31) with the A-side always home. The canonical C31_SEEDING_32 table in src/lib/sports/fpl/formats/tvt/playoffs.ts is the single source of truth — both the admin generate-playoffs endpoint and the public bracket route import and use this table, so the projected/tentative bracket and the live ties created by generate-playoffs always agree on pairings and home/away orientation.",
         "sourceRefs": [
-          "src/lib/formats/tvt/playoffs.ts:27-34",
+          "src/lib/sports/fpl/formats/tvt/playoffs.ts:27-34",
           "src/app/api/playoffs/bracket/route.ts:8-16"
         ]
       },
@@ -183,14 +183,14 @@
         "rule": "TVT-16 seeds four 4-team playoff groups from single-group standings using snake assignment: Championship A = ranks 1,4,5,8; Championship B = ranks 2,3,6,7; Challenger A = ranks 9,12,13,16; Challenger B = ranks 10,11,14,15. Each group plays a 6-match round-robin across GW31-33 (one match per GW per pair). Requires ≥4 ranked teams per group or the endpoint returns 400.",
         "sourceRefs": [
           "src/app/api/admin/[leagueId]/generate-playoffs/route.ts:213-275",
-          "src/lib/formats/tvt/playoffs.ts:51-85"
+          "src/lib/sports/fpl/formats/tvt/playoffs.ts:51-85"
         ]
       },
       {
         "id": "BR-PLAYOFF-008",
         "rule": "TVT-8 seeds two Semi-Final ties (8T-SF-A = rank1 vs rank4, 8T-SF-B = rank2 vs rank3) single-leg at playoffStartGw; Final and 3rd-place are 2-legged across playoffStartGw+1 and playoffStartGw+2.",
         "sourceRefs": [
-          "src/lib/formats/tvt/playoffs.ts:40-43",
+          "src/lib/sports/fpl/formats/tvt/playoffs.ts:40-43",
           "src/app/api/admin/[leagueId]/generate-playoffs/route.ts:163-202",
           "src/app/api/admin/[leagueId]/advance-playoffs/route.ts:807-841"
         ]
@@ -213,7 +213,7 @@
         "id": "BR-PLAYOFF-011",
         "rule": "When generating the bracket, the endpoint auto-creates any missing gameweek rows from playoffStartGw through GW38, populating real FPL deadlines from /bootstrap-static where available, else falling back to placeholder deadlines 7*(N+1) days from now at 11:00 with isPlayoffs=true.",
         "sourceRefs": [
-          "src/lib/formats/tvt/playoffs.ts:253-283"
+          "src/lib/sports/fpl/formats/tvt/playoffs.ts:253-283"
         ]
       },
       {
@@ -482,21 +482,21 @@
         "rule": "Restore-tvt accepts either multipart/form-data with a 'file' Blob (parsed via parseRestoreZip) or JSON body { backupId }. Multipart path requires meta.json present in the zip; rejects with 400 if missing, if meta.leagueId differs from target leagueId, or if meta.format is present and != 'tvt'. backupId path scopes the SELECT by (id, leagueId), preventing cross-league restore via id.",
         "sourceRefs": [
           "src/app/api/admin/[leagueId]/restore-tvt/route.ts:37-77",
-          "src/lib/backup/restore-tvt.ts:80-97"
+          "src/lib/sports/fpl/backup/restore-tvt.ts:80-97"
         ]
       },
       {
         "id": "BR-PLAYOFF-048",
         "rule": "Restore-tvt wipes every fixture for the league's gameweeks then re-inserts from the payload (ON DELETE CASCADE on results.fixture_id wipes results). Teams are preserved. Per-row resolution: row with non-numeric or out-of-range (1..38) gameweek is skipped with warning; row with unknown home/away login is skipped with warning. Missing gameweek rows are auto-created with placeholder deadlines and isPlayoffs=(gwNumber >= playoffStartGw).",
         "sourceRefs": [
-          "src/lib/backup/restore-tvt.ts:103-176"
+          "src/lib/sports/fpl/backup/restore-tvt.ts:103-176"
         ]
       },
       {
         "id": "BR-PLAYOFF-049",
         "rule": "Restore-tvt's wipe phase clears every fixture for the league's gameweeks, every challenger_survival_entries row whose gameweekId is in the league's gameweekIds, and every playoff_ties row for the leagueId, BEFORE re-inserting fixtures from the payload. This returns the league to a pre-playoff state matching the restored fixtures so advance-playoffs has no stale aggregate/winner rows and the public bracket route surfaces no phantom winners. Captains and chips are still deferred and surfaced as warnings.",
         "sourceRefs": [
-          "src/lib/backup/restore-tvt.ts:128-135",
+          "src/lib/sports/fpl/backup/restore-tvt.ts:128-135",
           "src/app/api/admin/[leagueId]/restore-tvt/route.ts:86-93"
         ]
       },
@@ -939,7 +939,7 @@
         "id": "AC-PLAYOFF-054",
         "given": "a TVT-32 league where the generate-playoffs route creates C-31 ties and a public visitor GETs /api/playoffs/bracket in tentative mode",
         "when": "comparing the visible C-31 home/away pairings against the generated ties",
-        "then": "the tentative bracket and the generated ties show identical C-31 seeding with A-side always home: C-31-A=A9 v B14, C-31-B=A10 v B13, C-31-C=A11 v B12, C-31-D=A12 v B11, C-31-E=A13 v B10, C-31-F=A14 v B9 — the bracket route imports the canonical C31_SEEDING_32 from src/lib/formats/tvt/playoffs.ts so the public projection cannot diverge from the live state",
+        "then": "the tentative bracket and the generated ties show identical C-31 seeding with A-side always home: C-31-A=A9 v B14, C-31-B=A10 v B13, C-31-C=A11 v B12, C-31-D=A12 v B11, C-31-E=A13 v B10, C-31-F=A14 v B9 — the bracket route imports the canonical C31_SEEDING_32 from src/lib/sports/fpl/formats/tvt/playoffs.ts so the public projection cannot diverge from the live state",
         "linksTo": "BR-PLAYOFF-006"
       },
       {
@@ -2211,13 +2211,13 @@
         "4. SELECT * FROM playoff_ties WHERE roundName='C-31' AND leagueId=…",
         "5. Compare home/away assignment for each C-31-X tieId between the public response and DB row"
       ],
-      "expectedResult": "Both the public bracket projection AND the admin-generated playoff_ties rows reference the canonical C31_SEEDING_32 table from src/lib/formats/tvt/playoffs.ts — A-side always home: C-31-A=A9 v B14, C-31-B=A10 v B13, C-31-C=A11 v B12, C-31-D=A12 v B11, C-31-E=A13 v B10, C-31-F=A14 v B9. All 6 ties match on both pairings and home/away assignment; the public projection is now a trustworthy preview of the live ties. RO16 sides also match canonical RO16_SEEDING (A1-B8, B1-A8, A2-B7, …).",
+      "expectedResult": "Both the public bracket projection AND the admin-generated playoff_ties rows reference the canonical C31_SEEDING_32 table from src/lib/sports/fpl/formats/tvt/playoffs.ts — A-side always home: C-31-A=A9 v B14, C-31-B=A10 v B13, C-31-C=A11 v B12, C-31-D=A12 v B11, C-31-E=A13 v B10, C-31-F=A14 v B9. All 6 ties match on both pairings and home/away assignment; the public projection is now a trustworthy preview of the live ties. RO16 sides also match canonical RO16_SEEDING (A1-B8, B1-A8, A2-B7, …).",
       "postconditions": "Public projection and generated ties are identical — single source of truth honored",
       "requirementId": "AC-PLAYOFF-054",
       "author": "qa-tester",
       "createdDate": "2026-05-23",
       "status": "Not Executed",
-      "notes": "Pins DEF-PLAYOFF-001\n[QA-VERIFY] Updated post-DEF-PLAYOFF-001 fix on 2026-05-26. src/app/api/playoffs/bracket/route.ts (lines 8-16) now imports RO16_SEEDING and C31_SEEDING_32 (aliased C31_SEEDING) from src/lib/formats/tvt/playoffs.ts and uses them at the projection sites (lines 977, 1012, 1029, 1361). The divergent local tables (formerly ~lines 17-33) are deleted. Test re-tagged Regression → Positive; expectedResult rewritten to assert the canonical A-side-home pairings now visible in both the public bracket response and the generate-playoffs DB rows."
+      "notes": "Pins DEF-PLAYOFF-001\n[QA-VERIFY] Updated post-DEF-PLAYOFF-001 fix on 2026-05-26. src/app/api/playoffs/bracket/route.ts (lines 8-16) now imports RO16_SEEDING and C31_SEEDING_32 (aliased C31_SEEDING) from src/lib/sports/fpl/formats/tvt/playoffs.ts and uses them at the projection sites (lines 977, 1012, 1029, 1361). The divergent local tables (formerly ~lines 17-33) are deleted. Test re-tagged Regression → Positive; expectedResult rewritten to assert the canonical A-side-home pairings now visible in both the public bracket response and the generate-playoffs DB rows."
     },
     {
       "id": "TC-PLAYOFF-065",
@@ -2240,7 +2240,7 @@
       "author": "qa-tester",
       "createdDate": "2026-05-23",
       "status": "Not Executed",
-      "notes": "Pins DEF-PLAYOFF-004\n[QA-VERIFY] Updated post-DEF-PLAYOFF-004 fix on 2026-05-26. buildTentative16Team in src/app/api/playoffs/bracket/route.ts:~739-906 was rewritten to mirror the live 16-team layout (4 snake-seeded cup-groups with 6-match round-robin via shared CHAMP_GA/GB_MATCHES + CHALL_GA/GB_MATCHES tables from src/lib/formats/tvt/playoffs.ts), Championship SFs (2-leg GW+3/+4), a 3-LEG Championship Final + 3rd-place (GW+5/+6/+7), and Challenger QF/SF/Final placeholders. Test re-tagged Regression → Positive; expectedResult rewritten to assert the new correct topology."
+      "notes": "Pins DEF-PLAYOFF-004\n[QA-VERIFY] Updated post-DEF-PLAYOFF-004 fix on 2026-05-26. buildTentative16Team in src/app/api/playoffs/bracket/route.ts:~739-906 was rewritten to mirror the live 16-team layout (4 snake-seeded cup-groups with 6-match round-robin via shared CHAMP_GA/GB_MATCHES + CHALL_GA/GB_MATCHES tables from src/lib/sports/fpl/formats/tvt/playoffs.ts), Championship SFs (2-leg GW+3/+4), a 3-LEG Championship Final + 3rd-place (GW+5/+6/+7), and Challenger QF/SF/Final placeholders. Test re-tagged Regression → Positive; expectedResult rewritten to assert the new correct topology."
     },
     {
       "id": "TC-PLAYOFF-066",
@@ -2414,11 +2414,11 @@
       "status": "Fixed",
       "discoveredBy": "business-analyst",
       "discoveredDate": "2026-05-23",
-      "description": "src/lib/formats/tvt/playoffs.ts:27-34 defines C31_SEEDING_32 with the A-side always home (C-31-A=A9 v B14, C-31-B=A10 v B13, C-31-C=A11 v B12, C-31-D=A12 v B11, C-31-E=A13 v B10, C-31-F=A14 v B9). The public bracket route at src/app/api/playoffs/bracket/route.ts:22-26 declares its own C31_SEEDING with alternating home sides (C-31-A=A9 v B14, C-31-B=B9 v A14, C-31-C=A10 v B13, C-31-D=B10 v A13, C-31-E=A11 v B12, C-31-F=B11 v A12). The two arrays disagree on both pairings (e.g. C-31-B) and home/away assignment for 4 of the 6 ties.",
+      "description": "src/lib/sports/fpl/formats/tvt/playoffs.ts:27-34 defines C31_SEEDING_32 with the A-side always home (C-31-A=A9 v B14, C-31-B=A10 v B13, C-31-C=A11 v B12, C-31-D=A12 v B11, C-31-E=A13 v B10, C-31-F=A14 v B9). The public bracket route at src/app/api/playoffs/bracket/route.ts:22-26 declares its own C31_SEEDING with alternating home sides (C-31-A=A9 v B14, C-31-B=B9 v A14, C-31-C=A10 v B13, C-31-D=B10 v A13, C-31-E=A11 v B12, C-31-F=B11 v A12). The two arrays disagree on both pairings (e.g. C-31-B) and home/away assignment for 4 of the 6 ties.",
       "expectedBehaviour": "Both modules should reference one canonical seeding table so the tentative/projected bracket matches the live ties once generated.",
       "actualBehaviour": "Public visitors see one set of matchups in tentative mode and a different set once the admin clicks Generate Playoffs — undermining the projected bracket as a trustworthy preview.",
       "sourceRefs": [
-        "src/lib/formats/tvt/playoffs.ts:27-34",
+        "src/lib/sports/fpl/formats/tvt/playoffs.ts:27-34",
         "src/app/api/playoffs/bracket/route.ts:22-26"
       ],
       "linkedBusinessRules": [
@@ -2431,8 +2431,8 @@
       "pinningTestCases": [
         "TC-PLAYOFF-064"
       ],
-      "notes": "Fix: pick one — most likely import C31_SEEDING_32 from src/lib/formats/tvt/playoffs.ts into the bracket route and delete the local copy. Cross-check which alternation matches the printed JPL rules document; if it's the alternating version, update generate-playoffs instead (this changes home-aggregate winners and is more disruptive).\n[DEV] Self-verified: tsc passes for touched files (pre-existing tests/league-types/* errors are unrelated), manual diff review clean. Awaiting QA re-run of pinningTestCases.\n[QA] Re-run TC-PLAYOFF-064 against the fix. Expected behaviour now matches the original 'expectedBehaviour' field: the public bracket route imports the canonical RO16_SEEDING and C31_SEEDING_32 tables from src/lib/formats/tvt/playoffs.ts (the same tables generate-playoffs uses), so tentative/projected C-31 pairings + home sides match the live ties once generated (A-side always home: C-31-A=A9 v B14, C-31-B=A10 v B13, C-31-C=A11 v B12, C-31-D=A12 v B11, C-31-E=A13 v B10, C-31-F=A14 v B9). TC-PLAYOFF-064 was pinning the divergent alternating-home version and now needs to assert the canonical A-side-home pairings in the bracket response.\n[BA] BR-PLAYOFF-006 has a // CODE-CONFIRMED defect annotation calling out the divergence — please remove that annotation now that the bracket route reuses the canonical seeding table. The rule text itself (A9-B14, A10-B13, A11-B12, A12-B11, A13-B10, A14-B9 with A-side home) already describes the correct canonical behaviour.\n[QA-VERIFIED]: 2026-05-26 — TC-PLAYOFF-064 inverted; admin/public C-31 pairings now identical.\n[BA-UPDATED]: 2026-05-26 — BR-PLAYOFF-006 CODE-CONFIRMED marker removed; canonical seeding tables now shared.",
-      "resolution": "Removed the divergent local C31_SEEDING + RO16_SEEDING tables from src/app/api/playoffs/bracket/route.ts (formerly lines 17-33) and imported the canonical RO16_SEEDING and C31_SEEDING_32 (aliased as C31_SEEDING for local readability) from src/lib/formats/tvt/playoffs.ts. The bracket route's tentative/projected C-31 and RO16 sides now reference the same seeding table that generate-playoffs uses, eliminating the divergence in both pairings (C-31-B=A10 v B13, etc.) and home/away assignment. Single source of truth for TVT-32 initial-round seeding.",
+      "notes": "Fix: pick one — most likely import C31_SEEDING_32 from src/lib/sports/fpl/formats/tvt/playoffs.ts into the bracket route and delete the local copy. Cross-check which alternation matches the printed JPL rules document; if it's the alternating version, update generate-playoffs instead (this changes home-aggregate winners and is more disruptive).\n[DEV] Self-verified: tsc passes for touched files (pre-existing tests/league-types/* errors are unrelated), manual diff review clean. Awaiting QA re-run of pinningTestCases.\n[QA] Re-run TC-PLAYOFF-064 against the fix. Expected behaviour now matches the original 'expectedBehaviour' field: the public bracket route imports the canonical RO16_SEEDING and C31_SEEDING_32 tables from src/lib/sports/fpl/formats/tvt/playoffs.ts (the same tables generate-playoffs uses), so tentative/projected C-31 pairings + home sides match the live ties once generated (A-side always home: C-31-A=A9 v B14, C-31-B=A10 v B13, C-31-C=A11 v B12, C-31-D=A12 v B11, C-31-E=A13 v B10, C-31-F=A14 v B9). TC-PLAYOFF-064 was pinning the divergent alternating-home version and now needs to assert the canonical A-side-home pairings in the bracket response.\n[BA] BR-PLAYOFF-006 has a // CODE-CONFIRMED defect annotation calling out the divergence — please remove that annotation now that the bracket route reuses the canonical seeding table. The rule text itself (A9-B14, A10-B13, A11-B12, A12-B11, A13-B10, A14-B9 with A-side home) already describes the correct canonical behaviour.\n[QA-VERIFIED]: 2026-05-26 — TC-PLAYOFF-064 inverted; admin/public C-31 pairings now identical.\n[BA-UPDATED]: 2026-05-26 — BR-PLAYOFF-006 CODE-CONFIRMED marker removed; canonical seeding tables now shared.",
+      "resolution": "Removed the divergent local C31_SEEDING + RO16_SEEDING tables from src/app/api/playoffs/bracket/route.ts (formerly lines 17-33) and imported the canonical RO16_SEEDING and C31_SEEDING_32 (aliased as C31_SEEDING for local readability) from src/lib/sports/fpl/formats/tvt/playoffs.ts. The bracket route's tentative/projected C-31 and RO16 sides now reference the same seeding table that generate-playoffs uses, eliminating the divergence in both pairings (C-31-B=A10 v B13, etc.) and home/away assignment. Single source of truth for TVT-32 initial-round seeding.",
       "resolutionDate": "2026-05-26"
     },
     {
@@ -2447,7 +2447,7 @@
       "actualBehaviour": "Orphan advanced-round ties persist; the regenerate succeeds but the bracket is in an inconsistent state where advance steps will fail or silently no-op via onConflictDoNothing.",
       "sourceRefs": [
         "src/app/api/admin/[leagueId]/generate-playoffs/route.ts:42-84",
-        "src/lib/formats/tvt/playoffs.ts:288-292"
+        "src/lib/sports/fpl/formats/tvt/playoffs.ts:288-292"
       ],
       "linkedBusinessRules": [
         "BR-PLAYOFF-009"
@@ -2470,11 +2470,11 @@
       "status": "Fixed",
       "discoveredBy": "business-analyst",
       "discoveredDate": "2026-05-23",
-      "description": "src/lib/backup/restore-tvt.ts:128-176 wipes every fixture for the league's gameweeks and re-inserts from the payload. The CASCADE on results.fixture_id correctly removes results, but playoff_ties rows (which reference fixture IDs via the deterministic 'playoff-<tieId>[-legN]' pattern in advance-playoffs/resolve helpers) and challenger_survival_entries rows are never touched. After restore: (a) advance-playoffs will see playoff_ties with status in {'leg1_done','complete'} but no underlying result rows, so resolve helpers return null and silently no-op; (b) the public bracket route reads tie.homeAggregate/awayAggregate that are now disconnected from any visible fixture.",
+      "description": "src/lib/sports/fpl/backup/restore-tvt.ts:128-176 wipes every fixture for the league's gameweeks and re-inserts from the payload. The CASCADE on results.fixture_id correctly removes results, but playoff_ties rows (which reference fixture IDs via the deterministic 'playoff-<tieId>[-legN]' pattern in advance-playoffs/resolve helpers) and challenger_survival_entries rows are never touched. After restore: (a) advance-playoffs will see playoff_ties with status in {'leg1_done','complete'} but no underlying result rows, so resolve helpers return null and silently no-op; (b) the public bracket route reads tie.homeAggregate/awayAggregate that are now disconnected from any visible fixture.",
       "expectedBehaviour": "restore-tvt should either (1) wipe playoff_ties + challenger_survival_entries for the league as part of the transactional restore (so the league is returned to a pre-playoff state matching the restored fixtures), or (2) reject the restore once any playoff_ties row exists with a clear error message asking admin to DELETE playoffs first.",
       "actualBehaviour": "Restore succeeds, fixtures are rewritten, but playoff state is silently desynchronized — the league enters a state where the bracket UI shows stale winners and advance-playoffs cannot recover without manual DB intervention.",
       "sourceRefs": [
-        "src/lib/backup/restore-tvt.ts:128-186",
+        "src/lib/sports/fpl/backup/restore-tvt.ts:128-186",
         "src/app/api/admin/[leagueId]/restore-tvt/route.ts:86-93",
         "src/app/api/admin/[leagueId]/advance-playoffs/route.ts:217-256"
       ],
@@ -2489,7 +2489,7 @@
         "TC-PLAYOFF-062"
       ],
       "notes": "Lowest-risk fix: extend restoreFixtures to also DELETE FROM playoff_ties WHERE league_id=? plus DELETE FROM challenger_survival_entries WHERE gameweek_id IN (SELECT id FROM gameweeks WHERE league_id=?) inside the same flow. Captains/chips deferral is already surfaced as a warning; this should be the same treatment.\n[DEV] Self-verified: tsc passes for touched files (pre-existing tests/league-types/* errors are unrelated), manual diff review clean. Awaiting QA re-run of pinningTestCases.\n[QA] Re-run TC-PLAYOFF-062 against the fix. Expected behaviour now matches the original 'expectedBehaviour' field: post-restore, playoff_ties for the league and challenger_survival_entries scoped to the league's gameweeks are wiped alongside fixtures, so the league is returned to a pre-playoff state and advance-playoffs can proceed against the restored fixture set without manual DB intervention. TC-PLAYOFF-062's expectedResult text was written to pin the defective behaviour and now needs to be updated to assert the corrected behaviour (playoff_ties + challenger_survival_entries rowcount=0 post-restore).\n[BA] BR-PLAYOFF-049 + AC-PLAYOFF-052 describe the defective behaviour and must be rewritten to state that restore-tvt now clears playoff_ties (by leagueId) and challenger_survival_entries (by gameweekId IN league's gameweeks) before re-inserting fixtures. Remove the // CODE-CONFIRMED defect annotation from BR-PLAYOFF-049.\n[QA-VERIFIED]: 2026-05-25 — TC-PLAYOFF-062 inverted; restore-tvt confirmed to wipe stale playoff state.\n[BA-UPDATED]: 2026-05-25 — BR-PLAYOFF-049 + AC-PLAYOFF-052 updated to reflect fixed behaviour.",
-      "resolution": "Extended restoreFixtures in src/lib/backup/restore-tvt.ts:128-135 (wipe phase) to also delete challenger_survival_entries scoped by the league's gameweekIds and playoff_ties scoped by leagueId, before re-inserting fixtures. Added playoffTies + challengerSurvivalEntries to the existing import from @/lib/db (line 11). This returns the league to a pre-playoff state matching the restored fixtures, so advance-playoffs has no stale aggregate/winner rows to trip over and the public bracket route no longer surfaces phantom winners after a restore.",
+      "resolution": "Extended restoreFixtures in src/lib/sports/fpl/backup/restore-tvt.ts:128-135 (wipe phase) to also delete challenger_survival_entries scoped by the league's gameweekIds and playoff_ties scoped by leagueId, before re-inserting fixtures. Added playoffTies + challengerSurvivalEntries to the existing import from @/lib/db (line 11). This returns the league to a pre-playoff state matching the restored fixtures, so advance-playoffs has no stale aggregate/winner rows to trip over and the public bracket route no longer surfaces phantom winners after a restore.",
       "resolutionDate": "2026-05-24"
     },
     {
@@ -2518,7 +2518,7 @@
         "TC-PLAYOFF-065"
       ],
       "notes": "Fix path: rewrite buildTentative16Team to mirror the live 16-team bracket shape in buildLiveBracket (the same buildGroupData approach using projected standings to seed groups). Reuse the snake-seeding logic from generate-playoffs (ranks 1,4,5,8 / 2,3,6,7 / 9,12,13,16 / 10,11,14,15). [DEV] Self-verified: tsc passes (no new errors introduced; the 7 pre-existing failures in tests/league-types/*.spec.ts are unrelated). Manual diff review clean. Awaiting QA re-run of pinningTestCases. [QA] Re-run TC-PLAYOFF-065 against the fix. Tentative TVT-16 response should now expose groupStage.groups[0..3] (Championship A/B, Challenger A/B) each with 4 standings + 6 fixtures, tvt.sf (2 ties at GW+3/+4), tvt.final (3-leg GW+5/+6/+7), tvt.thirdPlace (3-leg), and challenger.c34/c35/c36 — matching the live shape. [BA] BR-PLAYOFF-052 currently documents the old (8-team) projection behaviour as the spec; please update its rule text to describe the new 4-group + 3-leg final tentative topology now matching live.\n[QA-VERIFIED]: 2026-05-26 — TC-PLAYOFF-065 inverted; 4-group tentative projection confirmed.\n[BA-UPDATED]: 2026-05-26 — BR-PLAYOFF-052 + AC ids updated.",
-      "resolution": "Rewrote buildTentative16Team in src/app/api/playoffs/bracket/route.ts (lines ~739-906) to mirror the live 16-team layout from buildLiveBracket. Imported CHAMP_GA_MATCHES/CHAMP_GB_MATCHES/CHALL_GA_MATCHES/CHALL_GB_MATCHES (and the GSMatch16 type) from src/lib/formats/tvt/playoffs.ts. The function now snake-seeds 4 playoff groups from standings.groupA (ranks 1/4/5/8, 2/3/6/7, 9/12/13/16, 10/11/14/15), generates the 6-match round-robin per group via the shared GSMatch16 tables, and emits the same downstream shape as live (groupStage.groups, tvt.sf at GW+3/+4, tvt.final as a 3-leg tie at GW+5/+6/+7, tvt.thirdPlace, plus challenger.c34/c35/c36 with the correct seed placeholders). Reuses snake-seeding logic from generate-playoffs so projection cannot drift from live.",
+      "resolution": "Rewrote buildTentative16Team in src/app/api/playoffs/bracket/route.ts (lines ~739-906) to mirror the live 16-team layout from buildLiveBracket. Imported CHAMP_GA_MATCHES/CHAMP_GB_MATCHES/CHALL_GA_MATCHES/CHALL_GB_MATCHES (and the GSMatch16 type) from src/lib/sports/fpl/formats/tvt/playoffs.ts. The function now snake-seeds 4 playoff groups from standings.groupA (ranks 1/4/5/8, 2/3/6/7, 9/12/13/16, 10/11/14/15), generates the 6-match round-robin per group via the shared GSMatch16 tables, and emits the same downstream shape as live (groupStage.groups, tvt.sf at GW+3/+4, tvt.final as a 3-leg tie at GW+5/+6/+7, tvt.thirdPlace, plus challenger.c34/c35/c36 with the correct seed placeholders). Reuses snake-seeding logic from generate-playoffs so projection cannot drift from live.",
       "resolutionDate": "2026-05-26"
     }
   ]

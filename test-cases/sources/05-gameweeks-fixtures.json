@@ -27,7 +27,7 @@
         "soThat": "an 8-team league gets 35 GWs (5 reps), 16/32-team gets 30 GWs (2 reps), and JPL Continental Championship gets 38 GWs (2 reps) without manual entry",
         "sourceRefs": [
           "src/app/api/admin/[leagueId]/generate-fixtures/route.ts:17-293",
-          "src/lib/formats/tvt/fixtures.ts:25-94"
+          "src/lib/sports/fpl/formats/tvt/fixtures.ts:25-94"
         ]
       },
       {
@@ -91,7 +91,7 @@
         "soThat": "I can see exactly which (league, gameweek) pairs the orchestrator will hit and why others were skipped",
         "sourceRefs": [
           "src/app/api/admin/process-all/plan/route.ts:13-26",
-          "src/lib/cron/process-all.ts:171-243"
+          "src/lib/sports/fpl/cron/process-all.ts:171-243"
         ]
       },
       {
@@ -101,7 +101,7 @@
         "soThat": "each request stays under the 60s Vercel ceiling and the UI can show per-GW progress chips",
         "sourceRefs": [
           "src/app/api/admin/process-all/league-gw/route.ts:16-48",
-          "src/lib/cron/process-all.ts:285-456"
+          "src/lib/sports/fpl/cron/process-all.ts:285-456"
         ]
       },
       {
@@ -111,7 +111,7 @@
         "soThat": "the run history shows a single CRON_RUN_END entry and standings/fixtures pages are pre-warmed",
         "sourceRefs": [
           "src/app/api/admin/process-all/finish/route.ts:14-40",
-          "src/lib/cron/process-all.ts:540-580"
+          "src/lib/sports/fpl/cron/process-all.ts:540-580"
         ]
       },
       {
@@ -280,7 +280,7 @@
         "id": "BR-GWFIX-018",
         "rule": "Round-robin generator: appends a `BYE` placeholder for odd team counts, runs `repetitions` full passes, alternates home/away on odd-indexed repetitions, and skips matches involving the BYE so each round has fewer than `n/2` fixtures.",
         "sourceRefs": [
-          "src/lib/formats/tvt/fixtures.ts:25-81"
+          "src/lib/sports/fpl/formats/tvt/fixtures.ts:25-81"
         ]
       },
       {
@@ -482,15 +482,15 @@
         "id": "BR-GWFIX-046",
         "rule": "computePlan() writes a CRON_RUN_START audit row, fetches FPL bootstrap once, and includes a GW in `dueGws` only if (a) the deadline has passed, (b) the GW has fixtures, and (c) the FPL bootstrap reports `finished === true` for that event id.",
         "sourceRefs": [
-          "src/lib/cron/process-all.ts:171-243",
-          "src/lib/cron/process-all.ts:141-160"
+          "src/lib/sports/fpl/cron/process-all.ts:171-243",
+          "src/lib/sports/fpl/cron/process-all.ts:141-160"
         ]
       },
       {
         "id": "BR-GWFIX-047",
         "rule": "computePlan() returns active leagues only (`leagues.isActive = true`); inactive leagues are excluded from the orchestrator's loop.",
         "sourceRefs": [
-          "src/lib/cron/process-all.ts:226-241"
+          "src/lib/sports/fpl/cron/process-all.ts:226-241"
         ]
       },
       {
@@ -511,15 +511,15 @@
         "id": "BR-GWFIX-050",
         "rule": "processOneLeagueOneGw runs three steps in order: (1) score (auction-format uses processAuctionGameweek, others call the in-process POST handler with x-session-type=superadmin headers), (2) generate (only if `getPlayoffGenerateAction` returns a hit for this league/GW), (3) advance (only if GW falls in the playoff advance window and `hasAdvanceWork` returns true).",
         "sourceRefs": [
-          "src/lib/cron/process-all.ts:285-456"
+          "src/lib/sports/fpl/cron/process-all.ts:285-456"
         ]
       },
       {
         "id": "BR-GWFIX-051",
         "rule": "processOneLeagueOneGw clears live cache for the GW at the start of each call (non-fatal on failure) and writes a per-GW auto-snapshot tagged `gw{N}-auto` if scoring succeeded or was skipped without errors.",
         "sourceRefs": [
-          "src/lib/cron/process-all.ts:305",
-          "src/lib/cron/process-all.ts:428-440"
+          "src/lib/sports/fpl/cron/process-all.ts:305",
+          "src/lib/sports/fpl/cron/process-all.ts:428-440"
         ]
       },
       {
@@ -533,7 +533,7 @@
         "id": "BR-GWFIX-053",
         "rule": "finishRun() detects the live GW via `detectLiveGameweek()` and populates the live cache for it if it falls in 31..38, then writes a CRON_RUN_END audit row with rolled-up summary (description trimmed to 1900 chars).",
         "sourceRefs": [
-          "src/lib/cron/process-all.ts:540-580"
+          "src/lib/sports/fpl/cron/process-all.ts:540-580"
         ]
       },
       {
@@ -985,11 +985,11 @@
       "discoveredBy": "business-analyst",
       "discoveredDate": "2026-05-23",
       "description": "The JPL Continental Championship path in generate-fixtures uses `const tcRepetitions = 2;` and only validates `plTeams.length >= 2`. The summary message states '20-team, 1 PL group' but the code never enforces 20. With any team count other than 20, the resulting fixtures do not span exactly 38 GWs (e.g., 10 teams x 2 reps = 18 GWs, 22 teams x 2 reps = 42 GWs which exceeds the 38 inserted gameweeks).",
-      "expectedBehaviour": "Either (a) hard-error if JPL Continental Championship team count != 20 (the JPL Continental Championship `generatePLFixtures` helper in lib/formats/continental-championship/fixtures.ts asserts exactly 20), or (b) scale repetitions to keep the total GWs at 38.",
+      "expectedBehaviour": "Either (a) hard-error if JPL Continental Championship team count != 20 (the JPL Continental Championship `generatePLFixtures` helper in lib/sports/fpl/formats/continental-championship/fixtures.ts asserts exactly 20), or (b) scale repetitions to keep the total GWs at 38.",
       "actualBehaviour": "Any team count >= 2 produces fixtures, with the GW span scaling unpredictably; fixtures referencing `gameweekMap.get(f.gameweekNumber)` beyond 38 are filtered out with no error, silently losing fixtures.",
       "sourceRefs": [
         "src/app/api/admin/[leagueId]/generate-fixtures/route.ts:65-137",
-        "src/lib/formats/continental-championship/fixtures.ts:13-59"
+        "src/lib/sports/fpl/formats/continental-championship/fixtures.ts:13-59"
       ],
       "linkedBusinessRules": [
         "BR-GWFIX-011"
@@ -1001,7 +1001,7 @@
         "TC-GWFIX-076",
         "TC-GWFIX-077"
       ],
-      "notes": "Fix option A (preferred): import `generatePLFixtures` from `lib/formats/continental-championship/fixtures.ts` which has the 20-team assert, and let it throw a 400. Fix option B: compute `tcRepetitions = 38 / (teamCount - 1)` and validate exact divisibility. Either path also requires aligning the summary string with reality. [DEV] Self-verified: tsc clean. [QA-VERIFIED]: 2026-05-27 — pinning TC(s) inverted. [BA-UPDATED]: 2026-05-27 — BR/AC text refreshed.",
+      "notes": "Fix option A (preferred): import `generatePLFixtures` from `lib/sports/fpl/formats/continental-championship/fixtures.ts` which has the 20-team assert, and let it throw a 400. Fix option B: compute `tcRepetitions = 38 / (teamCount - 1)` and validate exact divisibility. Either path also requires aligning the summary string with reality. [DEV] Self-verified: tsc clean. [QA-VERIFIED]: 2026-05-27 — pinning TC(s) inverted. [BA-UPDATED]: 2026-05-27 — BR/AC text refreshed.",
       "resolution": "JPL Continental Championship generate-fixtures now refuses with HTTP 400 when plTeams.length !== 20 (src/app/api/admin/[leagueId]/generate-fixtures/route.ts:90-99). The hardcoded 2-repetition math only produces 38 GWs when there are exactly 20 teams; any other count silently generates a malformed schedule. Failing early gives a clean error response.",
       "resolutionDate": "2026-05-27"
     },
@@ -1112,7 +1112,7 @@
         "TC-GWFIX-082",
         "TC-GWFIX-083"
       ],
-      "notes": "Process-all orchestrator always passes leagueId, so the in-prod path is safe. Risk is direct admin POSTs or future tooling that forgets the query. The GET handler has the same nondeterminism (BR-GWFIX-035) but is read-only so the impact is lower. [DEV] Self-verified: tsc passes (no errors in src/app/api/gameweeks/[gw]/route.ts; pre-existing tests/ errors unrelated), manual diff review clean. Awaiting QA re-run of pinningTestCases. [DEV] Verified all internal callers (src/app/admin/[leagueId]/page.tsx:499,562-563 and src/lib/cron/process-all.ts:350) already pass leagueId — no caller updates required. [QA] Re-run TC-GWFIX-082 and TC-GWFIX-083 against the fix: both should now return HTTP 400 `leagueId query parameter is required` instead of the nondeterministic-league behaviour they pinned. Update pinning test expectedResult to reflect the fixed behaviour. [BA] Update BR-GWFIX-040 text to describe the corrected contract: POST /api/gameweeks/[gw] now REQUIRES `leagueId` query param (UUID or slug); missing leagueId returns HTTP 400 `leagueId query parameter is required`, unknown slug returns HTTP 404 `League not found`. Remove the `// CODE-CONFIRMED: may be a defect` marker. [QA-VERIFIED]: 2026-05-25 — TC-GWFIX-082 + TC-GWFIX-083 inverted; required leagueId confirmed. [BA-UPDATED]: 2026-05-25 — BR-GWFIX-040 + AC-GWFIX-025 updated.",
+      "notes": "Process-all orchestrator always passes leagueId, so the in-prod path is safe. Risk is direct admin POSTs or future tooling that forgets the query. The GET handler has the same nondeterminism (BR-GWFIX-035) but is read-only so the impact is lower. [DEV] Self-verified: tsc passes (no errors in src/app/api/gameweeks/[gw]/route.ts; pre-existing tests/ errors unrelated), manual diff review clean. Awaiting QA re-run of pinningTestCases. [DEV] Verified all internal callers (src/app/admin/[leagueId]/page.tsx:499,562-563 and src/lib/sports/fpl/cron/process-all.ts:350) already pass leagueId — no caller updates required. [QA] Re-run TC-GWFIX-082 and TC-GWFIX-083 against the fix: both should now return HTTP 400 `leagueId query parameter is required` instead of the nondeterministic-league behaviour they pinned. Update pinning test expectedResult to reflect the fixed behaviour. [BA] Update BR-GWFIX-040 text to describe the corrected contract: POST /api/gameweeks/[gw] now REQUIRES `leagueId` query param (UUID or slug); missing leagueId returns HTTP 400 `leagueId query parameter is required`, unknown slug returns HTTP 404 `League not found`. Remove the `// CODE-CONFIRMED: may be a defect` marker. [QA-VERIFIED]: 2026-05-25 — TC-GWFIX-082 + TC-GWFIX-083 inverted; required leagueId confirmed. [BA-UPDATED]: 2026-05-25 — BR-GWFIX-040 + AC-GWFIX-025 updated.",
       "resolution": "Made `leagueId` a required query parameter for POST /api/gameweeks/[gw] in src/app/api/gameweeks/[gw]/route.ts:256-275: missing leagueId returns HTTP 400 `leagueId query parameter is required`; unresolved slug returns HTTP 404 `League not found`. The gameweek `where` clause now always filters by both `gameweeks.number` and `gameweeks.leagueId`, and the format dispatcher uses the validated leagueId directly (removed the `leagueId || ''` fallbacks that masked the bug). This eliminates the nondeterministic `gwList[0]` selection and the format-fallthrough to TVT for continental-championship/auction leagues.",
       "resolutionDate": "2026-05-25"
     }

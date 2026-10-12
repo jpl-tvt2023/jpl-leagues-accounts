@@ -54,7 +54,7 @@ All three are superadmin-only (`isSuperAdmin` check).
 
 ## The "one league × one GW" unit
 
-`processOneLeagueOneGw` lives in [`src/lib/cron/process-all.ts`](../src/lib/cron/process-all.ts). For a given `(league, gw)` it:
+`processOneLeagueOneGw` lives in [`src/lib/sports/fpl/cron/process-all.ts`](../src/lib/sports/fpl/cron/process-all.ts). For a given `(league, gw)` it:
 
 1. **Clears the live FPL cache** for that GW (so subsequent reads pick up fresh data).
 2. **Pre-flight scoring check** — counts unscored fixtures for this league at this GW via a cheap SQL query. If 0, sets `scoreSkipped: true`. If >0:
@@ -74,7 +74,7 @@ Earlier iterations had the orchestrator make actual HTTPS `fetch()` calls to the
 1. **Vercel Deployment Protection** intercepted same-origin internal fetches with an HTML SSO redirect, breaking JSON parsing on every call.
 2. Each inner fetch paid ~250ms of edge + middleware overhead. Multiply by ~70 calls per per-league run and you were burning seconds on roundtrips alone.
 
-The fix was to import the route handler functions directly and invoke them with a constructed `NextRequest`. See `callHandlerDirect` in [`src/lib/cron/process-all.ts`](../src/lib/cron/process-all.ts) — sets the headers middleware would normally inject (`x-session-type: superadmin`, etc.), constructs the request, awaits the handler. Zero HTTP, zero edge layer.
+The fix was to import the route handler functions directly and invoke them with a constructed `NextRequest`. See `callHandlerDirect` in [`src/lib/sports/fpl/cron/process-all.ts`](../src/lib/sports/fpl/cron/process-all.ts) — sets the headers middleware would normally inject (`x-session-type: superadmin`, etc.), constructs the request, awaits the handler. Zero HTTP, zero edge layer.
 
 ## Browser orchestration
 

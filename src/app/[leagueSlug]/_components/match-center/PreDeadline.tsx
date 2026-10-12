@@ -2,8 +2,8 @@
 
 import { FplChipRow } from "@/components/ChipPill";
 import { FplEntryLink } from "@/components/FplEntryLink";
-import type { MatchCenterSide } from "@/lib/match-center/load";
-import { fplEntryLabel } from "@/lib/fpl-links";
+import type { MatchCenterSide } from "@/lib/sports/fpl/match-center/load";
+import { fplEntryLabel } from "@/lib/sports/fpl/links";
 
 /**
  * Before the deadline there is nothing to compare: FPL will not publish picks, and the JPL

@@ -14,7 +14,7 @@
 import { and, eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { testDb, schema } from "./db";
-import { invalidateLeaguePageCache } from "../../src/lib/fpl-cache";
+import { invalidateLeaguePageCache } from "../../src/lib/sports/fpl/cache";
 
 /**
  * Ensure GW 1..38 exist for the league. Every deadline is set to +30 days

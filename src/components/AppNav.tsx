@@ -11,7 +11,7 @@ import { NavIcon } from "./icons/NavIcon";
 import { AccountMenu, DrawerAccountSection } from "./AccountSwitcher";
 import { LeagueMenuButton, LeaguePickerSection } from "./LeaguePicker";
 import { buildNavModel, type NavContext, type NavItem } from "@/lib/nav-links";
-import { useAuctionLiveStatus } from "@/lib/use-auction-live-status";
+import { useAuctionLiveStatus } from "@/lib/sports/fpl/formats/auction/use-live-status";
 
 export interface AppNavProps {
   context: NavContext;

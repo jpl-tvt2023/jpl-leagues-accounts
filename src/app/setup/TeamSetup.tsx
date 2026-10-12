@@ -19,7 +19,7 @@ interface SetupInfo {
   needsSetup: boolean;
   role: "owner" | "member";
   leagueFormat: string;
-  /** What setup asks for (src/lib/formats/registry.ts). "name-only" = auction-style: just the team name. */
+  /** What setup asks for (src/lib/sports/registry.ts). "name-only" = auction-style: just the team name. */
   setupMode?: "fpl-players" | "name-only" | "none";
   clubAuctionEnabled: boolean;
   memberCount: number;

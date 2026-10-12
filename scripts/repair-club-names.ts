@@ -12,7 +12,7 @@
  */
 import { db } from "@/lib/db";
 import { auctionClubOwnership, leagues, teams } from "@/lib/db/schema";
-import { getPlTeamFullName } from "@/lib/data/pl-team-full-names";
+import { getPlTeamFullName } from "@/lib/sports/fpl/data/pl-team-full-names";
 import { eq } from "drizzle-orm";
 
 const APPLY = process.argv.includes("--apply");

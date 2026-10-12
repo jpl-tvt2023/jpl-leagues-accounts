@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { leagues, leagueAdmins, teams } from "@/lib/db/schema";
 import { eq, count } from "drizzle-orm";
 import { isSuperAdmin } from "@/lib/privilege";
-import { getCurrentGameweekNumber } from "@/lib/gameweeks/current-gw";
+import { getCurrentGameweekNumber } from "@/lib/sports/fpl/gameweeks/current-gw";
 
 /**
  * GET /api/admin/my-leagues

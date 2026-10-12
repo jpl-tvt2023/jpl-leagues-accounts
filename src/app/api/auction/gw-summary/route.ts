@@ -2,13 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auctionScores, auctionOwnership, gameweeks, leagues, teams } from "@/lib/db/schema";
 import { and, eq, lte } from "drizzle-orm";
-import { calculateAuctionTeamScore } from "@/lib/formats/auction/scoring";
-import { assignRanksAndPayouts } from "@/lib/formats/auction/economy";
-import { countPlayersLeftToPlay } from "@/lib/fpl-live/players-left";
-import { getInFlightGameweekNumber } from "@/lib/gameweeks/in-flight";
-import { fetchElementInfo, fetchBootstrapData } from "@/lib/fpl";
-import { getClubOwnershipsByTeam } from "@/lib/formats/auction/club-auction";
-import { backfillClubSummaries } from "@/lib/formats/auction/club-summary-backfill";
+import { calculateAuctionTeamScore } from "@/lib/sports/fpl/formats/auction/scoring";
+import { assignRanksAndPayouts } from "@/lib/sports/fpl/formats/auction/economy";
+import { countPlayersLeftToPlay } from "@/lib/sports/fpl/live/players-left";
+import { getInFlightGameweekNumber } from "@/lib/sports/fpl/gameweeks/in-flight";
+import { fetchElementInfo, fetchBootstrapData } from "@/lib/sports/fpl/api";
+import { getClubOwnershipsByTeam } from "@/lib/sports/fpl/formats/auction/club-auction";
+import { backfillClubSummaries } from "@/lib/sports/fpl/formats/auction/club-summary-backfill";
 
 /**
  * GET /api/auction/gw-summary?leagueSlug=xxx&gw=N

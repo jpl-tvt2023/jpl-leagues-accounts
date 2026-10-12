@@ -11,7 +11,7 @@
  *     never move afterward. If it isn't written down, the first disputed monthly winner has
  *     nothing to point at.
  *  2. No prize amounts. This page announces winners; it never lists prizes. The award data model
- *     has no field for one — see the comment at the top of lib/fpl-classic/awards.ts.
+ *     has no field for one — see the comment at the top of lib/sports/fpl/formats/fpl-classic/awards.ts.
  */
 
 export function FplClassicRules({

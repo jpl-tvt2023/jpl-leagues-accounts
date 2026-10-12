@@ -7,7 +7,7 @@
  * Why it has to be enforced rather than trusted: `enabledChips` holds exactly three codes, so a
  * change is always a SWAP, and the chip leaving may already have been played. `/api/fixtures` and
  * `/api/standings` both filter chip HISTORY by the CURRENT set, while
- * `lib/standings/league-stage.ts` sums `pointsAwarded` with no such filter — so a mid-season swap
+ * `lib/sports/fpl/standings/league-stage.ts` sums `pointsAwarded` with no such filter — so a mid-season swap
  * would leave a team's points in the table with nothing on screen accounting for them, silently.
  * The guard is what makes that read-time filtering safe.
  *

@@ -21,8 +21,8 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type { WishlistEntry } from "@/hooks/useWishlist";
-import { POSITION_LABELS, POSITION_COLORS, POSITION_ORDER } from "@/lib/fpl/positions";
-import { MIN_QUOTA, validateAddPlayer, type SquadCounts } from "@/lib/formats/auction/squad-rules";
+import { POSITION_LABELS, POSITION_COLORS, POSITION_ORDER } from "@/lib/sports/fpl/positions";
+import { MIN_QUOTA, validateAddPlayer, type SquadCounts } from "@/lib/sports/fpl/formats/auction/squad-rules";
 import { formatCurrency } from "@/lib/format/currency";
 
 /** The bootstrap fields this list needs. `/api/fpl/bootstrap` already returns all of them. */

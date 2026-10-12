@@ -3,8 +3,8 @@ import { leagueFromRequest, resolveTeamActor, teamActorDenied } from "@/lib/team
 import { db } from "@/lib/db";
 import { teams, fixtures, gameweeks, leagues, gameweekChips } from "@/lib/db/schema";
 import { and, asc, eq, inArray, or } from "drizzle-orm";
-import { fplEntryUrl } from "@/lib/fpl-links";
-import { fetchTeamHistory } from "@/lib/fpl";
+import { fplEntryUrl } from "@/lib/sports/fpl/links";
+import { fetchTeamHistory } from "@/lib/sports/fpl/api";
 import {
   getCachedEntryHistories,
   setCachedEntryHistory,
@@ -14,18 +14,18 @@ import {
   setLiveCachedScores,
   isLiveCacheFresh,
   type LiveFixtureScore,
-} from "@/lib/fpl-cache";
-import { computeLiveFixtureScores } from "@/lib/fpl-live/tvt-live-scores";
-import { getInFlightGameweekNumber } from "@/lib/gameweeks/in-flight";
-import { getFinishedGwNumbers } from "@/lib/gameweeks/finished-set";
+} from "@/lib/sports/fpl/cache";
+import { computeLiveFixtureScores } from "@/lib/sports/fpl/live/tvt-live-scores";
+import { getInFlightGameweekNumber } from "@/lib/sports/fpl/gameweeks/in-flight";
+import { getFinishedGwNumbers } from "@/lib/sports/fpl/gameweeks/finished-set";
 import { mapWithConcurrency } from "@/lib/concurrency";
-import { withFplBudget, FplUnavailableError } from "@/lib/fpl/gateway";
-import { buildFplChipStatus, type FplChipStatus } from "@/lib/fpl-league/chips";
-import { getSeasonChips } from "@/lib/fpl-league/season-chips";
-import { getChipSet } from "@/lib/formats/tvt/scoring";
-import { chipsUsedInSet, type ChipUsageRow } from "@/lib/formats/tvt/chip-usage";
-import { isChipDisclosable } from "@/lib/formats/tvt/chip-waste";
-import { TVT_CHIP_CODES } from "@/lib/formats/tvt/chip-labels";
+import { withFplBudget, FplUnavailableError } from "@/lib/sports/fpl/gateway";
+import { buildFplChipStatus, type FplChipStatus } from "@/lib/sports/fpl/fpl-league/chips";
+import { getSeasonChips } from "@/lib/sports/fpl/fpl-league/season-chips";
+import { getChipSet } from "@/lib/sports/fpl/formats/tvt/scoring";
+import { chipsUsedInSet, type ChipUsageRow } from "@/lib/sports/fpl/formats/tvt/chip-usage";
+import { isChipDisclosable } from "@/lib/sports/fpl/formats/tvt/chip-waste";
+import { TVT_CHIP_CODES } from "@/lib/sports/fpl/formats/tvt/chip-labels";
 
 /**
  * GET /api/team/dashboard/pl-fixture[?gw=N][&refresh=1]

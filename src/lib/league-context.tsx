@@ -3,7 +3,7 @@
 import { createContext, useContext, type ReactNode } from "react";
 import { notFound } from "next/navigation";
 import { getFormatPalette, type FormatPalette } from "@/lib/format-palette";
-import type { LeagueFormat } from "@/lib/formats/registry";
+import type { LeagueFormat } from "@/lib/sports/registry";
 
 // The union lives in the format registry. Widening it only loosens useEnforceFormat's ARGUMENT type
 // below — every existing call site passes a literal array that still excludes the newer formats,
@@ -16,7 +16,7 @@ export interface LeagueInfo {
   slug: string;
   name: string;
   sport: string;
-  format: string; // one of LeagueFormat (src/lib/formats/registry.ts)
+  format: string; // one of LeagueFormat (src/lib/sports/registry.ts)
   season: string;
   teamSize: number;
   groupCount: number;

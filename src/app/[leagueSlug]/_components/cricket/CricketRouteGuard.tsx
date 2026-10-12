@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { redirect, usePathname } from "next/navigation";
-import { cricketRedirectTarget } from "@/lib/cricket/routes";
+import { cricketRedirectTarget } from "@/lib/sports/cricket/routes";
 
 /**
  * Keeps a cricket league on its own pages. Rendered by the league layout for cricket leagues only:

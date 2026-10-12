@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, teams, leagues, teamMembers, users } from "@/lib/db";
 import { eq, and, sql } from "drizzle-orm";
 import { leagueFromRequest, resolveTeamActor, teamActorDenied } from "@/lib/team-actor";
-import { invalidateLeaguePageCache } from "@/lib/fpl-cache";
+import { invalidateLeaguePageCache } from "@/lib/sports/fpl/cache";
 import { MembershipError, leagueFplLock, maxMembersFor, needsSetup, readPlayerDetails, saveOwnPlayer, teamSlots } from "@/lib/membership";
-import { fplIdsTakenInLeague, hasFplTeam, listFplTeams } from "@/lib/fpl-teams";
-import { formatCaps } from "@/lib/formats/registry";
+import { fplIdsTakenInLeague, hasFplTeam, listFplTeams } from "@/lib/sports/fpl/user-teams";
+import { formatCaps } from "@/lib/sports/registry";
 
 /** The league's format. Auction-style formats (FPL auction, cricket) need only a team name at setup. */
 async function leagueFormatOf(leagueId: string): Promise<string | null> {

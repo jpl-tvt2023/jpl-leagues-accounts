@@ -19,9 +19,9 @@ import {
   type ElementMeta,
   type SheetFixture,
   type SheetManagerInput,
-} from "../../src/lib/match-center/team-sheet";
-import type { FPLGameweekPicks } from "../../src/lib/fpl";
-import type { CachedElementDetail } from "../../src/lib/fpl-cache";
+} from "../../src/lib/sports/fpl/match-center/team-sheet";
+import type { FPLGameweekPicks } from "../../src/lib/sports/fpl/api";
+import type { CachedElementDetail } from "../../src/lib/sports/fpl/cache";
 
 const NOW = Date.parse("2026-10-03T18:00:00Z");
 

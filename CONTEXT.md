@@ -399,7 +399,7 @@ getAuthorizedLeagueId(request: NextRequest): Promise<string | null>
 // - Both: role + session version re-checked in the database (src/lib/privilege.ts)
 ```
 
-### `src/lib/fpl.ts`
+### `src/lib/sports/fpl/api.ts`
 ```typescript
 fetchBootstrapData(): Promise<any>
 fetchTeamEntry(teamId: string): Promise<FPLTeamEntry>
@@ -412,7 +412,7 @@ detectLiveGameweek(): Promise<{ liveGw: number|null, gwStatus: Record<number, "n
 // Checks GW31–38 for active playoff fixtures without results
 ```
 
-### `src/lib/fpl-cache.ts`
+### `src/lib/sports/fpl/cache.ts`
 
 **FPL score cache** (24h TTL, league-namespaced):
 - Key format: `fpl:{leagueId ?? "global"}:gw{N}:{fplId}`

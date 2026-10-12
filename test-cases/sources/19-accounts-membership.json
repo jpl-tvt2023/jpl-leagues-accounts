@@ -153,7 +153,7 @@
         "id": "BR-ACC-009",
         "rule": "Members-mode backups leave Password blank and list members; restore preserves memberships.",
         "sourceRefs": [
-          "src/lib/backup/generate.ts"
+          "src/lib/sports/fpl/backup/generate.ts"
         ]
       }
     ],

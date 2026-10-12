@@ -3,15 +3,15 @@ import { db } from "@/lib/db";
 import { plStandingsConfig } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { isSuperAdmin } from "@/lib/privilege";
-import { fetchBootstrapData } from "@/lib/fpl";
+import { fetchBootstrapData } from "@/lib/sports/fpl/api";
 import {
   PL_STANDINGS_SEED_ID,
   PL_STANDINGS_SEED_SEASON,
   PL_STANDINGS_SEED_TOP8,
   PL_STANDINGS_SEED_MID,
   PL_STANDINGS_SEED_PROMOTED,
-} from "@/lib/data/pl-standings-seed";
-import { invalidateStandingsConfigCache } from "@/lib/formats/auction/lot-meta";
+} from "@/lib/sports/fpl/data/pl-standings-seed";
+import { invalidateStandingsConfigCache } from "@/lib/sports/fpl/formats/auction/lot-meta";
 
 type BootstrapTeam = { id: number; name: string; short_name: string };
 

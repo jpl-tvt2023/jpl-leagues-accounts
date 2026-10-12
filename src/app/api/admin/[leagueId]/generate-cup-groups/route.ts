@@ -18,10 +18,10 @@ import { db, teams, groups, fixtures, gameweeks, leagues, results, type Team } f
 import { eq, and } from "drizzle-orm";
 import { getAuthorizedLeagueId } from "@/lib/league-auth";
 import { generateId } from "@/lib/id";
-import { invalidateLeaguePageCache } from "@/lib/fpl-cache";
-import { getGroupStandings } from "@/lib/formats/tvt/playoffs";
-import { compareTiebreaker } from "@/lib/formats/tvt/tiebreaker";
-import { generateCupGroupFixtures, seedCupGroups } from "@/lib/formats/continental-championship/fixtures";
+import { invalidateLeaguePageCache } from "@/lib/sports/fpl/cache";
+import { getGroupStandings } from "@/lib/sports/fpl/formats/tvt/playoffs";
+import { compareTiebreaker } from "@/lib/sports/fpl/formats/tvt/tiebreaker";
+import { generateCupGroupFixtures, seedCupGroups } from "@/lib/sports/fpl/formats/continental-championship/fixtures";
 
 export async function POST(request: NextRequest) {
   try {

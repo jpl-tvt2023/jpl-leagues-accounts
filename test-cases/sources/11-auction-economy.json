@@ -27,7 +27,7 @@
         "soThat": "I can audit my purse history and reconcile against the displayed current purse",
         "sourceRefs": [
           "src/app/api/auction/finance/route.ts:14-75",
-          "src/lib/formats/auction/finance.ts:81-428"
+          "src/lib/sports/fpl/formats/auction/finance.ts:81-428"
         ]
       },
       {
@@ -37,7 +37,7 @@
         "soThat": "I can audit the league economy at a glance",
         "sourceRefs": [
           "src/app/api/auction/finance/route.ts:27-42",
-          "src/lib/formats/auction/finance.ts:433-478"
+          "src/lib/sports/fpl/formats/auction/finance.ts:433-478"
         ]
       },
       {
@@ -64,8 +64,8 @@
         "iWant": "to compute each team's GW score as raw FPL points + ×1.5 synergy on owned-club players + tier-based club-result bonus, then rank teams and assign rank-based payouts",
         "soThat": "auction leagues have a money-driven competitive structure each GW",
         "sourceRefs": [
-          "src/lib/formats/auction/process-gameweek.ts:26-362",
-          "src/lib/formats/auction/scoring.ts:67-163"
+          "src/lib/sports/fpl/formats/auction/process-gameweek.ts:26-362",
+          "src/lib/sports/fpl/formats/auction/scoring.ts:67-163"
         ]
       },
       {
@@ -74,7 +74,7 @@
         "iWant": "to atomically write each GW's scores, update team purses and totalIncome, and finalize pending releases on cycle boundaries (GW 10/20/30) with 50% refunds",
         "soThat": "scoring + payouts + release refunds stay consistent and can't half-commit",
         "sourceRefs": [
-          "src/lib/formats/auction/process-gameweek.ts:171-293"
+          "src/lib/sports/fpl/formats/auction/process-gameweek.ts:171-293"
         ]
       },
       {
@@ -83,7 +83,7 @@
         "iWant": "to use a reverse-tiered FMV ladder (£20K/pt for 0–100, £40K/pt for 100–200, £60K/pt for 200+) plus an 80% floor for trade pricing",
         "soThat": "early-season punts stay cheap and tradeable while elite scorers appreciate aggressively late in the season",
         "sourceRefs": [
-          "src/lib/formats/auction/economy.ts:62-77"
+          "src/lib/sports/fpl/formats/auction/economy.ts:62-77"
         ]
       },
       {
@@ -92,8 +92,8 @@
         "iWant": "to compute switch taxes that penalize top-third teams more (50pt + 15% agent fee) and bottom-third teams less (30pt + 5%) based on season rank",
         "soThat": "mini-auction switches act as a rubber-band balancer between leaders and laggards",
         "sourceRefs": [
-          "src/lib/formats/auction/economy.ts:85-101",
-          "src/lib/formats/auction/mini-auction.ts:47-57"
+          "src/lib/sports/fpl/formats/auction/economy.ts:85-101",
+          "src/lib/sports/fpl/formats/auction/mini-auction.ts:47-57"
         ]
       },
       {
@@ -111,8 +111,8 @@
         "iWant": "to preserve the historical PL team and synergy snapshot per player when reprocessing a GW",
         "soThat": "mid-season PL transfers don't retroactively re-route synergy on already-scored gameweeks",
         "sourceRefs": [
-          "src/lib/formats/auction/process-gameweek.ts:68-108",
-          "src/lib/formats/auction/scoring.ts:46-133"
+          "src/lib/sports/fpl/formats/auction/process-gameweek.ts:68-108",
+          "src/lib/sports/fpl/formats/auction/scoring.ts:46-133"
         ]
       },
       {
@@ -121,7 +121,7 @@
         "iWant": "GW payout notifications when my GW score is finalized and refund notifications when pending releases are credited",
         "soThat": "I know the moment money lands in my purse",
         "sourceRefs": [
-          "src/lib/formats/auction/process-gameweek.ts:309-349"
+          "src/lib/sports/fpl/formats/auction/process-gameweek.ts:309-349"
         ]
       }
     ],
@@ -130,22 +130,22 @@
         "id": "BR-ECON-001",
         "rule": "GW payouts are fixed by rank: 1=£2.5M, 2=£2.1M, 3=£1.8M, 4=£1.6M, 5=£1.4M, 6=£1.2M, 7=£1.1M, 8=£1.0M, 9=£0.9M, 10=£0.8M; rank 11+ receives a £0.5M minimum floor.",
         "sourceRefs": [
-          "src/lib/formats/auction/economy.ts:8-29"
+          "src/lib/sports/fpl/formats/auction/economy.ts:8-29"
         ]
       },
       {
         "id": "BR-ECON-002",
         "rule": "Refund on release equals 50% of the purchase price, rounded down (`Math.floor(purchasePrice * 0.5)`); the remaining 50% is forfeited.",
         "sourceRefs": [
-          "src/lib/formats/auction/economy.ts:46-48",
-          "src/lib/formats/auction/finance.ts:183-200"
+          "src/lib/sports/fpl/formats/auction/economy.ts:46-48",
+          "src/lib/sports/fpl/formats/auction/finance.ts:183-200"
         ]
       },
       {
         "id": "BR-ECON-003",
         "rule": "Computed purse = initialBudget + totalIncome + totalRefunds − totalSpent.",
         "sourceRefs": [
-          "src/lib/formats/auction/economy.ts:34-41",
+          "src/lib/sports/fpl/formats/auction/economy.ts:34-41",
           "src/app/api/auction/economy/route.ts:68-83"
         ]
       },
@@ -153,42 +153,42 @@
         "id": "BR-ECON-004",
         "rule": "FMV ladder is reverse-tiered: pts 0–100 contribute £20K/pt, pts 100–200 contribute £40K/pt, pts 200+ contribute £60K/pt; FMV = purchasePrice + tiered appreciation.",
         "sourceRefs": [
-          "src/lib/formats/auction/economy.ts:51-69"
+          "src/lib/sports/fpl/formats/auction/economy.ts:51-69"
         ]
       },
       {
         "id": "BR-ECON-005",
         "rule": "FMV floor used for trade pricing = `Math.floor(FMV × 0.8)` (80% of FMV).",
         "sourceRefs": [
-          "src/lib/formats/auction/economy.ts:71-77"
+          "src/lib/sports/fpl/formats/auction/economy.ts:71-77"
         ]
       },
       {
         "id": "BR-ECON-006",
         "rule": "Negative totalPoints (sanity) are clamped to 0 inside `calculateFMV` via `Math.max(0, totalPoints)` before tier math.",
         "sourceRefs": [
-          "src/lib/formats/auction/economy.ts:62-63"
+          "src/lib/sports/fpl/formats/auction/economy.ts:62-63"
         ]
       },
       {
         "id": "BR-ECON-007",
         "rule": "Switch tax is bucketed by season rank: top third (rank ≤ ceil(N/3)) = 50pt tax + 15% agent fee; middle third (rank ≤ ceil(2N/3)) = 40pt + 10%; bottom third = 30pt + 5%.",
         "sourceRefs": [
-          "src/lib/formats/auction/economy.ts:85-101"
+          "src/lib/sports/fpl/formats/auction/economy.ts:85-101"
         ]
       },
       {
         "id": "BR-ECON-008",
         "rule": "Agent fee cash component for a switch = `Math.floor(purchasePrice × agentFeePercent/100)`; totalCashCost = purchasePrice + agentFee.",
         "sourceRefs": [
-          "src/lib/formats/auction/mini-auction.ts:47-57"
+          "src/lib/sports/fpl/formats/auction/mini-auction.ts:47-57"
         ]
       },
       {
         "id": "BR-ECON-009",
         "rule": "Team GW total = rawPoints + synergyBonus + clubResultBonus, where rawPoints = sum of owned players' FPL points for the GW.",
         "sourceRefs": [
-          "src/lib/formats/auction/scoring.ts:135-162",
+          "src/lib/sports/fpl/formats/auction/scoring.ts:135-162",
           "src/lib/db/schema.ts:393-417"
         ]
       },
@@ -196,111 +196,111 @@
         "id": "BR-ECON-010",
         "rule": "Synergy bonus = 0.5 × raw points for any owned player whose PL team equals the team's owned PL club (i.e. owned-club players score ×1.5); synergy can be fractional (e.g. raw 13 → +6.5).",
         "sourceRefs": [
-          "src/lib/formats/auction/scoring.ts:36-37",
-          "src/lib/formats/auction/scoring.ts:109-133"
+          "src/lib/sports/fpl/formats/auction/scoring.ts:36-37",
+          "src/lib/sports/fpl/formats/auction/scoring.ts:109-133"
         ]
       },
       {
         "id": "BR-ECON-011",
         "rule": "If a team owns no PL club, synergyBonus and clubResultBonus are both 0 for that team.",
         "sourceRefs": [
-          "src/lib/formats/auction/scoring.ts:89-96",
-          "src/lib/formats/auction/scoring.ts:138-152"
+          "src/lib/sports/fpl/formats/auction/scoring.ts:89-96",
+          "src/lib/sports/fpl/formats/auction/scoring.ts:138-152"
         ]
       },
       {
         "id": "BR-ECON-012",
         "rule": "Club-result bonus per fixture is tier-based: top8 = +2 win / +1 draw / 0 loss; mid = +3 / +1 / 0; promoted = +4 / +2 / 0. Bonuses sum across double-GW fixtures.",
         "sourceRefs": [
-          "src/lib/formats/auction/club-auction.ts:56-66",
-          "src/lib/formats/auction/club-auction.ts:107-127"
+          "src/lib/sports/fpl/formats/auction/club-auction.ts:56-66",
+          "src/lib/sports/fpl/formats/auction/club-auction.ts:107-127"
         ]
       },
       {
         "id": "BR-ECON-013",
         "rule": "A blank GW (owned club has no PL fixture) yields clubResultBonus = 0 with summary 'Blank GW — no fixture, no bonus'.",
         "sourceRefs": [
-          "src/lib/formats/auction/club-auction.ts:90-92"
+          "src/lib/sports/fpl/formats/auction/club-auction.ts:90-92"
         ]
       },
       {
         "id": "BR-ECON-014",
         "rule": "If the FPL fixtures fetch fails when computing club-result bonus, the scorer defaults clubResultBonus to 0 and persists a 'result unavailable' summary; scoring still proceeds.",
         "sourceRefs": [
-          "src/lib/formats/auction/scoring.ts:140-152",
-          "src/lib/formats/auction/club-auction.ts:86-87"
+          "src/lib/sports/fpl/formats/auction/scoring.ts:140-152",
+          "src/lib/sports/fpl/formats/auction/club-auction.ts:86-87"
         ]
       },
       {
         "id": "BR-ECON-015",
         "rule": "Synergy decision on reprocess uses the preserved historical plTeamId snapshot from the prior playerBreakdown JSON, not the live FPL bootstrap — mid-season PL transfers do NOT retroactively re-route synergy on already-scored GWs.",
         "sourceRefs": [
-          "src/lib/formats/auction/process-gameweek.ts:68-108",
-          "src/lib/formats/auction/scoring.ts:108-133"
+          "src/lib/sports/fpl/formats/auction/process-gameweek.ts:68-108",
+          "src/lib/sports/fpl/formats/auction/scoring.ts:108-133"
         ]
       },
       {
         "id": "BR-ECON-016",
         "rule": "If a player has left the PL entirely (missing from the current FPL bootstrap) but a synergy snapshot exists, the last-known synergyBonus is preserved instead of falling to 0.",
         "sourceRefs": [
-          "src/lib/formats/auction/scoring.ts:113-124"
+          "src/lib/sports/fpl/formats/auction/scoring.ts:113-124"
         ]
       },
       {
         "id": "BR-ECON-017",
         "rule": "GW rank is assigned by sorting teams by GW totalPoints DESC, with tie-breakers in order: squadValue ASC (lower wins) → purse DESC (higher wins). SquadValue uses raw points only (synergy never compounds into FMV).",
         "sourceRefs": [
-          "src/lib/formats/auction/process-gameweek.ts:122-149"
+          "src/lib/sports/fpl/formats/auction/process-gameweek.ts:122-149"
         ]
       },
       {
         "id": "BR-ECON-018",
         "rule": "Players counted in a team's squad for GW scoring are auctionOwnership rows with `acquiredGw < gw` AND (releasedGw IS NULL OR releasedGw >= gw).",
         "sourceRefs": [
-          "src/lib/formats/auction/scoring.ts:73-87"
+          "src/lib/sports/fpl/formats/auction/scoring.ts:73-87"
         ]
       },
       {
         "id": "BR-ECON-019",
         "rule": "When forceReprocess=false and an auctionScores row already exists for (leagueId, gameweekId), processing is a no-op that returns the existing persisted scores; checked both outside and inside the transaction to close the race window.",
         "sourceRefs": [
-          "src/lib/formats/auction/process-gameweek.ts:32-56",
-          "src/lib/formats/auction/process-gameweek.ts:171-198"
+          "src/lib/sports/fpl/formats/auction/process-gameweek.ts:32-56",
+          "src/lib/sports/fpl/formats/auction/process-gameweek.ts:171-198"
         ]
       },
       {
         "id": "BR-ECON-020",
         "rule": "On forceReprocess, existing auctionScores rows for the GW are deleted inside the transaction before new rows are inserted.",
         "sourceRefs": [
-          "src/lib/formats/auction/process-gameweek.ts:200-214"
+          "src/lib/sports/fpl/formats/auction/process-gameweek.ts:200-214"
         ]
       },
       {
         "id": "BR-ECON-021",
         "rule": "After a GW is processed, each scored team's `teams.purse` is incremented by the payout and `teams.totalIncome` is incremented by the same amount; both inside the same transaction as the auctionScores insert.",
         "sourceRefs": [
-          "src/lib/formats/auction/process-gameweek.ts:236-247"
+          "src/lib/sports/fpl/formats/auction/process-gameweek.ts:236-247"
         ]
       },
       {
         "id": "BR-ECON-022",
         "rule": "When `gameweekNumber % 10 === 0` (cycle boundaries GW10/20/30), all `auctionOwnership.status='pending_release'` rows are flipped to 'released' with `releasedGw = gameweekNumber` and the 50% refund is added to the team's purse and totalRefunds in the same transaction.",
         "sourceRefs": [
-          "src/lib/formats/auction/process-gameweek.ts:249-292"
+          "src/lib/sports/fpl/formats/auction/process-gameweek.ts:249-292"
         ]
       },
       {
         "id": "BR-ECON-023",
         "rule": "`finalizePendingReleasesNow(leagueId, gw)` runs the same pending-release finalization outside the GW boundary — invoked when a mini-auction session starts so pending players free up before bidding.",
         "sourceRefs": [
-          "src/lib/formats/auction/process-gameweek.ts:371-413"
+          "src/lib/sports/fpl/formats/auction/process-gameweek.ts:371-413"
         ]
       },
       {
         "id": "BR-ECON-024",
         "rule": "Post-commit notification fan-out: each scored team gets a 'gw_processed' notification ('Ranked #N · X pts · Payout £Y.YYM'); each team with refunds gets a 'release_refund' notification. Notification failures are logged but never bubble up to fail scoring.",
         "sourceRefs": [
-          "src/lib/formats/auction/process-gameweek.ts:309-349"
+          "src/lib/sports/fpl/formats/auction/process-gameweek.ts:309-349"
         ]
       },
       {
@@ -335,43 +335,43 @@
         "id": "BR-ECON-029",
         "rule": "Team ledger is built from: initial budget (single entry at league.createdAt with gw=0), club purchase (if owned, gw=0), per-ownership purchase (− purchasePrice), per release_refund (+refund) or pending_release (informational, amount=0, isPending=true), per scored GW payout (+payout, only if payout > 0), completed trades (trade_swap informational + trade_cash_in/out + 5% transfer_fee for receiver), penalty slot redemptions (− redemptionPrice), and slot unlocks (− cost).",
         "sourceRefs": [
-          "src/lib/formats/auction/finance.ts:131-371"
+          "src/lib/sports/fpl/formats/auction/finance.ts:131-371"
         ]
       },
       {
         "id": "BR-ECON-030",
         "rule": "Trade receiver's transfer fee = `Math.round(grossAmount × 0.05)` (5%); net cash amount credited = grossAmount − feeAmount and the fee is emitted as a separate `transfer_fee` ledger entry with negative amount.",
         "sourceRefs": [
-          "src/lib/formats/auction/finance.ts:298-342"
+          "src/lib/sports/fpl/formats/auction/finance.ts:298-342"
         ]
       },
       {
         "id": "BR-ECON-031",
         "rule": "Pending-release ledger entries have amount=0 and isPending=true and do NOT affect runningBalance; only non-pending entries contribute to the running balance.",
         "sourceRefs": [
-          "src/lib/formats/auction/finance.ts:201-220",
-          "src/lib/formats/auction/finance.ts:376-381"
+          "src/lib/sports/fpl/formats/auction/finance.ts:201-220",
+          "src/lib/sports/fpl/formats/auction/finance.ts:376-381"
         ]
       },
       {
         "id": "BR-ECON-032",
         "rule": "Ledger entries are first sorted ascending by date to compute running balance, then reversed for display so newest transactions appear first.",
         "sourceRefs": [
-          "src/lib/formats/auction/finance.ts:373-410"
+          "src/lib/sports/fpl/formats/auction/finance.ts:373-410"
         ]
       },
       {
         "id": "BR-ECON-033",
         "rule": "Single-team ledger totals are derived from the ledger itself (single source of truth): totalIncome = sum of all positive non-refund non-initial-budget entries; totalRefunds = sum of release_refund entries; totalSpent = sum of |amount| for all negative entries; totalForfeited = sum of `metadata.forfeitAmount` on release_refund entries; netPnL = totalIncome + totalRefunds − totalSpent (excludes initialBudget).",
         "sourceRefs": [
-          "src/lib/formats/auction/finance.ts:383-425"
+          "src/lib/sports/fpl/formats/auction/finance.ts:383-425"
         ]
       },
       {
         "id": "BR-ECON-034",
         "rule": "currentPurse returned by the team ledger equals the runningBalance of the most recent non-pending entry (NOT `teams.purse`) — guarantees ledger and displayed purse agree by construction.",
         "sourceRefs": [
-          "src/lib/formats/auction/finance.ts:405-407"
+          "src/lib/sports/fpl/formats/auction/finance.ts:405-407"
         ]
       },
       {
@@ -379,7 +379,7 @@
         "rule": "Both ledger and economy responses rename `teamName` to the owned PL club name (full name, normalised via `getPlTeamFullName`) when the team owns a PL club; `ownedClub` is included for tier-chip rendering.",
         "sourceRefs": [
           "src/app/api/auction/finance/route.ts:36-72",
-          "src/lib/formats/auction/finance.ts:146-162"
+          "src/lib/sports/fpl/formats/auction/finance.ts:146-162"
         ]
       },
       {
@@ -481,15 +481,15 @@
         "id": "BR-ECON-049",
         "rule": "Square value snapshot used for tie-breaking sums `calculateFMV(purchasePrice, rawPoints)` across each team's active ownership rows; uses RAW points only — synergy never compounds into FMV/squad value/trades.",
         "sourceRefs": [
-          "src/lib/formats/auction/process-gameweek.ts:122-139"
+          "src/lib/sports/fpl/formats/auction/process-gameweek.ts:122-139"
         ]
       },
       {
         "id": "BR-ECON-050",
         "rule": "`teams.purse` is incremented on payouts (process-gameweek), purchases (resolve-bid), club purchases (club-auction), refunds (process-gameweek finalization), slot unlocks (unlock-slot), penalty redemptions (redeem-slot), and trade cash; the canonical purse for display is the ledger's running balance, not `teams.purse`.",
         "sourceRefs": [
-          "src/lib/formats/auction/finance.ts:386-407",
-          "src/lib/formats/auction/process-gameweek.ts:236-292"
+          "src/lib/sports/fpl/formats/auction/finance.ts:386-407",
+          "src/lib/sports/fpl/formats/auction/process-gameweek.ts:236-292"
         ]
       }
     ],

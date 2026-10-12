@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { fixtures, playoffTies, gameweeks, results, groups, teams, leagues, challengerSurvivalEntries } from "@/lib/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
-import { invalidateLeaguePageCache } from "@/lib/fpl-cache";
+import { invalidateLeaguePageCache } from "@/lib/sports/fpl/cache";
 import { getAuthorizedLeagueId } from "@/lib/league-auth";
-import { refuseIfNoGameweeks } from "@/lib/formats/route-guards";
+import { refuseIfNoGameweeks } from "@/lib/sports/route-guards";
 import { generateId } from "@/lib/id";
 import {
   RO16_SEEDING,
@@ -18,7 +18,7 @@ import {
   ensurePlayoffGws,
   getInitialRoundNames,
   type GSMatch16,
-} from "@/lib/formats/tvt/playoffs";
+} from "@/lib/sports/fpl/formats/tvt/playoffs";
 
 /**
  * GET /api/admin/[leagueId]/generate-playoffs

@@ -30,7 +30,7 @@
  * skips sync.ts's `finally`, stranding the settle lock.
  *
  * This route — and this route alone — is where the expensive settle sweep can be triggered. No
- * public route does this; see the docblock on lib/fpl-classic/sync.ts.
+ * public route does this; see the docblock on lib/sports/fpl/formats/fpl-classic/sync.ts.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -38,7 +38,7 @@ import { db, leagues } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { isSuperAdmin } from "@/lib/privilege";
 import { FPL_CLASSIC_FORMAT } from "@/lib/format-palette";
-import { syncRoster, settleGameweeks, refreshGameweek, freezeAwards } from "@/lib/fpl-classic/sync";
+import { syncRoster, settleGameweeks, refreshGameweek, freezeAwards } from "@/lib/sports/fpl/formats/fpl-classic/sync";
 
 export const maxDuration = 60;
 

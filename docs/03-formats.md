@@ -16,7 +16,7 @@ The `format` + `teamSize` combo drives every routing decision (scoring processor
 
 ### Scoring
 
-`src/lib/formats/tvt/scoring.ts`
+`src/lib/sports/fpl/formats/tvt/scoring.ts`
 - `calculateTVTTeamScore({ fplScore, transferHits, isCaptain }[])` — sums the two players, doubles the captain, subtracts transfer hits.
 - `calculateTVTTeamScoreAsync(...)` — same shape but async + FPL-fetching variant.
 - `determineMatchResult(homeScore, awayScore)` — returns `{ homeMatchPoints, awayMatchPoints }` per the 2/1/0 H2H scoring.
@@ -34,7 +34,7 @@ The TVT processor lives inline in [`src/app/api/gameweeks/[gw]/route.ts`](../src
 
 ### Playoff schedule
 
-`src/lib/playoffs/advance-windows.ts` — `getPlayoffAdvanceGws(format, teamSize, playoffStartGw)`:
+`src/lib/sports/fpl/playoffs/advance-windows.ts` — `getPlayoffAdvanceGws(format, teamSize, playoffStartGw)`:
 
 | Size | Advance window | Tie IDs |
 |---|---|---|
@@ -62,7 +62,7 @@ The TVT processor lives inline in [`src/app/api/gameweeks/[gw]/route.ts`](../src
 
 ### Scoring
 
-`src/lib/formats/continental-championship/process-gameweek.ts` — `processContinentalChampionshipGameweek(gameweekId, gwNumber, leagueId, force)`.
+`src/lib/sports/fpl/formats/continental-championship/process-gameweek.ts` — `processContinentalChampionshipGameweek(gameweekId, gwNumber, leagueId, force)`.
 
 Stores `leaguePoints` (W=2/D=1/L=0 for JPL) and `cupGroupPoints` (W=2/D=1/L=0 for cup matches) separately on `teams`. Both increment in the same processor run per GW.
 
@@ -101,10 +101,10 @@ In `advancePlayoffsImpl`, when `format === "continental-championship"`:
 
 ### Scoring
 
-`src/lib/formats/auction/process-gameweek.ts` — `processAuctionGameweek(gameweekId, gwNumber, leagueId, force)`. Sums each team's active players' FPL points and writes `auction_scores`. Distributes GW payouts to each team's purse based on rank.
+`src/lib/sports/fpl/formats/auction/process-gameweek.ts` — `processAuctionGameweek(gameweekId, gwNumber, leagueId, force)`. Sums each team's active players' FPL points and writes `auction_scores`. Distributes GW payouts to each team's purse based on rank.
 
-`src/lib/formats/auction/economy.ts` — payout schedule (`GW_PAYOUTS`), FMV calculation, refund math.
-`src/lib/formats/auction/standings.ts` — `computeAuctionStandings(teams, scores, gwNumbers, squadValues)` returns the standings response.
+`src/lib/sports/fpl/formats/auction/economy.ts` — payout schedule (`GW_PAYOUTS`), FMV calculation, refund math.
+`src/lib/sports/fpl/formats/auction/standings.ts` — `computeAuctionStandings(teams, scores, gwNumbers, squadValues)` returns the standings response.
 
 ### Auction state machine
 

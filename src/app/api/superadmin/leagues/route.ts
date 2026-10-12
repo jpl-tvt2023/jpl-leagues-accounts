@@ -4,17 +4,17 @@ import { leagues, teams, groups, fplClassicConfig, fplClassicEntrants } from "@/
 import { eq, count } from "drizzle-orm";
 import { isSuperAdmin } from "@/lib/privilege";
 import { generateId } from "@/lib/id";
-import { getCurrentGameweekNumber } from "@/lib/gameweeks/current-gw";
-import { validateEnabledChipsArray } from "@/lib/formats/tvt/chip-validation";
-import { findEnabledChipsLock } from "@/lib/formats/tvt/enabled-chips-lock";
-import { DEFAULT_RELEASE_CYCLE_GWS, validateReleaseCycleGws } from "@/lib/formats/auction/cycle";
+import { getCurrentGameweekNumber } from "@/lib/sports/fpl/gameweeks/current-gw";
+import { validateEnabledChipsArray } from "@/lib/sports/fpl/formats/tvt/chip-validation";
+import { findEnabledChipsLock } from "@/lib/sports/fpl/formats/tvt/enabled-chips-lock";
+import { DEFAULT_RELEASE_CYCLE_GWS, validateReleaseCycleGws } from "@/lib/sports/fpl/formats/auction/cycle";
 import { FPL_CLASSIC_FORMAT } from "@/lib/format-palette";
 import {
   fetchClassicLeagueStandings,
   FplClassicLeagueNotFoundError,
   type FplClassicStandingsPayload,
-} from "@/lib/fpl/classic-league";
-import { withFplBudget, FplUnavailableError } from "@/lib/fpl/gateway";
+} from "@/lib/sports/fpl/classic-league";
+import { withFplBudget, FplUnavailableError } from "@/lib/sports/fpl/gateway";
 import { isReservedLeagueSlug } from "@/lib/reserved-slugs";
 import { createLeagueInvite } from "@/lib/membership";
 
@@ -384,7 +384,7 @@ export async function POST(request: NextRequest) {
         // Everyone present at league creation is a founding member — the same gameweek the
         // league itself starts scoring from. A manager who shows up in a LATER sync (after
         // someone joins the FPL mini-league mid-season) gets that later gameweek instead; see
-        // syncRoster in lib/fpl-classic/sync.ts.
+        // syncRoster in lib/sports/fpl/formats/fpl-classic/sync.ts.
         const entrantRows = classicPayload.entries.map((entry) => ({
           id: generateId(),
           leagueId: id,

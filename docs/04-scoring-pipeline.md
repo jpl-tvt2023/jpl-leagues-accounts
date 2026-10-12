@@ -42,10 +42,10 @@ Lines ~295-345 in the route file:
 
 ```ts
 if (leagueRow[0]?.format === "continental-championship") {
-  return processContinentalChampionshipGameweek(...);   // delegates to src/lib/formats/continental-championship/process-gameweek.ts
+  return processContinentalChampionshipGameweek(...);   // delegates to src/lib/sports/fpl/formats/continental-championship/process-gameweek.ts
 }
 if (leagueRow[0]?.format === "auction") {
-  return processAuctionGameweek(...);       // delegates to src/lib/formats/auction/process-gameweek.ts
+  return processAuctionGameweek(...);       // delegates to src/lib/sports/fpl/formats/auction/process-gameweek.ts
 }
 // TVT default — inline below
 ```

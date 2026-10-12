@@ -11,13 +11,13 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { istNow } from "../../src/lib/cron/ist-clock";
+import { istNow } from "../../src/lib/sports/fpl/cron/ist-clock";
 import {
   emptyLeagueResult,
   foldLeagueGwResult,
   finalizeLeagueResult,
-} from "../../src/lib/cron/league-result";
-import type { LeaguePlanItem, LeagueGwResult } from "../../src/lib/cron/process-all";
+} from "../../src/lib/sports/fpl/cron/league-result";
+import type { LeaguePlanItem, LeagueGwResult } from "../../src/lib/sports/fpl/cron/process-all";
 
 const league: LeaguePlanItem = {
   id: "lg1",
@@ -218,7 +218,7 @@ class FakeStore {
 
 test("before 09:00 IST nothing is claimed and the store is not touched at all", async () => {
   const { maybeStartDailyRun, __setDailyTriggerStore } = await import(
-    "../../src/lib/cron/daily-trigger"
+    "../../src/lib/sports/fpl/cron/daily-trigger"
   );
   const store = new FakeStore();
   __setDailyTriggerStore(store);
@@ -234,7 +234,7 @@ test("before 09:00 IST nothing is claimed and the store is not touched at all", 
 
 test("a day already claimed is a no-op — the run never starts twice", async () => {
   const { maybeStartDailyRun, __setDailyTriggerStore } = await import(
-    "../../src/lib/cron/daily-trigger"
+    "../../src/lib/sports/fpl/cron/daily-trigger"
   );
   const store = new FakeStore();
   // Someone already claimed today.
@@ -254,7 +254,7 @@ test("a day already claimed is a no-op — the run never starts twice", async ()
 
 test("an unclaimed day does no work — advancing is gated on the claim", async () => {
   const { advanceDailyRun, __setDailyTriggerStore } = await import(
-    "../../src/lib/cron/daily-trigger"
+    "../../src/lib/sports/fpl/cron/daily-trigger"
   );
   const store = new FakeStore();
   __setDailyTriggerStore(store);
@@ -272,7 +272,7 @@ test("an unclaimed day does no work — advancing is gated on the claim", async 
 
 test("a finished day stops advancing rather than polling an empty queue", async () => {
   const { advanceDailyRun, __setDailyTriggerStore } = await import(
-    "../../src/lib/cron/daily-trigger"
+    "../../src/lib/sports/fpl/cron/daily-trigger"
   );
   const store = new FakeStore();
   store.data.set("daily-run:claim:2026-09-13", "1");
@@ -289,7 +289,7 @@ test("a finished day stops advancing rather than polling an empty queue", async 
 
 test("a held chunk lock keeps a second concurrent request out", async () => {
   const { advanceDailyRun, __setDailyTriggerStore } = await import(
-    "../../src/lib/cron/daily-trigger"
+    "../../src/lib/sports/fpl/cron/daily-trigger"
   );
   const store = new FakeStore();
   store.data.set("daily-run:claim:2026-09-13", "1");
