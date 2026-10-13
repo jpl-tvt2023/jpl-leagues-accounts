@@ -46,12 +46,15 @@ export const MINI_CRICKET = {
   })) as Row[],
 };
 
-/** Deterministic points for every player in a fixture (both teams). */
+/**
+ * Deterministic points for every player in a fixture (both teams), by team and player name — the way
+ * a scorer fills in the sheet.
+ */
 export function miniPoints(fixtureNo: number, bump = 0): Row[] {
   const fixture = MINI_CRICKET.fixtures[fixtureNo - 1];
   return MINI_CRICKET.players
     .filter((p) => p.team === fixture.team_a || p.team === fixture.team_b)
-    .map((p, i) => ({ fixture_id: fixtureNo, player_id: p.player_id, points: ((i * 7 + fixtureNo * 3) % 40) - 4 + bump }));
+    .map((p, i) => ({ fixture_id: fixtureNo, team: p.team, player: p.name, points: ((i * 7 + fixtureNo * 3) % 40) - 4 + bump }));
 }
 
 export async function createCricketTournament(request: APIRequestContext, name: string, kind: "league" | "window" = "league"): Promise<{ id: string; slug: string }> {
@@ -77,8 +80,13 @@ export interface UploadResponse {
   };
 }
 
-export async function validateCricketSheet(request: APIRequestContext, tournamentId: string, kind: string, rows: Row[]): Promise<UploadResponse> {
-  const res = await request.post(`/api/superadmin/cricket/tournaments/${tournamentId}/upload`, { data: { kind, mode: "validate", rows } });
+/** Fixtures uploads can target the playoffs; everything else ignores it. */
+export interface UploadOpts {
+  stage?: "group" | "playoff";
+}
+
+export async function validateCricketSheet(request: APIRequestContext, tournamentId: string, kind: string, rows: Row[], opts: UploadOpts = {}): Promise<UploadResponse> {
+  const res = await request.post(`/api/superadmin/cricket/tournaments/${tournamentId}/upload`, { data: { kind, mode: "validate", rows, ...opts } });
   return { status: res.status(), body: await res.json() };
 }
 
@@ -89,19 +97,20 @@ export async function commitCricketSheet(
   rows: Row[],
   validationHash: string | undefined,
   override = false,
+  opts: UploadOpts = {},
 ): Promise<UploadResponse> {
   const res = await request.post(`/api/superadmin/cricket/tournaments/${tournamentId}/upload`, {
-    data: { kind, mode: "commit", rows, validationHash, override, fileName: `${kind}.xlsx` },
+    data: { kind, mode: "commit", rows, validationHash, override, fileName: `${kind}.xlsx`, ...opts },
   });
   return { status: res.status(), body: await res.json() };
 }
 
 /** Validate then commit; fails the test unless both succeed. */
-export async function uploadCricketSheet(request: APIRequestContext, tournamentId: string, kind: string, rows: Row[]): Promise<UploadResponse["body"]> {
-  const v = await validateCricketSheet(request, tournamentId, kind, rows);
+export async function uploadCricketSheet(request: APIRequestContext, tournamentId: string, kind: string, rows: Row[], opts: UploadOpts = {}): Promise<UploadResponse["body"]> {
+  const v = await validateCricketSheet(request, tournamentId, kind, rows, opts);
   expect(v.status, JSON.stringify(v.body)).toBe(200);
   expect(v.body.errorCount, JSON.stringify(v.body.issues)).toBe(0);
-  const c = await commitCricketSheet(request, tournamentId, kind, rows, v.body.validationHash);
+  const c = await commitCricketSheet(request, tournamentId, kind, rows, v.body.validationHash, false, opts);
   expect(c.status, JSON.stringify(c.body)).toBe(200);
   expect(c.body.committed).toBe(true);
   return c.body;

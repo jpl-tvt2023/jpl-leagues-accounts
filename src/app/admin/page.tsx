@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { LoadingScreen } from "@/components/LoadingScreen";
 import { AppNav } from "@/components/AppNav";
+import { groupBySport } from "@/lib/sports";
+import { formatCaps, isKnownFormat } from "@/lib/sports/registry";
 
 interface League {
   id: string;
@@ -58,17 +60,7 @@ export default function AdminLeaguePicker() {
     window.location.href = "/signin";
   };
 
-  const sportLabel = (sport: string) => {
-    if (sport === "fpl") return "FPL";
-    if (sport === "cricket") return "Cricket";
-    return sport;
-  };
-
-  const formatLabel = (format: string) => {
-    if (format === "tvt") return "TVT";
-    if (format === "classic") return "Classic";
-    return format;
-  };
+  const formatLabel = (format: string) => (isKnownFormat(format) ? formatCaps(format).label : format);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-900 via-purple-900 to-slate-900">
@@ -103,9 +95,14 @@ export default function AdminLeaguePicker() {
           </div>
         )}
 
-        {!isLoading && leagues.length > 0 && (
+        {/* One section per sport (Football first), like the superadmin's dashboards. */}
+        {!isLoading && leagues.length > 0 && groupBySport(leagues).map((group) => (
+          <section key={group.sport} aria-labelledby={`sport-${group.sport}`} className="mb-10">
+            <h2 id={`sport-${group.sport}`} className="mb-4 text-lg font-semibold text-white">
+              <span aria-hidden="true">{group.icon}</span> {group.label}
+            </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-            {leagues.map((league) => (
+            {group.items.map((league) => (
               <Link
                 key={league.id}
                 href={`/admin/${league.slug}`}
@@ -113,9 +110,9 @@ export default function AdminLeaguePicker() {
               >
                 {/* League name + status badge */}
                 <div className="flex items-start justify-between mb-4">
-                  <h2 className="text-xl font-bold text-white group-hover:text-yellow-400 transition-colors leading-tight">
+                  <h3 className="text-xl font-bold text-white group-hover:text-yellow-400 transition-colors leading-tight">
                     {league.name}
-                  </h2>
+                  </h3>
                   <span
                     className={`ml-3 shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${
                       league.isActive
@@ -127,11 +124,8 @@ export default function AdminLeaguePicker() {
                   </span>
                 </div>
 
-                {/* Sport + Format tags */}
+                {/* Format + season tags (the sport is the section heading) */}
                 <div className="flex gap-2 mb-5">
-                  <span className="rounded-md bg-purple-500/20 px-2 py-0.5 text-xs text-purple-300 border border-purple-500/30">
-                    {sportLabel(league.sport)}
-                  </span>
                   <span className="rounded-md bg-blue-500/20 px-2 py-0.5 text-xs text-blue-300 border border-blue-500/30">
                     {formatLabel(league.format)}
                   </span>
@@ -146,12 +140,14 @@ export default function AdminLeaguePicker() {
                     <p className="text-gray-500 text-xs mb-0.5">Teams</p>
                     <p className="text-white font-semibold">{league.teamCount}</p>
                   </div>
-                  <div>
-                    <p className="text-gray-500 text-xs mb-0.5">Current GW</p>
-                    <p className="text-white font-semibold">
-                      {league.currentGameweek ? `GW${league.currentGameweek}` : "—"}
-                    </p>
-                  </div>
+                  {formatCaps(league.format).usesGameweeks && (
+                    <div>
+                      <p className="text-gray-500 text-xs mb-0.5">Current GW</p>
+                      <p className="text-white font-semibold">
+                        {league.currentGameweek ? `GW${league.currentGameweek}` : "—"}
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 <div className="mt-5 flex items-center text-yellow-400 text-sm font-semibold opacity-0 group-hover:opacity-100 transition-opacity">
@@ -160,7 +156,8 @@ export default function AdminLeaguePicker() {
               </Link>
             ))}
           </div>
-        )}
+          </section>
+        ))}
       </div>
     </div>
   );

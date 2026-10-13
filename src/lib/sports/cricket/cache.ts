@@ -18,7 +18,7 @@ function getRedis(): Redis | null {
 const TTL_SECONDS = 3600;
 
 export function leagueViewKey(leagueId: string, dataVersion: number, stateVersion: number): string {
-  return `crk:league:v1:${leagueId}:d${dataVersion}:s${stateVersion}`;
+  return `crk:league:v2:${leagueId}:d${dataVersion}:s${stateVersion}`;
 }
 
 export async function cacheGet<T>(key: string): Promise<T | null> {

@@ -30,6 +30,9 @@ export type CricketRole = (typeof CRICKET_ROLES)[number];
 export const CRICKET_MATCH_FORMATS = ["Test", "ODI", "T20"] as const;
 export type CricketMatchFormat = (typeof CRICKET_MATCH_FORMATS)[number];
 
+export const CRICKET_FIXTURE_STAGES = ["group", "playoff"] as const;
+export type CricketFixtureStage = (typeof CRICKET_FIXTURE_STAGES)[number];
+
 /** A tournament: one IPL season, or (later) a window combining several bilateral series. */
 export const cricketTournaments = sqliteTable("cricket_tournaments", {
   id: text("id").primaryKey(),
@@ -100,6 +103,9 @@ export const cricketFixtures = sqliteTable("cricket_fixtures", {
   matchFormat: text("match_format", { enum: CRICKET_MATCH_FORMATS }).notNull(),
   teamAId: integer("team_a_id").notNull().references(() => cricketTeams.id),
   teamBId: integer("team_b_id").notNull().references(() => cricketTeams.id),
+  // League tournaments (IPL) upload the group stage and the playoffs separately; playoff fixture
+  // numbers continue from the group stage's last. Window tournaments only have "group".
+  stage: text("stage", { enum: CRICKET_FIXTURE_STAGES }).notNull().default("group"),
   // Stored in UTC; the sheet gives Indian time.
   startsAt: integer("starts_at", { mode: "timestamp" }).notNull(),
   venue: text("venue"),
@@ -331,6 +337,22 @@ export const cricketTeamPenalties = sqliteTable("cricket_team_penalties", {
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
 }, (table) => ({
   teamIdx: index("cricket_team_penalties_team").on(table.teamId),
+}));
+
+/**
+ * Stored snapshots of a league's auction state (squads, franchises, purses, penalties, sessions),
+ * for the console's Backup tab. Taken by hand, and automatically when the player auction completes.
+ * The payload is the same JSON a downloaded backup carries (lib/sports/cricket/backup.ts).
+ */
+export const cricketBackups = sqliteTable("cricket_backups", {
+  id: text("id").primaryKey(),
+  leagueId: text("league_id").notNull().references(() => leagues.id, { onDelete: "cascade" }),
+  trigger: text("trigger", { enum: ["manual", "player-auction-complete"] }).notNull(),
+  createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
+  payload: text("payload").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+}, (table) => ({
+  leagueIdx: index("cricket_backups_league").on(table.leagueId, table.createdAt),
 }));
 
 export type CricketTournament = typeof cricketTournaments.$inferSelect;

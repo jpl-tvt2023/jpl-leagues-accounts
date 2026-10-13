@@ -7,6 +7,7 @@ import { ROLES, ROLE_LABELS } from "@/lib/sports/cricket/squad-rules";
 import { CricketShell, Card } from "../_components/CricketShell";
 import { useCricketLeague } from "../_components/useCricketLeague";
 import { indexView, pts, ROLE_STYLE } from "../_components/view-helpers";
+import { PLAYOFFS_FOOTNOTE, t20MatchesLabel } from "@/lib/sports/cricket/match-counts";
 
 type Sort = "points" | "price" | "name";
 type Status = "all" | "available" | "sold";
@@ -111,7 +112,11 @@ export default function CricketPlayerPoolPage() {
                       </td>
                       <td className="px-3 py-2 text-right text-gray-300">{formatLakhs(p.basePrice)}</td>
                       <td className="px-3 py-2 text-right text-gray-400">
-                        {showFormats ? `${p.matchesTest} / ${p.matchesOdi} / ${p.matchesT20}` : p.matchesT20}
+                        {(() => {
+                          // Group-stage count, plus the team's playoff matches (or "playoffs*" until they're uploaded).
+                          const t20 = t20MatchesLabel(p.matchesT20, data.playoffs, idx.realTeam.get(p.teamId)?.playoffMatches ?? 0);
+                          return showFormats ? `${p.matchesTest} / ${p.matchesOdi} / ${t20}` : t20;
+                        })()}
                       </td>
                       <td className="px-3 py-2 text-right font-semibold text-white">
                         {pts(p.points)} <span className="text-xs font-normal text-gray-500">({p.matches})</span>
@@ -131,6 +136,7 @@ export default function CricketPlayerPoolPage() {
               </tbody>
             </table>
             {rows.length === 0 && <p className="px-4 py-6 text-sm text-gray-400">No players match.</p>}
+            {data.playoffs === "pending" && rows.length > 0 && <p className="px-4 py-3 text-xs text-gray-500">{PLAYOFFS_FOOTNOTE}</p>}
           </Card>
         </>
       )}

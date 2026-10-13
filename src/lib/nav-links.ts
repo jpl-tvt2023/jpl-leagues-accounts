@@ -80,6 +80,7 @@ const ICON_BY_KEY: Record<string, NavIconName> = {
   "admin-leagues": "leagues",
   "admin-help": "help",
   superadmin: "admin",
+  "superadmin-football": "fpl",
   "superadmin-cricket": "players",
   "superadmin-help": "help",
   "platform-admin": "admin",
@@ -534,8 +535,10 @@ export function buildNavModel(ctx: NavContext, runtime: NavRuntime = {}): NavMod
             id: "platform",
             heading: "Platform",
             items: [
-              { key: "superadmin", label: "Dashboard", href: "/superadmin" },
-              { key: "superadmin-cricket", label: "Cricket Data", href: "/superadmin/cricket" },
+              // One dashboard per area: General (people, feedback), then one per sport.
+              { key: "superadmin", label: "General", href: "/superadmin" },
+              { key: "superadmin-football", label: "Football", href: "/superadmin/football" },
+              { key: "superadmin-cricket", label: "Cricket", href: "/superadmin/cricket" },
               { key: "superadmin-help", label: "Help", href: "/superadmin/help" },
             ],
           },

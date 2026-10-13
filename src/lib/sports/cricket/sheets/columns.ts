@@ -27,9 +27,9 @@ export const SHEET_COLUMNS: Record<SheetKind, ColumnSpec[]> = {
     { field: "basePrice", header: "base_price", aliases: ["price", "base", "franchisebaseprice", "franchiseprice"], required: false, help: "Franchise auction opening price in lakhs (blank = 0)" },
   ],
   players: [
-    { field: "code", header: "player_id", aliases: ["id", "playercode", "code"], required: true, help: "Your own id for the player; keep it the same in every upload" },
-    { field: "name", header: "name", aliases: ["playername", "player"], required: true, help: "Player name" },
-    { field: "team", header: "team", aliases: ["teamcode", "franchise", "country", "side"], required: true, help: "Team code from the Teams sheet" },
+    { field: "code", header: "player_id", aliases: ["id", "playercode", "code"], required: false, help: "Optional. Left blank, it's made from the name (e.g. virat-kohli); a renamed player needs it" },
+    { field: "name", header: "name", aliases: ["playername", "player"], required: true, help: "Player name, as the points sheets will spell it" },
+    { field: "team", header: "team", aliases: ["teamcode", "teamname", "franchise", "country", "side"], required: true, help: "Team code or full name from the Teams sheet" },
     { field: "role", header: "role", aliases: ["position", "type", "skill"], required: true, help: "WK, BAT, AR or BOWL" },
     { field: "basePrice", header: "base_price", aliases: ["price", "base", "baseprice"], required: true, help: "Auction opening price in lakhs, e.g. 200 = ₹2 Cr" },
     { field: "overseas", header: "overseas", aliases: ["foreign", "os", "isoverseas", "overseasplayer"], required: false, help: "Y or N (blank = N)" },
@@ -39,10 +39,10 @@ export const SHEET_COLUMNS: Record<SheetKind, ColumnSpec[]> = {
   ],
   fixtures: [
     { field: "series", header: "series", aliases: ["seriesname", "tournament", "competition"], required: true, help: "Series name; fixture ids restart at 1 in each series" },
-    { field: "fixtureNo", header: "fixture_id", aliases: ["fixture", "fixtureno", "fixturenumber", "matchno", "matchnumber", "match", "id"], required: true, help: "1, 2, 3 … within the series" },
+    { field: "fixtureNo", header: "fixture_id", aliases: ["fixture", "fixtureno", "fixturenumber", "matchno", "matchnumber", "match", "id"], required: false, help: "1, 2, 3 … within the series. Playoffs continue from the group stage's last; leave them blank to number them automatically" },
     { field: "format", header: "format", aliases: ["matchformat", "matchtype", "type"], required: true, help: "Test, ODI or T20" },
-    { field: "teamA", header: "team_a", aliases: ["home", "hometeam", "team1"], required: true, help: "Team code" },
-    { field: "teamB", header: "team_b", aliases: ["away", "awayteam", "team2"], required: true, help: "Team code" },
+    { field: "teamA", header: "team_a", aliases: ["home", "hometeam", "team1"], required: true, help: "Team code or full name" },
+    { field: "teamB", header: "team_b", aliases: ["away", "awayteam", "team2"], required: true, help: "Team code or full name" },
     { field: "start", header: "start_time_ist", aliases: ["start", "starttime", "starts", "startsat", "datetime", "date"], required: true, help: "Indian time, e.g. 2026-04-12 19:30" },
     { field: "time", header: "time", aliases: ["timeist", "starttimeonly"], required: false, help: "Optional: time on its own, if the date column has none" },
     { field: "venue", header: "venue", aliases: ["ground", "stadium", "location"], required: false, help: "Optional" },
@@ -50,7 +50,9 @@ export const SHEET_COLUMNS: Record<SheetKind, ColumnSpec[]> = {
   points: [
     { field: "series", header: "series", aliases: ["seriesname", "tournament", "competition"], required: false, help: "Needed only when the tournament has more than one series" },
     { field: "fixtureNo", header: "fixture_id", aliases: ["fixture", "fixtureno", "fixturenumber", "matchno", "matchnumber", "match"], required: true, help: "Fixture id within its series" },
-    { field: "player", header: "player_id", aliases: ["player", "playercode", "id", "code"], required: true, help: "player_id from the Players sheet" },
+    { field: "team", header: "team", aliases: ["teamcode", "teamname", "franchise", "country", "side"], required: true, help: "The player's team: code or full name (one of the fixture's two teams)" },
+    { field: "player", header: "player", aliases: ["playername", "name"], required: false, help: "Player name as in the Players sheet (needed unless player_id is given)" },
+    { field: "playerCode", header: "player_id", aliases: ["playercode", "id", "code"], required: false, help: "Optional: player_id, only needed when two teammates share a name" },
     { field: "points", header: "points", aliases: ["fantasypoints", "pts", "total", "totalpoints", "score"], required: true, help: "Fantasy points for this match (can be negative or decimal)" },
   ],
 };

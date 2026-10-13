@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, teams, players, fixtures, results, gameweekCaptains, auditLogs } from "@/lib/db";
 import { eq, or, and } from "drizzle-orm";
 import { getAuthorizedLeagueId } from "@/lib/league-auth";
+import { refuseIfCricket } from "@/lib/sports/route-guards";
 import { invalidateLeaguePageCache } from "@/lib/sports/fpl/cache";
 
 /**
@@ -12,6 +13,8 @@ export async function DELETE(request: NextRequest) {
   try {
     const leagueId = await getAuthorizedLeagueId(request);
     if (!leagueId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const cricket = await refuseIfCricket(leagueId);
+    if (cricket) return cricket;
 
     const body = await request.json();
     const { teamId } = body;

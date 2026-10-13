@@ -28,6 +28,7 @@ import { bumpStateVersion, loadCricketLeague } from "../league";
 import { playersStillNeeded } from "./rules";
 import { checkFranchisePurchase, checkPlayerPurchase, cheapestUnsoldBase, franchiseOpening, loadAuctionData } from "./data";
 import { getOpenLot, getSession, logTurnEvent, parseIdList, type ActionResult } from "./engine";
+import { saveSnapshot } from "../backup";
 
 const fail = (status: number, error: string) => ({ ok: false as const, status, error });
 
@@ -165,6 +166,10 @@ export async function completeSession(leagueId: string, sessionId: string, force
     bumpStateVersion(leagueId),
   ]);
   await logTurnEvent({ sessionId, leagueId, event: "completed", actor: "admin", detail: { force } });
+  // Squads are final: keep a snapshot (the Backup tab lists it). Best-effort — completing never fails on it.
+  if (s.type === "player") {
+    await saveSnapshot(leagueId, "player-auction-complete", null).catch((err) => console.error("cricket auto-snapshot failed:", err));
+  }
   return { ok: true };
 }
 

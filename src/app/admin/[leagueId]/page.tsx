@@ -2061,7 +2061,7 @@ export default function AdminDashboard() {
             <p className="font-semibold text-orange-100">This league still uses team logins, which no longer work.</p>
             <p className="mt-1">
               Everyone now signs in with Google. Until the superadmin switches this league to Google sign-in
-              (Superadmin → Leagues), nobody can act for its teams. Teams, scores and history are kept; afterwards,
+              (Superadmin → Football → Leagues), nobody can act for its teams. Teams, scores and history are kept; afterwards,
               add each person to their own team from the Members tab.
             </p>
           </div>

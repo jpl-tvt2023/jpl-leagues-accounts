@@ -20,6 +20,8 @@ interface Tournament {
   players: number;
   fixtures: number;
   fixturesScored: number;
+  playoffFixtures: number;
+  nextPlayoffIds: Record<string, number>;
   leagues: Array<{ id: string; slug: string; name: string }>;
 }
 
@@ -65,7 +67,7 @@ export default function CricketTournamentPage() {
     const res = await fetch(`/api/superadmin/cricket/tournaments/${tournamentId}`, { method: "DELETE" });
     const data = await res.json();
     if (!res.ok) setError(data.error ?? "Couldn't delete");
-    else window.location.href = "/superadmin/cricket";
+    else window.location.href = "/superadmin/cricket?tab=tournaments";
   };
 
   const handleSignOut = async () => {
@@ -86,7 +88,7 @@ export default function CricketTournamentPage() {
         onSignOut={handleSignOut}
       />
       <main className="mx-auto max-w-6xl space-y-6 px-4 py-6 sm:py-10">
-        <Link href="/superadmin/cricket" className="text-sm text-gray-400 hover:text-white">
+        <Link href="/superadmin/cricket?tab=tournaments" className="text-sm text-gray-400 hover:text-white">
           ← Tournaments
         </Link>
         {error && <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</div>}
@@ -97,7 +99,8 @@ export default function CricketTournamentPage() {
                 <h1 className="text-2xl font-bold text-white sm:text-3xl">{tournament.name}</h1>
                 <p className="mt-1 text-sm text-gray-400">
                   {tournament.kind === "league" ? "League with franchises" : "Window of series"} · season {tournament.season} ·{" "}
-                  {tournament.teams} teams · {tournament.players} players · {tournament.fixtures} fixtures ({tournament.fixturesScored} scored)
+                  {tournament.teams} teams · {tournament.players} players · {tournament.fixtures} fixtures
+                  {tournament.playoffFixtures > 0 && ` (${tournament.playoffFixtures} playoffs)`} · {tournament.fixturesScored} scored
                 </p>
                 <p className="mt-1 text-sm text-gray-400">
                   {tournament.leagues.length
@@ -133,7 +136,14 @@ export default function CricketTournamentPage() {
 
             <div className="grid gap-4 lg:grid-cols-2">
               {SHEET_KINDS.map((kind) => (
-                <UploadCard key={kind} tournamentId={tournament.id} kind={kind} onCommitted={changed} />
+                <UploadCard
+                  key={kind}
+                  tournamentId={tournament.id}
+                  kind={kind}
+                  tournamentKind={tournament.kind}
+                  nextPlayoffIds={tournament.nextPlayoffIds}
+                  onCommitted={changed}
+                />
               ))}
             </div>
 

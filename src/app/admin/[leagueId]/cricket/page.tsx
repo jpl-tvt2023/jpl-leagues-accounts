@@ -1,38 +1,65 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { AppNav } from "@/components/AppNav";
 import { LoadingScreen } from "@/components/LoadingScreen";
-import { Tabs } from "@/components/ui/Tabs";
 import { CricketSettingsForm } from "@/components/cricket/CricketSettingsForm";
 import { CRICKET_AUCTION_FORMAT } from "@/lib/sports/registry";
 import type { CricketLeagueSettings } from "@/lib/sports/cricket/league-settings";
 import { MembersTab } from "../MembersTab";
+import { FeedbackTab } from "../FeedbackTab";
 import { CricketAuctionAdmin } from "./CricketAuctionAdmin";
+import { CricketManagersTab } from "./CricketManagersTab";
+import { CricketBackupTab } from "./CricketBackupTab";
+import { CricketFinanceTab } from "./CricketFinanceTab";
 
-type Tab = "overview" | "auction" | "settings" | "members";
+// Same sections, order and look as the FPL auction console (admin/[leagueId]/page.tsx).
+type Tab = "managers" | "members" | "backup" | "scoring" | "auction" | "finance" | "settings" | "feedback";
+const TABS: { id: Tab; label: string }[] = [
+  { id: "managers", label: "Manager Management" },
+  { id: "members", label: "Members" },
+  { id: "backup", label: "Backup" },
+  { id: "scoring", label: "Scoring" },
+  { id: "auction", label: "Auction" },
+  { id: "finance", label: "Finance" },
+  { id: "settings", label: "Settings" },
+  { id: "feedback", label: "Feedback" },
+];
 
 interface ConfigPayload {
   league: { id: string; slug: string; name: string; season: string; teamSize: number };
-  tournament: { id: string; name: string; kind: "league" | "window"; status: string; teams: number; players: number; fixtures: number; fixturesScored: number } | null;
+  tournament: {
+    id: string;
+    name: string;
+    kind: "league" | "window";
+    status: string;
+    teams: number;
+    players: number;
+    fixtures: number;
+    playoffFixtures: number;
+    fixturesScored: number;
+  } | null;
   settings: CricketLeagueSettings;
   completedAt: string | null;
   settingsLocked: boolean;
 }
 
-/** League admin console for a Classic Cricket Auction league. */
+type Message = { type: "success" | "error"; text: string };
+
+/** League admin console for a Classic Cricket Auction league, laid out like the FPL console. */
 export default function CricketAdminPage() {
   const { leagueId } = useParams<{ leagueId: string }>();
-  const [tab, setTab] = useState<Tab>("overview");
+  const [tab, setTab] = useState<Tab>("managers");
   const [config, setConfig] = useState<ConfigPayload | null>(null);
   const [draft, setDraft] = useState<CricketLeagueSettings | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [message, setMessage] = useState<Message | null>(null);
   const [saving, setSaving] = useState(false);
   const [isSuperadmin, setIsSuperadmin] = useState(false);
   const [version, setVersion] = useState(0);
+  const onMessage = useCallback((m: Message) => setMessage(m), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -47,7 +74,7 @@ export default function CricketAdminPage() {
       if (cancelled) return;
       setIsSuperadmin(meBody.type === "superadmin");
       if (!res.ok) {
-        setError(body.error ?? "Couldn't load the league");
+        setLoadError(body.error ?? "Couldn't load the league");
         return;
       }
       setConfig(body);
@@ -61,8 +88,7 @@ export default function CricketAdminPage() {
   const save = async () => {
     if (!draft) return;
     setSaving(true);
-    setError(null);
-    setNotice(null);
+    setMessage(null);
     try {
       const res = await fetch(`/api/admin/${leagueId}/cricket/config`, {
         method: "PATCH",
@@ -70,11 +96,11 @@ export default function CricketAdminPage() {
         body: JSON.stringify(draft),
       });
       const body = await res.json();
-      if (!res.ok) setError(body.error ?? "Couldn't save");
+      if (!res.ok) setMessage({ type: "error", text: body.error ?? "Couldn't save" });
       else {
         setConfig(body);
         setDraft(body.settings);
-        setNotice("Settings saved.");
+        setMessage({ type: "success", text: "Settings saved." });
       }
     } finally {
       setSaving(false);
@@ -88,7 +114,10 @@ export default function CricketAdminPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ complete }),
     });
-    if (res.ok) setVersion((v) => v + 1);
+    if (res.ok) {
+      setMessage({ type: "success", text: complete ? "Season marked complete." : "Season reopened." });
+      setVersion((v) => v + 1);
+    }
   };
 
   const handleSignOut = async () => {
@@ -96,11 +125,11 @@ export default function CricketAdminPage() {
     window.location.href = "/signin";
   };
 
-  if (!config && !error) return <LoadingScreen variant="standings" fullScreen />;
+  if (!config && !loadError) return <LoadingScreen variant="standings" fullScreen />;
 
   const t = config?.tournament;
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-900 via-green-900/40 to-slate-900">
+    <div className="min-h-screen bg-gradient-to-b from-slate-900 via-purple-900 to-slate-900">
       <AppNav
         context={{ surface: "admin-league", leagueId, format: CRICKET_AUCTION_FORMAT, isSuperadminViewer: isSuperadmin, variant: "full" }}
         activeKey="admin-dashboard"
@@ -109,40 +138,68 @@ export default function CricketAdminPage() {
         brandBadge={{ label: "CCA", bgClass: "bg-green-500/20", textClass: "text-green-200" }}
         onSignOut={handleSignOut}
       />
-      <main className="mx-auto max-w-5xl space-y-6 px-4 py-6 sm:py-10">
-        <header>
+      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
+        <header className="mb-6">
           <h1 className="text-2xl font-bold text-white sm:text-3xl">{config?.league.name ?? leagueId}</h1>
           <p className="mt-1 text-sm text-gray-400">Classic Cricket Auction{t && ` · ${t.name}`}</p>
         </header>
-        {error && <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</div>}
-        {notice && <div className="rounded-lg border border-green-500/40 bg-green-500/10 px-4 py-3 text-sm text-green-300">{notice}</div>}
+        {loadError && <div className="mb-6 rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-red-400">{loadError}</div>}
 
         {config && draft && (
           <>
-            <Tabs<Tab>
-              ariaLabel="Section"
-              value={tab}
-              onChange={setTab}
-              items={[
-                { id: "overview", label: "Overview" },
-                { id: "auction", label: "Auction" },
-                { id: "settings", label: "Settings" },
-                { id: "members", label: "Members" },
-              ]}
-            />
+            {/* Tabs */}
+            <div className="mb-8 border-b border-white/10 pb-4">
+              <div role="group" aria-label="Section" className="flex flex-wrap gap-2 sm:gap-4">
+                {TABS.map((x) => (
+                  <button
+                    key={x.id}
+                    type="button"
+                    aria-pressed={tab === x.id}
+                    onClick={() => {
+                      setTab(x.id);
+                      setMessage(null);
+                    }}
+                    className={`whitespace-nowrap rounded-lg px-3 py-2 text-sm font-semibold transition sm:px-4 sm:text-base ${
+                      tab === x.id ? "bg-yellow-500 text-slate-900" : "bg-white/5 text-gray-300 hover:bg-white/10"
+                    }`}
+                  >
+                    {x.label}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-            {tab === "overview" && (
+            {/* Global message */}
+            {message && (
+              <div className={`mb-6 rounded-lg p-4 ${message.type === "success" ? "border border-green-500/30 bg-green-500/10 text-green-400" : "border border-red-500/30 bg-red-500/10 text-red-400"}`}>
+                <p>{message.text}</p>
+              </div>
+            )}
+
+            {tab === "managers" && <CricketManagersTab key={version} leagueId={leagueId} onMessage={onMessage} />}
+
+            {tab === "members" && <MembersTab leagueId={leagueId} />}
+
+            {tab === "backup" && (
+              <CricketBackupTab leagueId={leagueId} leagueSlug={config.league.slug} onMessage={onMessage} onRestored={() => setVersion((v) => v + 1)} />
+            )}
+
+            {tab === "scoring" && (
               <div className="grid gap-4 sm:grid-cols-2">
                 <section className="rounded-2xl border border-white/10 bg-white/5 p-5">
                   <h2 className="font-semibold text-white">Tournament data</h2>
                   {t ? (
                     <p className="mt-2 text-sm text-gray-300">
-                      {t.name} ({t.status}) · {t.teams} teams · {t.players} players · {t.fixtures} fixtures, {t.fixturesScored} scored
+                      {t.name} ({t.status}) · {t.teams} teams · {t.players} players · {t.fixtures} fixtures
+                      {t.playoffFixtures > 0 && ` (${t.playoffFixtures} playoffs)`}, {t.fixturesScored} scored
                     </p>
                   ) : (
                     <p className="mt-2 text-sm text-red-300">The tournament is missing.</p>
                   )}
-                  <p className="mt-2 text-xs text-gray-500">The superadmin uploads players, fixtures and points{isSuperadmin ? "" : "; ask them when a match needs scoring"}.</p>
+                  <p className="mt-2 text-xs text-gray-500">
+                    The superadmin uploads players, fixtures and points{isSuperadmin ? "" : "; ask them when a match needs scoring"}. Scores update the
+                    standings as soon as they&apos;re uploaded.
+                  </p>
                   {isSuperadmin && t && (
                     <Link href={`/superadmin/cricket/${t.id}`} className="mt-3 inline-block text-sm text-green-300 hover:underline">
                       Open tournament data →
@@ -150,24 +207,16 @@ export default function CricketAdminPage() {
                   )}
                 </section>
                 <section className="rounded-2xl border border-white/10 bg-white/5 p-5">
-                  <h2 className="font-semibold text-white">Season</h2>
+                  <h2 className="font-semibold text-white">Standings</h2>
                   <p className="mt-2 text-sm text-gray-300">
-                    {config.completedAt ? `Marked complete on ${new Date(config.completedAt).toLocaleDateString("en-IN")}.` : "In progress. It completes on its own once every match is scored."}
+                    {config.completedAt ? `The season was marked complete on ${new Date(config.completedAt).toLocaleDateString("en-IN")}.` : "In progress."}
                   </p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <Link href={`/${config.league.slug}/cricket/standings`} className="rounded-lg border border-white/15 px-3 py-2 text-sm text-gray-200 hover:bg-white/10">
-                      Standings
-                    </Link>
-                    {config.completedAt ? (
-                      <button type="button" onClick={() => setComplete(false)} className="rounded-lg border border-white/15 px-3 py-2 text-sm text-gray-200 hover:bg-white/10">
-                        Reopen season
-                      </button>
-                    ) : (
-                      <button type="button" onClick={() => setComplete(true)} className="rounded-lg bg-yellow-500 px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-yellow-400">
-                        Mark complete
-                      </button>
-                    )}
-                  </div>
+                  <Link
+                    href={`/${config.league.slug}/cricket/standings`}
+                    className="mt-3 inline-block rounded-lg border border-white/15 px-3 py-2 text-sm text-gray-200 hover:bg-white/10"
+                  >
+                    Open standings
+                  </Link>
                 </section>
               </div>
             )}
@@ -182,29 +231,52 @@ export default function CricketAdminPage() {
               />
             )}
 
+            {tab === "finance" && <CricketFinanceTab key={version} leagueId={leagueId} />}
+
             {tab === "settings" && (
-              <section className="rounded-2xl border border-white/10 bg-white/5 p-5">
-                {config.settingsLocked && (
-                  <p className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
-                    The auction has started, so only the timers can change now.
+              <div className="space-y-4">
+                <section className="rounded-2xl border border-white/10 bg-white/5 p-5">
+                  {config.settingsLocked && (
+                    <p className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+                      The auction has started, so only the timers can change now.
+                    </p>
+                  )}
+                  <CricketSettingsForm value={draft} onChange={setDraft} tournamentLocked />
+                  <button
+                    type="button"
+                    onClick={save}
+                    disabled={saving}
+                    className="mt-5 rounded-lg bg-yellow-500 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-yellow-400 disabled:opacity-50"
+                  >
+                    {saving ? "Saving…" : "Save settings"}
+                  </button>
+                </section>
+                <section className="rounded-2xl border border-white/10 bg-white/5 p-5">
+                  <h2 className="font-semibold text-white">Season</h2>
+                  <p className="mt-2 text-sm text-gray-300">
+                    {config.completedAt
+                      ? `Marked complete on ${new Date(config.completedAt).toLocaleDateString("en-IN")}.`
+                      : "In progress. It completes on its own once every match is scored, or mark it complete here."}
                   </p>
-                )}
-                <CricketSettingsForm value={draft} onChange={setDraft} tournamentLocked />
-                <button
-                  type="button"
-                  onClick={save}
-                  disabled={saving}
-                  className="mt-5 rounded-lg bg-green-500 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-green-400 disabled:opacity-50"
-                >
-                  {saving ? "Saving…" : "Save settings"}
-                </button>
-              </section>
+                  <div className="mt-3">
+                    {config.completedAt ? (
+                      <button type="button" onClick={() => setComplete(false)} className="rounded-lg border border-white/15 px-3 py-2 text-sm text-gray-200 hover:bg-white/10">
+                        Reopen season
+                      </button>
+                    ) : (
+                      <button type="button" onClick={() => setComplete(true)} className="rounded-lg bg-yellow-500 px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-yellow-400">
+                        Mark complete
+                      </button>
+                    )}
+                  </div>
+                </section>
+              </div>
             )}
 
-            {tab === "members" && <MembersTab leagueId={leagueId} />}
+            {tab === "feedback" && <FeedbackTab endpoint={`/api/admin/${leagueId}/feedback`} scopeLabel="this league" />}
           </>
         )}
-      </main>
+      </div>
     </div>
   );
 }

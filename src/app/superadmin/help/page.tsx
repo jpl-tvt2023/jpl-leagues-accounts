@@ -87,9 +87,8 @@ export default function SuperadminHelpPage() {
       question: "How do I create a new league?",
       answer: (
         <div className="space-y-2">
-          <p>Click <strong className="text-white">+ New League</strong> on the Superadmin dashboard. The wizard has 6 steps:</p>
+          <p>Open the dashboard for the league&apos;s sport — <strong className="text-white">Football</strong> or <strong className="text-white">Cricket</strong> in the top bar — and click <strong className="text-white">+ Create League</strong> on its Leagues tab. A cricket league plays on a tournament uploaded under <strong className="text-white">Cricket → Tournaments</strong>; create that first. The wizard then asks for:</p>
           <ol className="list-decimal list-inside space-y-1 mt-2">
-            <li><strong className="text-white">Sport</strong> — Football (FPL) or Cricket. A cricket league plays on a tournament uploaded under <strong className="text-white">Cricket Data</strong>; create that first.</li>
             <li><strong className="text-white">Format</strong> — choose TVT (head-to-head with chips, captaincy, playoffs). Classic is coming soon.</li>
             <li><strong className="text-white">Team Size</strong> — 32, 16, or 8 teams. This determines group structure and playoff schedule.</li>
             <li><strong className="text-white">Chips</strong> — select which chips are enabled for this league (Win-Win, Double Pointer, Challenge Chip, Score Lock, Comeback, Underdog).</li>

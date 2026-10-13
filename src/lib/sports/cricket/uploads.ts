@@ -22,10 +22,12 @@ import {
   cricketUploads,
   type CricketTournament,
 } from "@/lib/db";
+import type { CricketFixtureStage } from "@/lib/db/schema-cricket";
 import { generateId } from "@/lib/id";
 import { blockingIssues, warning, type RawRow, type SheetIssue, type SheetKind } from "./sheets/types";
 import { parseTeamsSheet, planTeams } from "./sheets/teams";
-import { parsePlayersSheet, planPlayers } from "./sheets/players";
+import { assignPlayerCodes, parsePlayersSheet, planPlayers } from "./sheets/players";
+import { TeamLookup } from "./sheets/names";
 import { parseFixturesSheet, planFixtures } from "./sheets/fixtures";
 import { parsePointsSheet } from "./sheets/points";
 import { formatIst } from "./sheets/ist";
@@ -46,6 +48,8 @@ export interface UploadInput {
   validationHash?: string | null;
   /** Push through overridable errors (changes after an auction started). Recorded in the audit row. */
   override?: boolean;
+  /** Fixtures only: which stage the sheet replaces (default "group"). Playoffs need a league tournament. */
+  stage?: CricketFixtureStage;
 }
 
 export interface UploadCounts {
@@ -96,11 +100,12 @@ function chunks<T>(items: T[], size = CHUNK): T[][] {
   return out;
 }
 
-async function planUpload(t: CricketTournament, kind: SheetKind, rows: RawRow[]): Promise<Planned> {
+async function planUpload(t: CricketTournament, kind: SheetKind, rows: RawRow[], stage: CricketFixtureStage): Promise<Planned> {
   const teams = await db.select().from(cricketTeams).where(eq(cricketTeams.tournamentId, t.id));
   const teamIdByCode = new Map(teams.map((x) => [x.code, x.id]));
   const teamCodeById = new Map(teams.map((x) => [x.id, x.code]));
-  const teamCodes = new Set(teamIdByCode.keys());
+  // Sheets name teams by code or full name.
+  const teamLookup = new TeamLookup(teams);
 
   if (kind === "teams") {
     const parsed = parseTeamsSheet(rows);
@@ -127,12 +132,17 @@ async function planUpload(t: CricketTournament, kind: SheetKind, rows: RawRow[])
   }
 
   if (kind === "players") {
-    const parsed = parsePlayersSheet(rows, { teamCodes });
+    const parsed = parsePlayersSheet(rows, { teams: teamLookup });
     const [existing, usage, scored] = await Promise.all([
       db.select().from(cricketPlayers).where(eq(cricketPlayers.tournamentId, t.id)),
       loadTournamentUsage(t.id),
       playersWithPoints(t.id),
     ]);
+    // Blank player_ids: an already-uploaded player with the same name keeps theirs; new ones get a slug.
+    parsed.rows = assignPlayerCodes(
+      parsed.rows,
+      existing.map((p) => ({ code: p.code, name: p.name, teamCode: teamCodeById.get(p.teamId) ?? "" })),
+    );
     const plan = planPlayers(existing, parsed.rows, {
       teamIdByCode,
       playersWithPoints: scored,
@@ -174,7 +184,7 @@ async function planUpload(t: CricketTournament, kind: SheetKind, rows: RawRow[])
   }
 
   if (kind === "fixtures") {
-    const parsed = parseFixturesSheet(rows, { teamCodes });
+    const parsed = parseFixturesSheet(rows, { teams: teamLookup, stage });
     const [existing, scored] = await Promise.all([
       db.select().from(cricketFixtures).where(eq(cricketFixtures.tournamentId, t.id)),
       fixturesWithPoints(t.id),
@@ -182,11 +192,13 @@ async function planUpload(t: CricketTournament, kind: SheetKind, rows: RawRow[])
     const plan = planFixtures(
       existing.map((f) => ({ ...f, hasPoints: scored.has(f.id) || f.pointsUploadedAt !== null })),
       parsed.rows,
-      { teamIdByCode },
+      { teamIdByCode, stage },
     );
+    const stageIssues = stage === "playoff" && t.kind !== "league" ? [{ row: 0, message: "Only a league tournament (like the IPL) has playoffs", level: "error" as const }] : [];
     const values = (r: (typeof plan.inserts)[number]) => ({
       series: r.series,
       fixtureNo: r.fixtureNo,
+      stage,
       matchFormat: r.matchFormat,
       teamAId: r.teamAId,
       teamBId: r.teamBId,
@@ -195,11 +207,12 @@ async function planUpload(t: CricketTournament, kind: SheetKind, rows: RawRow[])
     });
     return {
       counts: { rows: rows.length, inserts: plan.inserts.length, updates: plan.updates.length, deletes: plan.deletes.length, unchanged: plan.unchanged },
-      issues: [...parsed.issues, ...plan.issues],
-      preview: parsed.rows.slice(0, PREVIEW_ROWS).map((r) => ({
+      issues: [...stageIssues, ...parsed.issues, ...plan.issues],
+      preview: plan.rows.slice(0, PREVIEW_ROWS).map((r) => ({
         row: r.row,
         series: r.series,
         fixture_id: r.fixtureNo,
+        stage: stage === "playoff" ? "Playoffs" : "Group",
         format: r.matchFormat,
         team_a: r.teamACode,
         team_b: r.teamBCode,
@@ -207,7 +220,7 @@ async function planUpload(t: CricketTournament, kind: SheetKind, rows: RawRow[])
         start_utc: r.startsAt.toISOString(),
         venue: r.venue,
       })),
-      canonical: parsed.rows.map((r) => [r.series, r.fixtureNo, r.matchFormat, r.teamACode, r.teamBCode, r.startsAt.toISOString(), r.venue]),
+      canonical: [stage, plan.rows.map((r) => [r.series, r.fixtureNo, r.matchFormat, r.teamACode, r.teamBCode, r.startsAt.toISOString(), r.venue])],
       apply: (_uploadId, now) => [
         ...chunks(plan.inserts).map((c) => db.insert(cricketFixtures).values(c.map((r) => ({ tournamentId: t.id, ...values(r) })))),
         ...plan.updates.map((u) => db.update(cricketFixtures).set({ ...values(u.row), updatedAt: now }).where(eq(cricketFixtures.id, u.id))),
@@ -236,7 +249,7 @@ async function planUpload(t: CricketTournament, kind: SheetKind, rows: RawRow[])
       .where(eq(cricketPlayers.tournamentId, t.id)),
     loadTournamentUsage(t.id),
   ]);
-  const parsed = parsePointsSheet(rows, { fixtures, players, now: new Date() });
+  const parsed = parsePointsSheet(rows, { fixtures, players, teams: teamLookup, teamIdByCode, now: new Date() });
   const issues = [...parsed.issues];
   if (fixtures.length === 0) issues.push({ row: 0, message: "Upload the Fixtures sheet first", level: "error" });
   if (usage.completedLeagueNames.length && parsed.rows.length) {
@@ -297,7 +310,8 @@ export async function runUpload(tournamentId: string, input: UploadInput, userId
   if (!Array.isArray(input.rows)) throw new UploadError("rows must be an array", 400);
   if (input.rows.length > MAX_UPLOAD_ROWS) throw new UploadError(`At most ${MAX_UPLOAD_ROWS} rows per upload`, 400);
 
-  const planned = await planUpload(t, input.kind, input.rows);
+  const stage: CricketFixtureStage = input.kind === "fixtures" && input.stage === "playoff" ? "playoff" : "group";
+  const planned = await planUpload(t, input.kind, input.rows, stage);
   const override = !!input.override;
   const errorCount = planned.issues.filter((i) => i.level === "error").length;
   const overridableCount = planned.issues.filter((i) => i.level === "error" && i.overridable).length;
@@ -334,7 +348,12 @@ export async function runUpload(tournamentId: string, input: UploadInput, userId
       kind: input.kind,
       fileName: input.fileName ?? null,
       rowCount: input.rows.length,
-      summary: JSON.stringify({ ...planned.counts, warnings: result.warningCount, override: override && overridableCount > 0 ? overridableCount : 0 }),
+      summary: JSON.stringify({
+        ...planned.counts,
+        warnings: result.warningCount,
+        override: override && overridableCount > 0 ? overridableCount : 0,
+        ...(input.kind === "fixtures" ? { stage } : {}),
+      }),
       uploadedBy: userId,
       createdAt: now,
     }),

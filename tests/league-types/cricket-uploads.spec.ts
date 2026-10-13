@@ -94,3 +94,69 @@ test.describe.serial("cricket: tournament uploads", () => {
     expect(v.body.issues?.some((i) => /Mini Cup fixture 1 is missing from the file but has points/.test(i.message))).toBe(true);
   });
 });
+
+test.describe.serial("cricket: group stage, playoffs and uploads by name", () => {
+  let tournamentId = "";
+  const playoffs = [
+    { series: "Mini Cup", fixture_id: "", format: "T20", team_a: "MI", team_b: "CSK", start_time_ist: "2026-04-20 19:30", venue: "" },
+    { series: "Mini Cup", fixture_id: "", format: "T20", team_a: "Royal Challengers Bengaluru", team_b: "KKR", start_time_ist: "2026-04-21 19:30", venue: "" },
+  ];
+  const data = (request: import("@playwright/test").APIRequestContext, kind: string) =>
+    request.get(`/api/superadmin/cricket/tournaments/${tournamentId}/data?kind=${kind}`).then((r) => r.json());
+
+  test.beforeAll(async ({ request }) => {
+    await apiSignInSuperadmin(request);
+    tournamentId = (await createCricketTournament(request, uniqueSlug("po"))).id;
+    await uploadCricketSheet(request, tournamentId, "teams", MINI_CRICKET.teams);
+    // Players by name and team only — no player_id column — and one team given by its full name.
+    const players = MINI_CRICKET.players.map(({ player_id: _id, ...p }, i) => (i === 0 ? { ...p, team: "Mumbai Indians" } : p));
+    await uploadCricketSheet(request, tournamentId, "players", players);
+    await uploadCricketSheet(request, tournamentId, "fixtures", MINI_CRICKET.fixtures);
+  });
+
+  test("admin: players uploaded without player_id get ids made from their names", async ({ request }) => {
+    await apiSignInSuperadmin(request);
+    const players = await data(request, "players");
+    expect(players.rows.map((p: { code: string }) => p.code)).toContain("mi-player-1");
+    expect(players.rows.find((p: { code: string }) => p.code === "mi-player-1").team).toBe("MI");
+    // A league tournament with no playoff fixtures yet: counts read "3 + playoffs*".
+    expect(players.playoffs).toBe("pending");
+  });
+
+  test("admin: playoffs number on from the group stage and leave it alone", async ({ request }) => {
+    await apiSignInSuperadmin(request);
+    const wrong = await validateCricketSheet(request, tournamentId, "fixtures", [{ ...playoffs[0], fixture_id: 10 }], { stage: "playoff" });
+    expect(wrong.body.canCommit).toBe(false);
+    expect(wrong.body.issues?.some((i) => /playoffs continue from its group stage: fixture ids 7–7/.test(i.message))).toBe(true);
+
+    const body = await uploadCricketSheet(request, tournamentId, "fixtures", playoffs, { stage: "playoff" });
+    expect(body.counts).toMatchObject({ inserts: 2, deletes: 0 });
+    const fixtures = await data(request, "fixtures");
+    expect(fixtures.rows).toHaveLength(8);
+    const po = fixtures.rows.filter((f: { stage: string }) => f.stage === "playoff").map((f: { fixtureNo: number; teamA: string }) => [f.fixtureNo, f.teamA]);
+    expect(po.sort()).toEqual([[7, "MI"], [8, "RCB"]]);
+
+    // Re-uploading the group stage doesn't touch the playoffs.
+    const group = await validateCricketSheet(request, tournamentId, "fixtures", MINI_CRICKET.fixtures);
+    expect(group.body.counts).toMatchObject({ deletes: 0, unchanged: 6 });
+
+    // Playoff matches now count for their teams' players.
+    const players = await data(request, "players");
+    expect(players.playoffs).toBe("uploaded");
+    expect(players.rows.find((p: { code: string }) => p.code === "mi-player-1").playoffMatches).toBe(1);
+  });
+
+  test("admin: points by team and player name; a typo gets a suggestion", async ({ request }) => {
+    await apiSignInSuperadmin(request);
+    const typo = await validateCricketSheet(request, tournamentId, "points", [
+      { fixture_id: 7, team: "MI", player: "MI Player 1", points: 10 },
+      { fixture_id: 7, team: "CSK", player: "CSK Playr 2", points: 5 },
+    ]);
+    expect(typo.body.issues?.map((i) => i.message)).toContain('No CSK player called "CSK Playr 2" — did you mean CSK Player 2?');
+    const ok = await uploadCricketSheet(request, tournamentId, "points", [
+      { fixture_id: 7, team: "Mumbai Indians", player: "mi player 1", points: 10 },
+      { fixture_id: 7, team: "CSK", player: "CSK Player 2", points: 5 },
+    ]);
+    expect(ok.counts).toMatchObject({ inserts: 2, fixtures: 1 });
+  });
+});

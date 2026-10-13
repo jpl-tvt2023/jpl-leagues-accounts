@@ -2,7 +2,8 @@
  * POST /api/superadmin/cricket/tournaments/[id]/upload
  *
  * Body: { kind: "teams" | "players" | "fixtures" | "points", mode: "validate" | "commit",
- *         rows: object[], fileName?, validationHash?, override? }
+ *         rows: object[], fileName?, validationHash?, override?, stage?: "group" | "playoff" }
+ *         (stage: fixtures only — which stage the sheet replaces; default "group")
  *
  * The page parses the spreadsheet in the browser and sends its rows. "validate" is a dry run that
  * reports every problem and what would change; "commit" re-validates and applies it atomically.
@@ -30,6 +31,7 @@ export async function POST(request: NextRequest, { params }: Params) {
       fileName?: unknown;
       validationHash?: unknown;
       override?: unknown;
+      stage?: unknown;
     } | null;
     if (!body) return NextResponse.json({ error: "Expected a JSON body" }, { status: 400 });
     if (!SHEET_KINDS.includes(body.kind as SheetKind)) {
@@ -37,6 +39,9 @@ export async function POST(request: NextRequest, { params }: Params) {
     }
     if (body.mode !== "validate" && body.mode !== "commit") {
       return NextResponse.json({ error: 'mode must be "validate" or "commit"' }, { status: 400 });
+    }
+    if (body.stage !== undefined && body.stage !== "group" && body.stage !== "playoff") {
+      return NextResponse.json({ error: 'stage must be "group" or "playoff"' }, { status: 400 });
     }
     if (!Array.isArray(body.rows) || body.rows.some((r) => !r || typeof r !== "object" || Array.isArray(r))) {
       return NextResponse.json({ error: "rows must be an array of objects" }, { status: 400 });
@@ -50,6 +55,7 @@ export async function POST(request: NextRequest, { params }: Params) {
         fileName: typeof body.fileName === "string" ? body.fileName.slice(0, 200) : null,
         validationHash: typeof body.validationHash === "string" ? body.validationHash : null,
         override: body.override === true,
+        stage: body.stage === "playoff" ? "playoff" : "group",
       },
       await sessionUserId(request),
     );
