@@ -6,6 +6,7 @@ import { verifySession, SESSION_COOKIE_NAME } from "@/lib/auth";
 import { isSuperAdmin } from "@/lib/privilege";
 import { calculatePurse } from "@/lib/sports/fpl/formats/auction/economy";
 import { createNotification } from "@/lib/notifications";
+import { refuseUnlessFplAuction } from "@/lib/sports/route-guards";
 import { setNominationDeadline } from "@/lib/sports/fpl/formats/auction/resolve-bid";
 import { CLUB_AUCTION_SESSION_TYPE } from "@/lib/sports/fpl/formats/auction/club-auction";
 import { invalidateLeaguePageCache } from "@/lib/sports/fpl/cache";
@@ -126,6 +127,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Team not found" }, { status: 404 });
   }
   const team = teamRow[0];
+  const notAuction = await refuseUnlessFplAuction(team.leagueId);
+  if (notAuction) return notAuction;
 
   if ((team.penaltySlots ?? 0) <= 0) {
     return NextResponse.json({ error: "No penalty slots to redeem" }, { status: 400 });

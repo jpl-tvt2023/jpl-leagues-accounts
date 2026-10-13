@@ -478,5 +478,11 @@
     "summary": "A code comment described the cup-standings tiebreaker as 'goals against ascending'. The code actually used 'goal difference, then goals for'. Future maintainers reading the comment would write the wrong tests.",
     "fix": "Updated the comment to match the code. No behaviour change.",
     "example": null
+  },
+  "DEF-CRK-001": {
+    "title": "A franchise sale could still be undone after the cricket auction ended",
+    "summary": "Once the player auction is complete, squads are meant to be final. Undo was blocked for player sales but not for franchise sales, so an admin could still undo a franchise purchase afterwards, giving the money back and taking away that team's franchise boost.",
+    "fix": "Undo (and the new Move) now check whether the league's player auction has finished, whatever kind of sale it is.",
+    "example": "After the auction, the admin clicks Undo on 'Mumbai Indians → Team 2'. It now says the auction is finished and squads are final."
   }
 }

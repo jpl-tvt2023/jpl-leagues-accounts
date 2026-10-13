@@ -20,6 +20,7 @@ import {
   cricketFranchiseOwnership,
   cricketTeamState,
   cricketTeamPenalties,
+  cricketLeagueConfig,
   type CricketAuctionSession,
 } from "@/lib/db";
 import { generateId } from "@/lib/id";
@@ -193,12 +194,27 @@ export async function cancelOpenLot(leagueId: string, sessionId: string): Promis
   return { ok: true };
 }
 
+/** Whether the league's player auction has completed. Squads are then final: no undo, no move. */
+async function squadsFinal(leagueId: string): Promise<boolean> {
+  const [done] = await db
+    .select({ id: cricketAuctionSessions.id })
+    .from(cricketAuctionSessions)
+    .where(and(eq(cricketAuctionSessions.leagueId, leagueId), eq(cricketAuctionSessions.type, "player"), eq(cricketAuctionSessions.status, "completed")))
+    .limit(1);
+  return !!done;
+}
+
+function without<K, V>(map: Map<K, V>, key: K): Map<K, V> {
+  const copy = new Map(map);
+  copy.delete(key);
+  return copy;
+}
+
 /** Reverse a sale: the buyer gets the money back and the player (or franchise) is unsold again. */
 export async function undoSale(leagueId: string, lotId: string): Promise<ActionResult> {
   const [lot] = await db.select().from(cricketAuctionLots).where(and(eq(cricketAuctionLots.id, lotId), eq(cricketAuctionLots.leagueId, leagueId))).limit(1);
   if (!lot || lot.status !== "sold") return fail(400, "That lot wasn't sold");
-  const session = await getSession(lot.sessionId);
-  if (session?.status === "completed" && session.type === "player") return fail(409, "The player auction is finished; squads are final");
+  if (await squadsFinal(leagueId)) return fail(409, "The player auction is finished; squads are final");
   const now = new Date();
   await db.batch([
     lot.lotKind === "player"
@@ -213,6 +229,77 @@ export async function undoSale(leagueId: string, lotId: string): Promise<ActionR
     bumpStateVersion(leagueId),
   ]);
   await logTurnEvent({ sessionId: lot.sessionId, leagueId, teamId: lot.currentHighBidderId, event: "sale-undone", actor: "admin", detail: { lotId, name: lot.name, price: lot.currentHighBid } });
+  return { ok: true };
+}
+
+/**
+ * Move a sale to another team — the fix for a lot that went to the wrong team — at the same price or
+ * a new one. The old owner is refunded and the new one charged, and the new owner must be able to
+ * take it exactly as if buying it (squad rules, one franchise each, reserve rule). The lot is
+ * rewritten to the new buyer and price, so the sales feed and a later undo follow the move.
+ */
+export async function transferSale(leagueId: string, lotId: string, toTeamId: string, newPrice?: number): Promise<ActionResult> {
+  const [lot] = await db.select().from(cricketAuctionLots).where(and(eq(cricketAuctionLots.id, lotId), eq(cricketAuctionLots.leagueId, leagueId))).limit(1);
+  if (!lot || lot.status !== "sold") return fail(400, "That lot wasn't sold");
+  if (await squadsFinal(leagueId)) return fail(409, "The player auction is finished; squads are final");
+  const from = lot.currentHighBidderId;
+  if (toTeamId === from) return fail(400, "That team already owns it");
+  const price = newPrice ?? lot.currentHighBid;
+  if (!Number.isInteger(price) || price < 0) return fail(400, "The price must be a whole number of lakhs");
+  const [open] = await db
+    .select({ id: cricketAuctionLots.id })
+    .from(cricketAuctionLots)
+    .where(and(eq(cricketAuctionLots.leagueId, leagueId), eq(cricketAuctionLots.status, "open")))
+    .limit(1);
+  if (open) return fail(409, "A lot is open — let it finish or cancel it first");
+
+  const data = await loadAuctionData(leagueId);
+  if (!data) return fail(404, "Not a cricket league");
+  const to = data.teams.get(toTeamId);
+  if (!to) return fail(400, "That team isn't in this league");
+  // Judged as if it were unsold, so it isn't refused for being owned (by the team it's leaving).
+  const check =
+    lot.lotKind === "player"
+      ? checkPlayerPurchase({ ...data, playerOwner: without(data.playerOwner, lot.playerId!) }, toTeamId, lot.playerId!, price)
+      : checkFranchisePurchase({ ...data, franchiseOwner: without(data.franchiseOwner, lot.cricketTeamId!) }, toTeamId, lot.cricketTeamId!, price);
+  if (!check.ok) return fail(400, `${to.name} can't take it: ${check.error}`);
+
+  const now = new Date();
+  const moved = await db.transaction(async (tx) => {
+    // Only if the sale is still as read: a concurrent undo or move wins.
+    const res = await tx
+      .update(cricketAuctionLots)
+      .set({ currentHighBidderId: toTeamId, currentHighBid: price, updatedAt: now })
+      .where(and(eq(cricketAuctionLots.id, lot.id), eq(cricketAuctionLots.status, "sold"), eq(cricketAuctionLots.currentHighBidderId, from), eq(cricketAuctionLots.currentHighBid, lot.currentHighBid)));
+    if (res.rowsAffected === 0) return false;
+    if (lot.lotKind === "player") {
+      await tx.update(cricketSquadPlayers).set({ teamId: toTeamId, price }).where(and(eq(cricketSquadPlayers.lotId, lot.id), eq(cricketSquadPlayers.leagueId, leagueId)));
+    } else {
+      await tx.update(cricketFranchiseOwnership).set({ teamId: toTeamId, price }).where(and(eq(cricketFranchiseOwnership.lotId, lot.id), eq(cricketFranchiseOwnership.leagueId, leagueId)));
+    }
+    await tx
+      .update(cricketTeamState)
+      .set({ purse: sql`${cricketTeamState.purse} + ${lot.currentHighBid}`, spent: sql`${cricketTeamState.spent} - ${lot.currentHighBid}`, updatedAt: now })
+      .where(eq(cricketTeamState.teamId, from));
+    await tx
+      .update(cricketTeamState)
+      .set({ purse: sql`${cricketTeamState.purse} - ${price}`, spent: sql`${cricketTeamState.spent} + ${price}`, updatedAt: now })
+      .where(eq(cricketTeamState.teamId, toTeamId));
+    await tx
+      .update(cricketLeagueConfig)
+      .set({ stateVersion: sql`${cricketLeagueConfig.stateVersion} + 1`, updatedAt: now })
+      .where(eq(cricketLeagueConfig.leagueId, leagueId));
+    return true;
+  });
+  if (!moved) return fail(409, "That sale just changed — try again");
+  await logTurnEvent({
+    sessionId: lot.sessionId,
+    leagueId,
+    teamId: toTeamId,
+    event: "sale-moved",
+    actor: "admin",
+    detail: { lotId, name: lot.name, fromTeamId: from, oldPrice: lot.currentHighBid, price },
+  });
   return { ok: true };
 }
 

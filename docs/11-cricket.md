@@ -70,11 +70,16 @@ exists. Money is **lakhs** everywhere (`formatLakhs`: 200 → "₹2 Cr").
 - **Concurrency.** Every connected room's SSE stream (`/api/cricket/auction/stream`) runs `tick` every
   2s, as do state reads. Like the FPL engine, every turn move is a compare-and-swap on the state the
   caller saw, and "lot sold + purchase + purse + pause" and "claim window + open lot" each commit in one
-  transaction. Bids are a CAS on the current high bid. A 12-poller soak
-  (`tests/league-types/cricket-auction-soak.spec.ts`) checks turns follow the ring exactly.
+  transaction. Bids are a CAS on the current high bid. Advancing the clock from a state read is
+  best-effort: if it collides with another write, the read still returns the snapshot. A 12-poller
+  soak (`tests/league-types/cricket-auction-soak.spec.ts`, opt-in with `SOAK=1`, run on its own)
+  checks turns follow the ring exactly.
 - **Corrections.** Cancel the open lot (same team nominates again), undo a sale (refund; unsold again),
-  give a team a make-up turn, reset the whole auction. Completing the player auction with short squads
-  needs `force`. The superadmin can **simulate** both auctions instantly for rehearsals and tests.
+  move a sale to another team (at the same or a new price: the old owner is refunded, the new one is
+  charged and must be able to take it exactly as if buying — squad rules, one franchise each, reserve
+  rule; not while a lot is open), give a team a make-up turn, reset the whole auction. Undo and move
+  stop once the player auction completes — squads are final. Completing the player auction with short
+  squads needs `force`. The superadmin can **simulate** both auctions instantly for rehearsals and tests.
 
 ## Scoring (`scoring.ts`)
 
@@ -98,7 +103,10 @@ entries are simply never read again.
 gameweek/TVT routes return 400 for it (`route-guards.ts`), the auto-processing plan skips it,
 `/api/standings` and the team dashboard refuse it, the league layout redirects any FPL page of a cricket
 league to its `/cricket/*` counterpart (`cricket/routes.ts`), and the FPL admin console sends it to
-`/admin/[slug]/cricket`.
+`/admin/[slug]/cricket`. The FPL auction's API (`/api/auction/*`) only serves `format = "auction"`:
+creating a session checks the format, so the endpoints keyed by an FPL auction session can never reach
+a cricket league, and the ones keyed by a league or team (wishlist, redeem-slot, finance, unsold,
+club-tiers) call `refuseUnlessFplAuction`.
 
 ## Later (not built yet)
 

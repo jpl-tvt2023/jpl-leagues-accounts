@@ -17,6 +17,7 @@ import {
   type CricketLeagueRef,
 } from "../harness";
 import { cricketLeagueConfig, cricketTeamState } from "../../src/lib/db/schema-cricket";
+import { teams } from "../../src/lib/db/schema";
 
 test.describe.serial("cricket: league", () => {
   let league: CricketLeagueRef;
@@ -91,6 +92,18 @@ test.describe.serial("cricket: league", () => {
       const body = await plan.json();
       expect(JSON.stringify(body)).not.toContain(league.id);
     }
+
+    // The FPL auction's league- and team-keyed endpoints refuse it too.
+    const [team] = await testDb().select({ id: teams.id }).from(teams).where(eq(teams.leagueId, league.id)).limit(1);
+    const wish = await request.post("/api/auction/wishlist", { data: { leagueId: league.id, teamId: team.id, fplElementId: 1, playerName: "Someone" } });
+    expect(wish.status()).toBe(400);
+    expect((await wish.json()).error).toMatch(/FPL auction/);
+    const redeem = await request.post("/api/auction/redeem-slot", { data: { teamId: team.id } });
+    expect((await redeem.json()).error).toMatch(/FPL auction/);
+    expect((await request.get(`/api/auction/unsold?leagueId=${league.id}`)).status()).toBe(400);
+    expect((await request.get(`/api/auction/finance?leagueId=${league.id}&allTeams=true`)).status()).toBe(400);
+    expect((await request.get(`/api/auction/finance?teamId=${team.id}`)).status()).toBe(400);
+    expect((await request.get(`/api/auction/club-tiers?leagueId=${league.id}`)).status()).toBe(400);
   });
 
   test("admin: the cricket console and its auction tab render; FPL's console sends you there", async ({ page }) => {

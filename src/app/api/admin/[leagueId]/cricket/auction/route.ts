@@ -5,6 +5,7 @@
  *        create { type, scheduledAt?, bidTimerSeconds?, nominationTimeoutSeconds? }
  *        schedule { sessionId, scheduledAt } · delete { sessionId } · start / pause / resume { sessionId }
  *        complete { sessionId, force? } · cancel-lot { sessionId } · undo-sale { lotId }
+ *        transfer-sale { lotId, toTeamId, price? } (price defaults to the sale price)
  *        grant-turn { sessionId, teamId } · nominate { sessionId, playerId | cricketTeamId }
  *        reset · simulate (superadmin only)
  *
@@ -30,6 +31,7 @@ import {
   shortSquads,
   simulateAuction,
   startSession,
+  transferSale,
   undoSale,
 } from "@/lib/sports/cricket/auction/actions";
 import { requireCricketLeague } from "@/lib/sports/cricket/admin";
@@ -42,8 +44,13 @@ export async function GET(request: NextRequest) {
     await requireCricketLeague(leagueId);
     let snap = await buildAuctionSnapshot(leagueId);
     if (snap?.current?.status === "active") {
-      await tick(snap.current.sessionId, "rest");
-      snap = await buildAuctionSnapshot(leagueId);
+      // Best-effort, as in the room's state read: a colliding write mustn't blank the monitor.
+      try {
+        await tick(snap.current.sessionId, "rest");
+        snap = await buildAuctionSnapshot(leagueId);
+      } catch (err) {
+        console.warn("cricket admin auction: tick skipped:", err instanceof Error ? err.message : err);
+      }
     }
     const [events, short] = await Promise.all([snap?.current ? recentTurnEvents(snap.current.sessionId) : Promise.resolve([]), shortSquads(leagueId)]);
     return NextResponse.json({ ...snap, events, short }, { headers: { "Cache-Control": "no-store" } });
@@ -95,6 +102,10 @@ export async function POST(request: NextRequest) {
         break;
       case "undo-sale":
         result = await undoSale(leagueId, str(b.lotId));
+        break;
+      case "transfer-sale":
+        if (b.price !== undefined && b.price !== null && typeof b.price !== "number") return NextResponse.json({ error: "price must be a number" }, { status: 400 });
+        result = await transferSale(leagueId, str(b.lotId), str(b.toTeamId), typeof b.price === "number" ? b.price : undefined);
         break;
       case "grant-turn":
         result = await grantMakeupTurn(leagueId, sessionId, str(b.teamId));

@@ -3,6 +3,7 @@ import { db, auctionBids, auctionSessions, auctionOwnership } from "@/lib/db";
 import { eq, and, desc, inArray } from "drizzle-orm";
 import { verifySession, SESSION_COOKIE_NAME } from "@/lib/auth";
 import { isSuperAdmin } from "@/lib/privilege";
+import { refuseUnlessFplAuction } from "@/lib/sports/route-guards";
 
 /**
  * GET /api/auction/unsold?leagueId=xxx
@@ -26,6 +27,8 @@ export async function GET(request: NextRequest) {
   if (!leagueId) {
     return NextResponse.json({ error: "leagueId is required" }, { status: 400 });
   }
+  const notAuction = await refuseUnlessFplAuction(leagueId);
+  if (notAuction) return notAuction;
 
   // Find the most-recent session (active, paused, or recently completed) so the Unsold tab is
   // meaningful even when the auction has paused or just wrapped. Ordered by createdAt desc.

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifySession, SESSION_COOKIE_NAME } from "@/lib/auth";
 import { isSuperAdmin } from "@/lib/privilege";
 import { fetchAllPLClubsWithTiers } from "@/lib/sports/fpl/formats/auction/club-auction";
+import { refuseUnlessFplAuction } from "@/lib/sports/route-guards";
 
 /**
  * GET /api/auction/club-tiers?leagueId=xxx
@@ -26,6 +27,8 @@ export async function GET(request: NextRequest) {
   if (!leagueId) {
     return NextResponse.json({ error: "leagueId is required" }, { status: 400 });
   }
+  const notAuction = await refuseUnlessFplAuction(leagueId);
+  if (notAuction) return notAuction;
 
   const clubs = await fetchAllPLClubsWithTiers();
   return NextResponse.json({ clubs });

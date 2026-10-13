@@ -184,6 +184,46 @@ test.describe.serial("cricket: auction engine", () => {
     expect(s.current!.lot!.currentHighBid).toBe(bowler.basePrice);
   });
 
+  test("admin: move a sale to another team, checked like a purchase", async ({ request }) => {
+    // Hold the auction still so no lot opens mid-move.
+    let s = await waitFor(request, league.slug, (x) => !x.current?.lot, 30_000);
+    const sessionId = s.current!.sessionId;
+    await admin(request, league.slug, { action: "pause", sessionId });
+    s = await state(request, league.slug);
+    if (s.current?.lot) await admin(request, league.slug, { action: "cancel-lot", sessionId });
+
+    const db = testDb();
+    const purses = async () => new Map((await db.select().from(cricketTeamState).where(eq(cricketTeamState.leagueId, league.id))).map((r) => [r.teamId, r.purse]));
+    const [sale] = await db.select().from(cricketSquadPlayers).where(eq(cricketSquadPlayers.leagueId, league.id));
+    const to = [...teamIndex.keys()].find((id) => id !== sale.teamId)!;
+    const before = await purses();
+
+    const same = await admin(request, league.slug, { action: "transfer-sale", lotId: sale.lotId, toTeamId: sale.teamId });
+    expect(same.status).toBe(400);
+    const tooMuch = await admin(request, league.slug, { action: "transfer-sale", lotId: sale.lotId, toTeamId: to, price: 1_000_000 });
+    expect(tooMuch.status).toBe(400);
+    expect(tooMuch.body.error).toMatch(/complete your squad/);
+
+    const moved = await admin(request, league.slug, { action: "transfer-sale", lotId: sale.lotId, toTeamId: to, price: sale.price + 5 });
+    expect(moved.status, JSON.stringify(moved.body)).toBe(200);
+    const after = await purses();
+    expect(after.get(sale.teamId)).toBe(before.get(sale.teamId)! + sale.price);
+    expect(after.get(to)).toBe(before.get(to)! - (sale.price + 5));
+    const [row] = await db.select().from(cricketSquadPlayers).where(eq(cricketSquadPlayers.id, sale.id));
+    expect(row).toMatchObject({ teamId: to, price: sale.price + 5 });
+    s = await state(request, league.slug);
+    expect(s.teams.find((t) => t.id === to)!.purse).toBe(after.get(to));
+
+    // Every team owns a franchise, so none can take another.
+    const [franchise] = await db.select().from(cricketFranchiseOwnership).where(eq(cricketFranchiseOwnership.leagueId, league.id));
+    const other = [...teamIndex.keys()].find((id) => id !== franchise.teamId)!;
+    const fr = await admin(request, league.slug, { action: "transfer-sale", lotId: franchise.lotId, toTeamId: other });
+    expect(fr.status).toBe(400);
+    expect(fr.body.error).toMatch(/already own a franchise/);
+
+    expect((await admin(request, league.slug, { action: "resume", sessionId })).status).toBe(200);
+  });
+
   test("admin: undo a sale, and completing with short squads needs force", async ({ request }) => {
     let s = await waitFor(request, league.slug, (x) => !x.current?.lot, 30_000);
     const db = testDb();
@@ -202,6 +242,13 @@ test.describe.serial("cricket: auction engine", () => {
     expect(plain.status).toBe(409);
     expect(plain.body.error).toMatch(/short of a full squad/);
     expect((await admin(request, league.slug, { action: "complete", sessionId: s.current!.sessionId, force: true })).status).toBe(200);
+
+    // Squads are final now: no undoing or moving a sale, of a player or of a franchise.
+    const [fr] = await db.select().from(cricketFranchiseOwnership).where(eq(cricketFranchiseOwnership.leagueId, league.id));
+    expect((await admin(request, league.slug, { action: "undo-sale", lotId: fr.lotId })).status).toBe(409);
+    const [sq] = await db.select().from(cricketSquadPlayers).where(eq(cricketSquadPlayers.leagueId, league.id));
+    const elsewhere = [...teamIndex.keys()].find((id) => id !== sq.teamId);
+    expect((await admin(request, league.slug, { action: "transfer-sale", lotId: sq.lotId, toTeamId: elsewhere })).status).toBe(409);
   });
 });
 
