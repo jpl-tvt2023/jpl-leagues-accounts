@@ -122,11 +122,13 @@ export function CricketSettingsForm({
         {managers !== undefined && onManagers && (
           <NumberField label="Number of managers" value={managers} min={2} onChange={(v) => onManagers(v ?? 2)} />
         )}
+        {/* The browser only accepts min + k × step, so min must be a multiple of step: any multiple
+            of ₹5 L (the smallest bid step) — 10000 = ₹100 Cr — is valid. */}
         <NumberField
           label="Purse per team (lakhs)"
           value={value.purse}
-          min={1}
-          step={50}
+          min={5}
+          step={5}
           hint={formatLakhs(value.purse)}
           onChange={(v) => onChange({ ...value, purse: v ?? 1 })}
         />
