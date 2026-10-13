@@ -115,3 +115,52 @@ export async function seedMiniTournament(request: APIRequestContext, name: strin
   await uploadCricketSheet(request, t.id, "fixtures", MINI_CRICKET.fixtures);
   return t;
 }
+
+export interface CricketLeagueRef {
+  id: string;
+  slug: string;
+  name: string;
+  teamSize: number;
+}
+
+/** Squad rules small enough for the mini dataset (24 players): 4–6 players, at least 1 WK and 1 BOWL. */
+export const MINI_SQUAD_RULES = {
+  minSize: 4,
+  maxSize: 6,
+  roleMin: { WK: 1, BAT: 0, AR: 0, BOWL: 1 },
+  roleMax: { WK: 2, BAT: null, AR: null, BOWL: null },
+  maxPerRealTeam: null,
+  maxOverseas: null,
+};
+
+/** A Classic Cricket Auction league on `tournamentId` (signed in as the superadmin). */
+export async function createCricketAuctionLeague(
+  request: APIRequestContext,
+  opts: { tournamentId: string; teams?: number; slug?: string; settings?: Record<string, unknown> },
+): Promise<CricketLeagueRef> {
+  const slug = opts.slug ?? `ck-${Date.now().toString(36).slice(-6)}${Math.random().toString(36).slice(2, 4)}`;
+  const res = await request.post("/api/superadmin/leagues", {
+    data: {
+      slug,
+      name: `Cricket ${slug}`,
+      sport: "cricket",
+      format: "cricket-auction",
+      season: "2026",
+      teamSize: opts.teams ?? 4,
+      cricket: {
+        tournamentId: opts.tournamentId,
+        purse: 1000,
+        squadRules: MINI_SQUAD_RULES,
+        franchiseAuctionEnabled: true,
+        franchiseBoostPercent: 20,
+        penaltyRedeemPrice: 25,
+        bidTimerSeconds: 20,
+        nominationTimeoutSeconds: 60,
+        ...(opts.settings ?? {}),
+      },
+    },
+  });
+  const body = await res.json();
+  expect(res.status(), JSON.stringify(body)).toBe(200);
+  return { id: body.id, slug: body.slug, name: body.name, teamSize: body.teamSize };
+}

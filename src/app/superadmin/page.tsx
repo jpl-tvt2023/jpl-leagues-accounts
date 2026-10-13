@@ -8,6 +8,9 @@ import { AppNav } from "@/components/AppNav";
 import { UsersPanel } from "./UsersPanel";
 import { Tabs } from "@/components/ui/Tabs";
 import { isChipImplemented } from "@/lib/sports/fpl/formats/tvt/chip-labels";
+import { formatCaps, isCricketFormat } from "@/lib/sports/registry";
+import { defaultCricketSettings, type CricketLeagueSettings } from "@/lib/sports/cricket/league-settings";
+import { CricketSettingsForm } from "@/components/cricket/CricketSettingsForm";
 
 interface League {
   id: string;
@@ -111,9 +114,9 @@ function currentFplSeason(now = new Date()): string {
   const startYear = now.getMonth() >= 7 ? now.getFullYear() : now.getFullYear() - 1;
   return `${startYear}-${String((startYear + 1) % 100).padStart(2, "0")}`;
 }
-const SPORT_OPTIONS = [
+const SPORT_OPTIONS: { value: string; label: string; icon: string; comingSoon?: boolean }[] = [
   { value: "fpl", label: "Football (FPL)", icon: "⚽" },
-  { value: "cricket", label: "Cricket", icon: "🏏", comingSoon: true },
+  { value: "cricket", label: "Cricket", icon: "🏏" },
 ];
 const FORMAT_OPTIONS: Record<string, { value: string; label: string; description: string; comingSoon?: boolean }[]> = {
   fpl: [
@@ -121,6 +124,9 @@ const FORMAT_OPTIONS: Record<string, { value: string; label: string; description
     { value: "continental-championship", label: "JPL Continental Championship", description: "JPL + JCL + JEL — 20 teams, Double Header scoring" },
     { value: "auction", label: "JPL Auction", description: "14-player squads, live auctions, economy system — total points league" },
     { value: "fpl-classic", label: "FPL Classic (public)", description: "Mirrors an official FPL mini-league — public, read-only, no team logins" },
+  ],
+  cricket: [
+    { value: "cricket-auction", label: "Classic Cricket Auction", description: "Franchise + player auctions on an uploaded tournament (e.g. IPL) — total points league" },
   ],
 };
 const CHIP_OPTIONS: { code: string; name: string; description: string }[] = [
@@ -159,6 +165,8 @@ export default function SuperAdminDashboard() {
   // ── Create-league wizard ──
   const [showWizard, setShowWizard] = useState(false);
   const [wizardStep, setWizardStep] = useState<WizardStep>("sport");
+  // cricket-auction leagues: everything cricket-specific the wizard collects.
+  const [cricketSettings, setCricketSettings] = useState<CricketLeagueSettings>(() => defaultCricketSettings());
   const [leagueForm, setLeagueForm] = useState({
     slug: "", name: "", sport: "", format: "", season: "",
     teamSize: 32, groupCount: 2, playoffStartGw: 31,
@@ -429,6 +437,7 @@ export default function SuperAdminDashboard() {
           fplLeagueId: leagueForm.fplLeagueId ? Number(leagueForm.fplLeagueId) : undefined,
           scoringMetric: leagueForm.scoringMetric,
           winnerCutPercent: leagueForm.winnerCutPercent,
+          cricket: isCricketFormat(leagueForm.format) ? cricketSettings : undefined,
         }),
       });
       const data = await res.json();
@@ -1692,6 +1701,10 @@ This overwrites winners that have already been announced. The previous winners a
                                   clubAuctionEnabled: false,
                                   auctionTier: "complete",
                                 });
+                              } else if (isCricketFormat(opt.value)) {
+                                // Cricket: settings live in their own form (CricketSettingsForm) on the details step.
+                                setLeagueForm({ ...leagueForm, format: opt.value, teamSize: 10, groupCount: 0, playoffStartGw: 39, enabledChips: [] });
+                                setCricketSettings(defaultCricketSettings());
                               } else {
                                 setLeagueForm({ ...leagueForm, format: opt.value });
                               }
@@ -1924,7 +1937,7 @@ This overwrites winners that have already been announced. The previous winners a
                       {leagueForm.format === "fpl-classic" ? (
                         <>{leagueForm.sport.toUpperCase()} · FPL Classic · {fplPreview ? `${fplPreview.entrantCount} entrants (from FPL)` : "public, read-only"}</>
                       ) : (
-                        <>{leagueForm.sport.toUpperCase()} · {leagueForm.format === "auction" ? "JPL Auction" : leagueForm.format.toUpperCase()} · {leagueForm.teamSize} {leagueForm.format === "auction" ? "Managers" : "Teams"}</>
+                        <>{leagueForm.sport.toUpperCase()} · {leagueForm.format === "auction" ? "JPL Auction" : isCricketFormat(leagueForm.format) ? formatCaps(leagueForm.format).label : leagueForm.format.toUpperCase()} · {leagueForm.teamSize} {leagueForm.format === "auction" || isCricketFormat(leagueForm.format) ? "Managers" : "Teams"}</>
                       )}
                     </p>
                     <form onSubmit={handleCreateLeague} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -2013,6 +2026,15 @@ This overwrites winners that have already been announced. The previous winners a
                             </p>
                           </div>
                         </>
+                      ) : isCricketFormat(leagueForm.format) ? (
+                        <div className="sm:col-span-2">
+                          <CricketSettingsForm
+                            value={cricketSettings}
+                            onChange={setCricketSettings}
+                            managers={leagueForm.teamSize}
+                            onManagers={(n) => setLeagueForm({ ...leagueForm, teamSize: n })}
+                          />
+                        </div>
                       ) : leagueForm.format === "auction" ? (
                         <>
                           <div>

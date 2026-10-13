@@ -66,7 +66,21 @@ export interface ClassicStatus {
   entryName: string;
 }
 
-export type LeagueStatus = H2hStatus | AuctionStatus | ClassicStatus;
+/** Classic Cricket Auction. */
+export interface CricketStatus {
+  kind: "cricket";
+  rank: number;
+  of: number;
+  totalPoints: number;
+  /** Lakhs. */
+  purse: number;
+  squadSize: number;
+  franchiseCode: string | null;
+  /** A live (active/paused) auction session, or the next pending one. */
+  auction: { state: "live" | "scheduled"; type: "franchise" | "player"; at: string | null } | null;
+}
+
+export type LeagueStatus = H2hStatus | AuctionStatus | ClassicStatus | CricketStatus;
 
 /** One league the person plays in, runs, or (FPL Classic) has a saved FPL team in. */
 export interface MyLeagueCard {
@@ -207,6 +221,15 @@ function todosFor(card: MyLeagueCard, now: Date): TodoItem[] {
         items.push({ ...base, id: id("auction-live"), kind: "auction-live", text: "The auction is live", href: `/${card.slug}/auction`, dueAt: null, urgent: true });
       } else if (s.auction.at && Date.parse(s.auction.at) - now.getTime() <= AUCTION_SOON_MS) {
         items.push({ ...base, id: id("auction-soon"), kind: "auction-soon", text: "An auction is coming up", href: `/${card.slug}/auction`, dueAt: s.auction.at, urgent: false });
+      }
+    }
+    if (s?.kind === "cricket" && s.auction) {
+      const href = `/${card.slug}/cricket/auction`;
+      const what = s.auction.type === "franchise" ? "franchise auction" : "player auction";
+      if (s.auction.state === "live") {
+        items.push({ ...base, id: id("auction-live"), kind: "auction-live", text: `The ${what} is live`, href, dueAt: null, urgent: true });
+      } else if (s.auction.at && Date.parse(s.auction.at) > now.getTime() && Date.parse(s.auction.at) - now.getTime() <= AUCTION_SOON_MS) {
+        items.push({ ...base, id: id("auction-soon"), kind: "auction-soon", text: `The ${what} is coming up`, href, dueAt: s.auction.at, urgent: false });
       }
     }
   }
