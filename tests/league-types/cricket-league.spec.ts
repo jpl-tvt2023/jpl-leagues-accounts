@@ -12,6 +12,7 @@ import {
   createCricketAuctionLeague,
   seedMiniTournament,
   testDb,
+  uiSignInSuperadmin,
   uniqueSlug,
   type CricketLeagueRef,
 } from "../harness";
@@ -90,6 +91,17 @@ test.describe.serial("cricket: league", () => {
       const body = await plan.json();
       expect(JSON.stringify(body)).not.toContain(league.id);
     }
+  });
+
+  test("admin: the cricket console and its auction tab render; FPL's console sends you there", async ({ page }) => {
+    await uiSignInSuperadmin(page);
+    await page.goto(`/admin/${league.slug}`);
+    await expect(page).toHaveURL(new RegExp(`/admin/${league.slug}/cricket$`));
+    await expect(page.getByRole("tab", { name: "Auction" }).or(page.getByRole("button", { name: "Auction" })).first()).toBeVisible();
+    await page.getByRole("tab", { name: "Auction" }).or(page.getByRole("button", { name: "Auction" })).first().click();
+    await expect(page.getByText("+ Franchise auction")).toBeVisible();
+    await page.goto(`/${league.slug}/cricket/auction`);
+    await expect(page.getByText(/hasn't been set up yet/)).toBeVisible();
   });
 
   test("admin: settings save before the auction, and the season can be marked complete", async ({ request }) => {

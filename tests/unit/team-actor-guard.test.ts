@@ -19,7 +19,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 const ROOT = path.resolve(__dirname, "../../src/app/api");
-const TEAM_SCOPED_DIRS = ["team", "auction", "notifications", "feedback"];
+const TEAM_SCOPED_DIRS = ["team", "auction", "notifications", "feedback", "cricket"];
 const FORBIDDEN = [/["']x-session-id["']/, /\bsession\??\.id\b/];
 
 function routeFiles(dir: string): string[] {

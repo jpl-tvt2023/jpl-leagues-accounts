@@ -10,8 +10,9 @@ import { CricketSettingsForm } from "@/components/cricket/CricketSettingsForm";
 import { CRICKET_AUCTION_FORMAT } from "@/lib/sports/registry";
 import type { CricketLeagueSettings } from "@/lib/sports/cricket/league-settings";
 import { MembersTab } from "../MembersTab";
+import { CricketAuctionAdmin } from "./CricketAuctionAdmin";
 
-type Tab = "overview" | "settings" | "members";
+type Tab = "overview" | "auction" | "settings" | "members";
 
 interface ConfigPayload {
   league: { id: string; slug: string; name: string; season: string; teamSize: number };
@@ -124,6 +125,7 @@ export default function CricketAdminPage() {
               onChange={setTab}
               items={[
                 { id: "overview", label: "Overview" },
+                { id: "auction", label: "Auction" },
                 { id: "settings", label: "Settings" },
                 { id: "members", label: "Members" },
               ]}
@@ -168,6 +170,16 @@ export default function CricketAdminPage() {
                   </div>
                 </section>
               </div>
+            )}
+
+            {tab === "auction" && (
+              <CricketAuctionAdmin
+                leagueId={leagueId}
+                leagueSlug={config.league.slug}
+                franchiseEnabled={config.settings.franchiseAuctionEnabled}
+                isSuperadmin={isSuperadmin}
+                onChanged={() => setVersion((v) => v + 1)}
+              />
             )}
 
             {tab === "settings" && (
