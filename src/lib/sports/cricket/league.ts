@@ -26,6 +26,7 @@ import { isCricketFormat } from "@/lib/sports/registry";
 import { parseSquadRules, ROLES, type SquadRules } from "./squad-rules";
 import { computeCricketStandings, type Standings } from "./scoring";
 import { cacheGet, cacheSet, leagueViewKey } from "./cache";
+import { playoffMatchesByTeam, playoffState, type PlayoffState } from "./match-counts";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -127,6 +128,7 @@ export interface ViewFixture {
   id: number;
   series: string;
   fixtureNo: number;
+  stage: "group" | "playoff";
   matchFormat: "Test" | "ODI" | "T20";
   teamAId: number;
   teamBId: number;
@@ -137,7 +139,10 @@ export interface ViewFixture {
 }
 
 export interface LeagueView extends CricketLeagueInfo {
-  realTeams: Array<{ id: number; code: string; name: string; basePrice: number; ownerTeamId: string | null }>;
+  /** `playoffMatches`: the team's playoff fixtures (0 until the playoffs are uploaded). */
+  realTeams: Array<{ id: number; code: string; name: string; basePrice: number; ownerTeamId: string | null; playoffMatches: number }>;
+  /** Whether this tournament has playoffs, and whether they are uploaded yet (see match-counts.ts). */
+  playoffs: PlayoffState;
   teams: ViewTeam[];
   players: ViewPlayer[];
   fixtures: ViewFixture[];
@@ -169,6 +174,7 @@ async function buildLeagueView(info: CricketLeagueInfo): Promise<LeagueView> {
   ]);
 
   const realTeamById = new Map(realTeams.map((t) => [t.id, t]));
+  const playoffsByTeam = playoffMatchesByTeam(fixtures);
   const franchiseByTeam = new Map(franchises.map((f) => [f.teamId, f]));
   const ownerByRealTeam = new Map(franchises.map((f) => [f.cricketTeamId, f.teamId]));
   const squadByPlayer = new Map(squads.map((s) => [s.playerId, s]));
@@ -224,8 +230,16 @@ async function buildLeagueView(info: CricketLeagueInfo): Promise<LeagueView> {
   return {
     ...info,
     realTeams: realTeams
-      .map((t) => ({ id: t.id, code: t.code, name: t.name, basePrice: t.basePrice, ownerTeamId: ownerByRealTeam.get(t.id) ?? null }))
+      .map((t) => ({
+        id: t.id,
+        code: t.code,
+        name: t.name,
+        basePrice: t.basePrice,
+        ownerTeamId: ownerByRealTeam.get(t.id) ?? null,
+        playoffMatches: playoffsByTeam.get(t.id) ?? 0,
+      }))
       .sort((a, b) => a.code.localeCompare(b.code)),
+    playoffs: playoffState(info.tournament.kind, fixtures.filter((f) => f.stage === "playoff").length),
     teams: viewTeams,
     players: players
       .map((p) => {
@@ -254,6 +268,7 @@ async function buildLeagueView(info: CricketLeagueInfo): Promise<LeagueView> {
         id: f.id,
         series: f.series,
         fixtureNo: f.fixtureNo,
+        stage: f.stage,
         matchFormat: f.matchFormat,
         teamAId: f.teamAId,
         teamBId: f.teamBId,

@@ -36,6 +36,10 @@ export interface TournamentSummary extends CricketTournament {
   players: number;
   fixtures: number;
   fixturesScored: number;
+  /** Playoff fixtures uploaded so far (league tournaments). */
+  playoffFixtures: number;
+  /** Per series, the id the playoffs start at: one after the group stage's last fixture. */
+  nextPlayoffIds: Record<string, number>;
   leagues: Array<{ id: string; slug: string; name: string }>;
 }
 
@@ -55,14 +59,21 @@ export async function getTournamentSummary(id: string): Promise<TournamentSummar
 }
 
 async function summarise(t: CricketTournament): Promise<TournamentSummary> {
-  const [[teams], [players], [fixtures], [scored], linked] = await Promise.all([
+  const [[teams], [players], [fixtures], [scored], linked, [playoffs], groupEnds] = await Promise.all([
     db.select({ n: count() }).from(cricketTeams).where(eq(cricketTeams.tournamentId, t.id)),
     db.select({ n: count() }).from(cricketPlayers).where(eq(cricketPlayers.tournamentId, t.id)),
     db.select({ n: count() }).from(cricketFixtures).where(eq(cricketFixtures.tournamentId, t.id)),
     db.select({ n: count() }).from(cricketFixtures).where(and(eq(cricketFixtures.tournamentId, t.id), isNotNull(cricketFixtures.pointsUploadedAt))),
     linkedLeagues(t.id),
+    db.select({ n: count() }).from(cricketFixtures).where(and(eq(cricketFixtures.tournamentId, t.id), eq(cricketFixtures.stage, "playoff"))),
+    db
+      .select({ series: cricketFixtures.series, last: sql<number>`max(${cricketFixtures.fixtureNo})` })
+      .from(cricketFixtures)
+      .where(and(eq(cricketFixtures.tournamentId, t.id), eq(cricketFixtures.stage, "group")))
+      .groupBy(cricketFixtures.series),
   ]);
-  return { ...t, teams: teams.n, players: players.n, fixtures: fixtures.n, fixturesScored: scored.n, leagues: linked };
+  const nextPlayoffIds = Object.fromEntries(groupEnds.map((g) => [g.series, Number(g.last) + 1]));
+  return { ...t, teams: teams.n, players: players.n, fixtures: fixtures.n, fixturesScored: scored.n, playoffFixtures: playoffs.n, nextPlayoffIds, leagues: linked };
 }
 
 export async function linkedLeagues(tournamentId: string): Promise<Array<{ id: string; slug: string; name: string }>> {

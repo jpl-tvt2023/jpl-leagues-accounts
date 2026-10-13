@@ -20,6 +20,8 @@ interface Tournament {
   players: number;
   fixtures: number;
   fixturesScored: number;
+  playoffFixtures: number;
+  nextPlayoffIds: Record<string, number>;
   leagues: Array<{ id: string; slug: string; name: string }>;
 }
 
@@ -97,7 +99,8 @@ export default function CricketTournamentPage() {
                 <h1 className="text-2xl font-bold text-white sm:text-3xl">{tournament.name}</h1>
                 <p className="mt-1 text-sm text-gray-400">
                   {tournament.kind === "league" ? "League with franchises" : "Window of series"} · season {tournament.season} ·{" "}
-                  {tournament.teams} teams · {tournament.players} players · {tournament.fixtures} fixtures ({tournament.fixturesScored} scored)
+                  {tournament.teams} teams · {tournament.players} players · {tournament.fixtures} fixtures
+                  {tournament.playoffFixtures > 0 && ` (${tournament.playoffFixtures} playoffs)`} · {tournament.fixturesScored} scored
                 </p>
                 <p className="mt-1 text-sm text-gray-400">
                   {tournament.leagues.length
@@ -133,7 +136,14 @@ export default function CricketTournamentPage() {
 
             <div className="grid gap-4 lg:grid-cols-2">
               {SHEET_KINDS.map((kind) => (
-                <UploadCard key={kind} tournamentId={tournament.id} kind={kind} onCommitted={changed} />
+                <UploadCard
+                  key={kind}
+                  tournamentId={tournament.id}
+                  kind={kind}
+                  tournamentKind={tournament.kind}
+                  nextPlayoffIds={tournament.nextPlayoffIds}
+                  onCommitted={changed}
+                />
               ))}
             </div>
 

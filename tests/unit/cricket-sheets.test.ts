@@ -10,12 +10,14 @@ import assert from "node:assert/strict";
 import { mapSheet } from "../../src/lib/sports/cricket/sheets/columns";
 import { formatIst, parseClock, parseIstDateTime } from "../../src/lib/sports/cricket/sheets/ist";
 import { parseTeamsSheet, planTeams } from "../../src/lib/sports/cricket/sheets/teams";
-import { parsePlayersSheet, parseRole, planPlayers, type ExistingPlayer } from "../../src/lib/sports/cricket/sheets/players";
+import { assignPlayerCodes, parsePlayersSheet, parseRole, planPlayers, type ExistingPlayer, type PlayerRow } from "../../src/lib/sports/cricket/sheets/players";
+import { TeamLookup, editDistance, normalizeName, slugifyName } from "../../src/lib/sports/cricket/sheets/names";
 import { parseFixturesSheet, parseMatchFormat, planFixtures, type ExistingFixture } from "../../src/lib/sports/cricket/sheets/fixtures";
 import { parsePointsSheet, type PointsFixture } from "../../src/lib/sports/cricket/sheets/points";
 import { blockingIssues } from "../../src/lib/sports/cricket/sheets/types";
 
 const errors = (issues: { level: string; message: string }[]) => issues.filter((i) => i.level === "error").map((i) => i.message);
+const lookup = (teams: Array<[string, string?]>) => new TeamLookup(teams.map(([code, name]) => ({ code, name })));
 
 // ─── IST ─────────────────────────────────────────────────────────────────────
 
@@ -63,7 +65,7 @@ test("headers match regardless of case, spaces and underscores, and aliases work
 });
 
 test("missing required columns are reported by their template name", () => {
-  const { issues } = parsePlayersSheet([{ player_id: "P1", name: "A" }], { teamCodes: new Set(["MI"]) });
+  const { issues } = parsePlayersSheet([{ player_id: "P1", name: "A" }], { teams: lookup([["MI"]]) });
   assert.deepEqual(errors(issues), ['Missing column "team"', 'Missing column "role"', 'Missing column "base_price"']);
 });
 
@@ -116,23 +118,24 @@ test("roles: common spellings map to WK / BAT / AR / BOWL", () => {
 });
 
 test("players: defaults, flags and every kind of bad cell", () => {
-  const teamCodes = new Set(["MI", "CSK"]);
+  const teams = lookup([["MI", "Mumbai Indians"], ["CSK", "Chennai Super Kings"]]);
   const { rows, issues } = parsePlayersSheet(
     [
       { player_id: "P1", name: "Rohit Sharma", team: "mi", role: "BAT", base_price: 1600, overseas: "", Test: "", ODI: 0, T20: 14, __row: 2 },
-      { player_id: "P2", name: "Pat Cummins", team: "CSK", role: "bowler", base_price: "1,800", overseas: "Yes", T20: 14, __row: 3 },
+      { player_id: "P2", name: "Pat Cummins", team: "chennai super kings", role: "bowler", base_price: "1,800", overseas: "Yes", T20: 14, __row: 3 },
       { player_id: "P3", name: "X", team: "RCB", role: "BAT", base_price: 20, __row: 4 },
       { player_id: "P4", name: "Y", team: "MI", role: "keeper-ish", base_price: 0, overseas: "maybe", T20: -1, __row: 5 },
       { player_id: "P1", name: "rohit sharma", team: "MI", role: "BAT", base_price: 20, __row: 6 },
     ],
-    { teamCodes },
+    { teams },
   );
   assert.deepEqual(rows.map((r) => r.code), ["P1", "P2"]);
   assert.deepEqual(rows[0], { row: 2, code: "P1", name: "Rohit Sharma", teamCode: "MI", role: "BAT", basePrice: 1600, overseas: false, matchesTest: 0, matchesOdi: 0, matchesT20: 14 });
   assert.equal(rows[1].overseas, true);
   assert.equal(rows[1].basePrice, 1800);
   const errs = errors(issues);
-  assert.ok(errs.includes("Team RCB isn't in the Teams sheet"));
+  assert.ok(errs.includes(`Team "RCB" isn't in the Teams sheet`));
+  assert.equal(rows[1].teamCode, "CSK"); // a full team name works too
   assert.ok(errs.includes('Role "keeper-ish" isn\'t WK, BAT, AR or BOWL'));
   assert.ok(errs.includes("base_price must be a whole number of lakhs, at least 1"));
   assert.ok(errs.includes('overseas "maybe" should be Y or N'));
@@ -142,7 +145,7 @@ test("players: defaults, flags and every kind of bad cell", () => {
 });
 
 test("players need the Teams sheet first", () => {
-  const { issues } = parsePlayersSheet([{ player_id: "P1", name: "A", team: "MI", role: "BAT", base_price: 20 }], { teamCodes: new Set() });
+  const { issues } = parsePlayersSheet([{ player_id: "P1", name: "A", team: "MI", role: "BAT", base_price: 20 }], { teams: lookup([]) });
   assert.match(errors(issues)[0], /Upload the Teams sheet first/);
 });
 
@@ -175,7 +178,7 @@ test("match formats", () => {
 });
 
 test("fixtures: ids restart in each series; a duplicate within one series is an error", () => {
-  const teamCodes = new Set(["IND", "AUS", "ENG"]);
+  const teams = lookup([["IND"], ["AUS"], ["ENG"]]);
   const { rows, issues } = parseFixturesSheet(
     [
       { series: "IND v AUS ODIs", fixture_id: 1, format: "ODI", team_a: "IND", team_b: "AUS", start_time_ist: "2026-01-10 13:30", __row: 2 },
@@ -183,7 +186,7 @@ test("fixtures: ids restart in each series; a duplicate within one series is an 
       { series: "ind v aus  odis", fixture_id: 1, format: "ODI", team_a: "IND", team_b: "AUS", start_time_ist: "2026-01-12 13:30", __row: 4 },
       { series: "IND v AUS ODIs", fixture_id: 2, format: "ODI", team_a: "IND", team_b: "IND", start_time_ist: "soon", __row: 5 },
     ],
-    { teamCodes },
+    { teams },
   );
   assert.deepEqual(rows.map((r) => `${r.series}#${r.fixtureNo}`), ["IND v AUS ODIs#1", "ENG v IND Tests#1"]);
   assert.equal(rows[1].startsAt.toISOString(), "2026-02-01T10:00:00.000Z");
@@ -195,9 +198,9 @@ test("fixtures: ids restart in each series; a duplicate within one series is an 
 
 test("fixtures plan: a scored fixture can't change teams or disappear", () => {
   const existing: ExistingFixture[] = [
-    { id: 1, series: "IPL 2026", fixtureNo: 1, matchFormat: "T20", teamAId: 1, teamBId: 2, startsAt: new Date("2026-03-28T14:00:00Z"), venue: null, hasPoints: true },
-    { id: 2, series: "IPL 2026", fixtureNo: 2, matchFormat: "T20", teamAId: 1, teamBId: 2, startsAt: new Date("2026-03-29T14:00:00Z"), venue: null, hasPoints: true },
-    { id: 3, series: "IPL 2026", fixtureNo: 3, matchFormat: "T20", teamAId: 1, teamBId: 2, startsAt: new Date("2026-03-30T14:00:00Z"), venue: null, hasPoints: false },
+    { id: 1, series: "IPL 2026", fixtureNo: 1, stage: "group", matchFormat: "T20", teamAId: 1, teamBId: 2, startsAt: new Date("2026-03-28T14:00:00Z"), venue: null, hasPoints: true },
+    { id: 2, series: "IPL 2026", fixtureNo: 2, stage: "group", matchFormat: "T20", teamAId: 1, teamBId: 2, startsAt: new Date("2026-03-29T14:00:00Z"), venue: null, hasPoints: true },
+    { id: 3, series: "IPL 2026", fixtureNo: 3, stage: "group", matchFormat: "T20", teamAId: 1, teamBId: 2, startsAt: new Date("2026-03-30T14:00:00Z"), venue: null, hasPoints: false },
   ];
   const plan = planFixtures(
     existing,
@@ -220,48 +223,66 @@ const players = [
   { id: 101, code: "P2", name: "Dhoni", teamId: 2 },
   { id: 102, code: "P3", name: "Russell", teamId: 3 },
 ];
+const pointsCtx = {
+  fixtures,
+  players,
+  teams: lookup([["MI", "Mumbai Indians"], ["CSK", "Chennai Super Kings"], ["KKR", "Kolkata Knight Riders"]]),
+  teamIdByCode: new Map([["MI", 1], ["CSK", 2], ["KKR", 3]]),
+  now: new Date("2026-10-12T00:00:00Z"),
+};
 
-test("points: series is optional with one series; negatives and decimals are fine", () => {
+test("points: by team and player name; series optional with one series; negatives and decimals are fine", () => {
   const { rows, issues, fixtureIds } = parsePointsSheet(
     [
-      { fixture_id: 1, player_id: "P1", points: 54.5 },
-      { fixture_id: 1, player_id: "P2", points: -3 },
+      { fixture_id: 1, team: "MI", player: "Rohit", points: 54.5 },
+      { fixture_id: 1, team: "Chennai Super Kings", player: "  dhoni. ", points: -3 },
     ],
-    { fixtures, players, now: new Date("2026-10-12T00:00:00Z") },
+    pointsCtx,
   );
   assert.deepEqual(errors(issues), []);
   assert.deepEqual(rows.map((r) => [r.fixtureId, r.playerId, r.points]), [[1, 100, 54.5], [1, 101, -3]]);
   assert.deepEqual(fixtureIds, [1]);
 });
 
-test("points: unknown ids, a player from neither team, duplicates and non-numbers are errors", () => {
+test("points: wrong team, unknown names and ids, duplicates and non-numbers are errors", () => {
   const { rows, issues } = parsePointsSheet(
     [
-      { fixture_id: 1, player_id: "P3", points: 10, __row: 2 },
-      { fixture_id: 9, player_id: "P1", points: 10, __row: 3 },
-      { fixture_id: 1, player_id: "P9", points: 10, __row: 4 },
-      { fixture_id: 1, player_id: "P1", points: "ten", __row: 5 },
-      { fixture_id: 1, player_id: "P1", points: 10, __row: 6 },
-      { fixture_id: 1, player_id: "P1", points: 12, __row: 7 },
+      { fixture_id: 1, team: "KKR", player: "Russell", points: 10, __row: 2 },
+      { fixture_id: 9, team: "MI", player: "Rohit", points: 10, __row: 3 },
+      { fixture_id: 1, team: "MI", player_id: "P9", points: 10, __row: 4 },
+      { fixture_id: 1, team: "MI", player: "Rohit", points: "ten", __row: 5 },
+      { fixture_id: 1, team: "MI", player: "Rohit", points: 10, __row: 6 },
+      { fixture_id: 1, team: "MI", player: "Rohit", points: 12, __row: 7 },
+      { fixture_id: 1, team: "MI", player: "Rohitt", points: 1, __row: 8 },
+      { fixture_id: 1, team: "MI", player: "Dhoni", points: 1, __row: 9 },
+      { fixture_id: 1, team: "XYZ", player: "Rohit", points: 1, __row: 10 },
+      { fixture_id: 1, team: "MI", player_id: "P2", points: 1, __row: 11 },
+      { fixture_id: 1, team: "CSK", points: 1, __row: 12 },
     ],
-    { fixtures, players, now: new Date("2026-10-12T00:00:00Z") },
+    pointsCtx,
   );
   assert.deepEqual(rows.map((r) => r.row), [6]);
   assert.deepEqual(errors(issues), [
-    "Russell doesn't play for either team in IPL 2026 fixture 1",
+    "KKR isn't playing in IPL 2026 fixture 1 (MI v CSK)",
     "No fixture 9 in IPL 2026",
     "No player with player_id P9",
-    'points "ten" isn\'t a number',
+    `points "ten" isn't a number`,
     "Rohit already has points for this fixture on row 6",
+    `No MI player called "Rohitt" — did you mean Rohit?`,
+    "Dhoni plays for CSK, not MI",
+    `Team "XYZ" isn't in the Teams sheet`,
+    "Dhoni (P2) plays for CSK, not MI",
+    "player is blank",
   ]);
 });
 
+test("points: the team column is required, and so is a player name or player_id column", () => {
+  assert.deepEqual(errors(parsePointsSheet([{ fixture_id: 1, player: "Rohit", points: 1 }], pointsCtx).issues), [`Missing column "team"`]);
+  assert.deepEqual(errors(parsePointsSheet([{ fixture_id: 1, team: "MI", points: 1 }], pointsCtx).issues), [`Missing column "player"`]);
+});
+
 test("points: future, abandoned and implausible values warn but don't block", () => {
-  const { rows, issues } = parsePointsSheet([{ fixture_id: 2, player_id: "P3", points: 900 }], {
-    fixtures,
-    players,
-    now: new Date("2026-10-12T00:00:00Z"),
-  });
+  const { rows, issues } = parsePointsSheet([{ fixture_id: 2, team: "KKR", player: "Russell", points: 900 }], pointsCtx);
   assert.equal(rows.length, 1);
   assert.equal(errors(issues).length, 0);
   assert.equal(issues.filter((i) => i.level === "warning").length, 3);
@@ -269,6 +290,109 @@ test("points: future, abandoned and implausible values warn but don't block", ()
 
 test("points: with several series, the series column is required", () => {
   const two = [...fixtures, { ...fixtures[0], id: 3, series: "Other Cup" }];
-  const { issues } = parsePointsSheet([{ fixture_id: 1, player_id: "P1", points: 1 }], { fixtures: two, players, now: new Date() });
+  const { issues } = parsePointsSheet([{ fixture_id: 1, team: "MI", player: "Rohit", points: 1 }], { ...pointsCtx, fixtures: two });
   assert.deepEqual(errors(issues), ["series is blank, and the tournament has more than one series"]);
+});
+
+// ─── names ───────────────────────────────────────────────────────────────────
+
+test("names: case, spaces, dots, apostrophes and accents don't matter", () => {
+  assert.equal(normalizeName("  Faf du Plessis. "), "faf du plessis");
+  assert.equal(normalizeName("R. Ashwin"), normalizeName("R Ashwin"));
+  assert.equal(normalizeName(`D'Arcy Short`), "darcy short");
+  assert.equal(normalizeName("Hasaranga  Wanindu"), "hasaranga wanindu");
+  assert.equal(normalizeName("José"), "jose");
+  assert.equal(slugifyName("Virat Kohli"), "virat-kohli");
+  assert.equal(editDistance("rohitt", "rohit"), 1);
+});
+
+test("teams resolve by code or full name, and unknown ones suggest the closest", () => {
+  const teams = lookup([["RCB", "Royal Challengers Bengaluru"], ["MI", "Mumbai Indians"]]);
+  assert.equal(teams.resolve("rcb"), "RCB");
+  assert.equal(teams.resolve("Royal Challengers  Bengaluru"), "RCB");
+  assert.equal(teams.resolve("Chennai"), null);
+  assert.match(teams.unknownMessage("Mumbai Indian"), /did you mean MI \(Mumbai Indians\)\?/);
+});
+
+// ─── player_id from the name ─────────────────────────────────────────────────
+
+const playerRow = (code: string, name: string, teamCode: string): PlayerRow => ({
+  row: 2, code, name, teamCode, role: "BAT", basePrice: 20, overseas: false, matchesTest: 0, matchesOdi: 0, matchesT20: 14,
+});
+
+test("blank player_ids: existing players keep theirs (even after a move), new ones get a slug", () => {
+  const out = assignPlayerCodes(
+    [
+      playerRow("", "Virat Kohli", "RCB"),
+      playerRow("", "KL Rahul", "DC"), // moved from LSG
+      playerRow("", "Rinku Singh", "KKR"), // new
+      playerRow("X9", "Explicit", "MI"),
+    ],
+    [
+      { code: "virat", name: "Virat Kohli", teamCode: "RCB" },
+      { code: "kl-rahul", name: "K.L. Rahul", teamCode: "LSG" },
+    ],
+  );
+  assert.deepEqual(out.map((r) => r.code), ["virat", "kl-rahul", "rinku-singh", "X9"]);
+});
+
+test("blank player_ids: a namesake on another team gets a team suffix, and can't take a teammate's id", () => {
+  const out = assignPlayerCodes(
+    [playerRow("", "Rahul Sharma", "CSK"), playerRow("", "Rahul Sharma", "MI"), playerRow("", "Arjun", "MI"), playerRow("", "Arjun", "CSK")],
+    [{ code: "rahul-sharma", name: "Rahul Sharma", teamCode: "MI" }],
+  );
+  // The existing MI player keeps his id even though the CSK row comes first.
+  assert.deepEqual(out.map((r) => r.code), ["rahul-sharma-csk", "rahul-sharma", "arjun", "arjun-csk"]);
+});
+
+test("players: teammates with one name need player_ids", () => {
+  const teams = lookup([["MI"]]);
+  const base = { team: "MI", role: "BAT", base_price: 20 };
+  const blank = parsePlayersSheet([{ name: "A Khan", ...base, __row: 2 }, { name: "a khan", ...base, __row: 3 }], { teams });
+  assert.match(errors(blank.issues)[0], /give both a player_id/);
+  const coded = parsePlayersSheet([{ player_id: "K1", name: "A Khan", ...base }, { player_id: "K2", name: "A Khan", ...base }], { teams });
+  assert.deepEqual(errors(coded.issues), []);
+  assert.equal(coded.rows.length, 2);
+});
+
+// ─── group stage and playoffs ────────────────────────────────────────────────
+
+const ipl = (no: number, stage: "group" | "playoff", hasPoints = false): ExistingFixture => ({
+  id: no, series: "IPL 2026", fixtureNo: no, stage, matchFormat: "T20", teamAId: 1, teamBId: 2,
+  startsAt: new Date(Date.UTC(2026, 3, no)), venue: null, hasPoints,
+});
+const playoffRow = (row: number, fixtureNo: number | null) => ({
+  row, series: "IPL 2026", fixtureNo, matchFormat: "T20" as const, teamACode: "MI", teamBCode: "CSK", startsAt: new Date(Date.UTC(2026, 4, 20 + row)), venue: null,
+});
+const ids = new Map([["MI", 1], ["CSK", 2]]);
+const groupStage = Array.from({ length: 70 }, (_, i) => ipl(i + 1, "group", true));
+
+test("playoffs: blank ids continue from the group stage; the group stage is left alone", () => {
+  const plan = planFixtures(groupStage, [playoffRow(2, null), playoffRow(3, 72), playoffRow(4, null), playoffRow(5, null)], { teamIdByCode: ids, stage: "playoff" });
+  assert.deepEqual(errors(plan.issues), []);
+  assert.deepEqual(plan.rows.map((r) => r.fixtureNo), [71, 72, 73, 74]);
+  assert.equal(plan.inserts.length, 4);
+  assert.deepEqual(plan.deletes, []); // group fixtures aren't this upload's to delete
+});
+
+test("playoffs: ids must follow on from the group stage, which must exist", () => {
+  const gap = planFixtures(groupStage, [playoffRow(2, 75), playoffRow(3, null)], { teamIdByCode: ids, stage: "playoff" });
+  assert.deepEqual(errors(gap.issues), ["IPL 2026's playoffs continue from its group stage: fixture ids 71–72 for these 2 matches (or leave them blank)"]);
+  const none = planFixtures([], [playoffRow(2, null)], { teamIdByCode: ids, stage: "playoff" });
+  assert.match(errors(none.issues)[0], /Upload IPL 2026's group stage first/);
+});
+
+test("stages: each upload replaces only its own stage, and ids can't cross", () => {
+  const existing = [ipl(1, "group"), ipl(2, "group"), ipl(3, "playoff"), ipl(4, "playoff")];
+  // Re-uploading the playoffs with one match drops the other playoff fixture only.
+  const playoffs = planFixtures(existing, [playoffRow(2, null)], { teamIdByCode: ids, stage: "playoff" });
+  assert.deepEqual(playoffs.rows.map((r) => r.fixtureNo), [3]);
+  assert.deepEqual(playoffs.deletes, [4]);
+  // A group-stage row can't take a playoff id.
+  const group = planFixtures(existing, [playoffRow(2, 1), playoffRow(3, 3)], { teamIdByCode: ids, stage: "group" });
+  assert.match(errors(group.issues)[0], /fixture 3 is already a playoff fixture/);
+  assert.deepEqual(group.deletes, [2]);
+  // The playoffs survive a group re-upload, with a warning when they no longer follow on.
+  const shorter = planFixtures(existing, [playoffRow(2, 1)], { teamIdByCode: ids, stage: "group" });
+  assert.match(shorter.issues.find((i) => i.level === "warning")!.message, /playoffs start at 3, but the group stage now ends at 1/);
 });

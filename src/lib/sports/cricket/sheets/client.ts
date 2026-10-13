@@ -8,7 +8,7 @@
  */
 
 import * as XLSX from "xlsx";
-import { templateNotes, templateRows, SHEET_TITLES } from "./templates";
+import { templateNotes, templateRows, SHEET_TITLES, type PlayoffTemplate } from "./templates";
 import type { RawRow, SheetKind } from "./types";
 
 /** First sheet of an .xlsx / .xls / .csv file as rows keyed by header, each tagged with its row number. */
@@ -28,9 +28,10 @@ export async function readSheetFile(file: File): Promise<RawRow[]> {
   });
 }
 
-export function downloadTemplate(kind: SheetKind): void {
+/** The template for a sheet; with `playoffs`, the Fixtures template for the playoffs (ids follow on). */
+export function downloadTemplate(kind: SheetKind, playoffs?: PlayoffTemplate): void {
   const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(templateRows(kind)), SHEET_TITLES[kind]);
-  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(templateNotes(kind)), "Notes");
-  XLSX.writeFile(workbook, `cricket-${kind}-template.xlsx`);
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(templateRows(kind, playoffs)), SHEET_TITLES[kind]);
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(templateNotes(kind, playoffs)), "Notes");
+  XLSX.writeFile(workbook, `cricket-${playoffs ? "playoff-" : ""}${kind}-template.xlsx`);
 }

@@ -19,11 +19,15 @@ interface UploadResult {
   validationHash: string;
 }
 
+const PLAYOFF_INTRO =
+  "The playoff fixtures, once the teams are known. Their ids continue from the group stage (leave fixture_id blank to number them in order). Replaces the playoffs only; the group stage is untouched.";
+const GROUP_INTRO = "The group-stage fixtures. Fixture ids restart at 1 in each series. Replaces the group stage only; the playoffs are uploaded separately.";
+
 const INTRO: Record<SheetKind, string> = {
   teams: "The full list of teams (IPL franchises, or countries). Replaces the current list.",
-  players: "The full player list. Replaces the current list; players keep their place in squads as long as their player_id stays the same.",
+  players: "The full player list. Replaces the current list. Name and team are enough; a player keeps their place in squads as long as their name (or player_id) stays the same.",
   fixtures: "The full fixture list. Fixture ids restart at 1 in each series. Replaces the current list.",
-  points: "Fantasy points for one or more fixtures. Each fixture in the file has all its points replaced; other fixtures are untouched.",
+  points: "Fantasy points for one or more fixtures, by team and player name. Each fixture in the file has all its points replaced; other fixtures are untouched.",
 };
 
 function countsLine(kind: SheetKind, c: UploadResult["counts"]): string {
@@ -33,8 +37,25 @@ function countsLine(kind: SheetKind, c: UploadResult["counts"]): string {
   return `${c.inserts} new · ${c.updates} changed · ${c.deletes} removed · ${c.unchanged} unchanged`;
 }
 
-/** One sheet: template download, file pick, server validation preview, then commit. */
-export function UploadCard({ tournamentId, kind, onCommitted }: { tournamentId: string; kind: SheetKind; onCommitted: () => void }) {
+/**
+ * One sheet: template download, file pick, server validation preview, then commit. For a league
+ * tournament the Fixtures card has two modes: the group stage, and the playoffs (ids follow on).
+ */
+export function UploadCard({
+  tournamentId,
+  kind,
+  tournamentKind,
+  nextPlayoffIds,
+  onCommitted,
+}: {
+  tournamentId: string;
+  kind: SheetKind;
+  tournamentKind: "league" | "window";
+  nextPlayoffIds: Record<string, number>;
+  onCommitted: () => void;
+}) {
+  const hasStages = kind === "fixtures" && tournamentKind === "league";
+  const [stage, setStage] = useState<"group" | "playoff">("group");
   const fileInput = useRef<HTMLInputElement>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [rows, setRows] = useState<RawRow[] | null>(null);
@@ -47,7 +68,7 @@ export function UploadCard({ tournamentId, kind, onCommitted }: { tournamentId: 
     const res = await fetch(`/api/superadmin/cricket/tournaments/${tournamentId}/upload`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ kind, mode, rows: sheetRows, fileName, validationHash: hash, override }),
+      body: JSON.stringify({ kind, mode, rows: sheetRows, fileName, validationHash: hash, override, ...(hasStages ? { stage } : {}) }),
     });
     const data = await res.json();
     return { ok: res.ok, status: res.status, data };
@@ -104,12 +125,12 @@ export function UploadCard({ tournamentId, kind, onCommitted }: { tournamentId: 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 className="text-lg font-semibold text-white">{SHEET_TITLES[kind]}</h3>
-          <p className="mt-1 max-w-xl text-sm text-gray-400">{INTRO[kind]}</p>
+          <p className="mt-1 max-w-xl text-sm text-gray-400">{hasStages ? (stage === "playoff" ? PLAYOFF_INTRO : GROUP_INTRO) : INTRO[kind]}</p>
         </div>
         <div className="flex gap-2">
           <button
             type="button"
-            onClick={() => downloadTemplate(kind)}
+            onClick={() => downloadTemplate(kind, hasStages && stage === "playoff" ? { nextIds: nextPlayoffIds } : undefined)}
             className="rounded-lg border border-white/15 px-3 py-2 text-sm text-gray-200 hover:bg-white/10"
           >
             Template
@@ -131,6 +152,30 @@ export function UploadCard({ tournamentId, kind, onCommitted }: { tournamentId: 
           />
         </div>
       </div>
+
+      {hasStages && (
+        <div role="group" aria-label="Fixtures stage" className="mt-3 inline-flex rounded-lg border border-white/10 bg-black/20 p-0.5 text-sm">
+          {(["group", "playoff"] as const).map((s) => (
+            <button
+              key={s}
+              type="button"
+              aria-pressed={stage === s}
+              disabled={busy !== null}
+              onClick={() => {
+                if (s === stage) return;
+                // A preview was checked against the other stage; start again.
+                setStage(s);
+                setResult(null);
+                setRows(null);
+                setMessage(null);
+              }}
+              className={`rounded-md px-3 py-1 ${stage === s ? "bg-green-500 font-semibold text-slate-900" : "text-gray-300 hover:text-white"}`}
+            >
+              {s === "group" ? "Group stage" : "Playoffs"}
+            </button>
+          ))}
+        </div>
+      )}
 
       <details className="mt-3 text-xs text-gray-400">
         <summary className="cursor-pointer select-none text-gray-300">Columns</summary>

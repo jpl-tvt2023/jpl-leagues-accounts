@@ -17,9 +17,27 @@ the Cricket dashboard's **Tournaments** tab (`/superadmin/cricket?tab=tournament
 | Sheet | Columns (aliases accepted, see `sheets/columns.ts`) | Replaces |
 |---|---|---|
 | Teams | `team_code`, `name`, `base_price` (franchise opening price, lakhs) | the whole list |
-| Players | `player_id`, `name`, `team`, `role` (WK/BAT/AR/BOWL), `base_price` (lakhs), `overseas` (Y/N), `Test`, `ODI`, `T20` (expected matches) | the whole list |
-| Fixtures | `series`, `fixture_id` (restarts at 1 per series), `format` (Test/ODI/T20), `team_a`, `team_b`, `start_time_ist`, `time`, `venue` | the whole list |
-| Points | `series` (optional with one series), `fixture_id`, `player_id`, `points` | each fixture in the file |
+| Players | `player_id` (optional), `name`, `team`, `role` (WK/BAT/AR/BOWL), `base_price` (lakhs), `overseas` (Y/N), `Test`, `ODI`, `T20` (expected **group-stage** matches) | the whole list |
+| Fixtures | `series`, `fixture_id` (restarts at 1 per series), `format` (Test/ODI/T20), `team_a`, `team_b`, `start_time_ist`, `time`, `venue` | the whole list **of one stage** (group stage or playoffs) |
+| Points | `series` (optional with one series), `fixture_id`, `team`, `player` (name), `player_id` (optional), `points` | each fixture in the file |
+
+- **Names, not ids.** Scores are typed in by hand, so every sheet names teams by **code or full name**
+  and players by **name within their team** (`sheets/names.ts`: case, spaces, dots, apostrophes and
+  accents are ignored). An unknown name is an error with a "did you mean …?"; a name that belongs to
+  another team says so; it never guesses. A blank `player_id` is filled in: an already-uploaded
+  player with the same name (same team, or the only one anywhere — a move) keeps theirs, a new one
+  gets a slug of the name (`virat-kohli`, or `rahul-sharma-csk` when the plain slug is taken). Two
+  teammates with one name need `player_id`s, and points rows then use them.
+- **Group stage and playoffs.** A league tournament (the IPL) uploads its fixtures in two modes, picked
+  on the Fixtures card (`stage: "group" | "playoff"` → `cricket_fixtures.stage`, migration 0028). Each
+  replaces only its own stage. Playoff ids **continue** from the series' last group-stage fixture with
+  no gaps (group 1–70 → playoffs 71, 72 …); a blank `fixture_id` is numbered automatically and a wrong
+  one is an error naming the range. The playoffs template starts at the next id.
+- **Match counts.** The Players sheet's count is the group stage. Until playoff fixtures are uploaded
+  a league tournament shows it as **"14 + playoffs\*"**; afterwards the team's playoff fixtures are
+  added (**"14 + 2"**, or just "14" for a team that didn't qualify). See `match-counts.ts`.
+- **Tables.** The tournament page's Teams, Players, Fixtures and Upload history tables sort by any
+  column (`components/ui/SortableTh.tsx`).
 
 - **Flow.** The browser parses the file (SheetJS, `sheets/client.ts`) and posts its rows to
   `POST /api/superadmin/cricket/tournaments/[id]/upload`. `mode: "validate"` is a dry run returning every
@@ -93,7 +111,7 @@ Pure and computed on demand — no gameweeks and no processing step:
 
 `league.ts` builds the **league view** every cricket page renders (teams named after their franchise,
 standings with per-player and per-fixture breakdown, the pool with owners, fixtures, auction sessions)
-and caches it under `crk:league:v1:{leagueId}:d{dataVersion}:s{stateVersion}` (`cache.ts`, its own Redis
+and caches it under `crk:league:v2:{leagueId}:d{dataVersion}:s{stateVersion}` (`cache.ts`, its own Redis
 client). Uploads bump `data_version`; sales, settings and session changes bump `state_version` — so old
 entries are simply never read again.
 

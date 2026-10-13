@@ -92,7 +92,7 @@ Cricket keeps its own tables; see [11-cricket.md](11-cricket.md).
 | `cricket_tournaments` | A tournament (IPL 2026, or a window of series) and its `data_version` |
 | `cricket_teams` | Real teams (franchises/countries) with the franchise base price |
 | `cricket_players` | Players: team, role, base price, overseas, expected matches per format |
-| `cricket_fixtures` | Fixtures, unique per (tournament, series, fixture number); IST start stored as UTC |
+| `cricket_fixtures` | Fixtures, unique per (tournament, series, fixture number); `stage` group or playoff (migration 0028; playoff numbers continue from the group stage); IST start stored as UTC |
 | `cricket_player_points` | One points total per player per fixture |
 | `cricket_uploads` | Audit row per committed upload |
 | `cricket_league_config` | A league's tournament, purse, squad rules, franchise boost, timers, `state_version` |

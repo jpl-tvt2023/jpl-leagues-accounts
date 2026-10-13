@@ -1,12 +1,14 @@
 /** Players sheet. Pure. */
 
 import type { CricketRole } from "@/lib/db/schema-cricket";
-import { cellText, mapSheet, normalizeTeamCode } from "./columns";
+import { cellText, mapSheet } from "./columns";
+import { normalizeName, slugifyName, type TeamLookup } from "./names";
 import { error, rowNumber, warning, type RawRow, type SheetIssue } from "./types";
 import { parseWhole, parseYesNo } from "./values";
 
 export interface PlayerRow {
   row: number;
+  /** The sheet's player_id; "" when left blank (assignPlayerCodes fills it in). */
   code: string;
   name: string;
   teamCode: string;
@@ -29,20 +31,22 @@ export function parseRole(value: unknown): CricketRole | null {
   return null;
 }
 
-export function parsePlayersSheet(raws: RawRow[], ctx: { teamCodes: Set<string> }): { rows: PlayerRow[]; issues: SheetIssue[] } {
+export function parsePlayersSheet(raws: RawRow[], ctx: { teams: TeamLookup }): { rows: PlayerRow[]; issues: SheetIssue[] } {
   const { rows: mapped, missing } = mapSheet("players", raws);
   const issues: SheetIssue[] = missing.map((h) => error(0, `Missing column "${h}"`, h));
   if (missing.length) return { rows: [], issues };
-  if (ctx.teamCodes.size === 0) issues.push(error(0, "Upload the Teams sheet first — players need a team"));
+  if (ctx.teams.size === 0) issues.push(error(0, "Upload the Teams sheet first — players need a team"));
 
   const rows: PlayerRow[] = [];
   const seenCode = new Map<string, number>();
   const seenName = new Map<string, number>();
+  const seenTeamName = new Map<string, { row: number; hasCode: boolean }>();
   mapped.forEach(({ row: raw, values }, i) => {
     const row = rowNumber(raw, i);
     const code = cellText(values.code);
     const name = cellText(values.name);
-    const teamCode = normalizeTeamCode(values.team);
+    const teamText = cellText(values.team);
+    const teamCode = ctx.teams.resolve(teamText) ?? "";
     const role = parseRole(values.role);
     const basePrice = parseWhole(values.basePrice, 1);
     const overseas = parseYesNo(values.overseas);
@@ -54,10 +58,9 @@ export function parsePlayersSheet(raws: RawRow[], ctx: { teamCodes: Set<string> 
       ok = false;
       issues.push(error(row, message, column));
     };
-    if (!code) fail("player_id is blank", "player_id");
     if (!name) fail("name is blank", "name");
-    if (!teamCode) fail("team is blank", "team");
-    else if (ctx.teamCodes.size > 0 && !ctx.teamCodes.has(teamCode)) fail(`Team ${teamCode} isn't in the Teams sheet`, "team");
+    if (!teamText) fail("team is blank", "team");
+    else if (ctx.teams.size > 0 && !teamCode) fail(ctx.teams.unknownMessage(teamText), "team");
     if (!role) fail(`Role "${cellText(values.role)}" isn't WK, BAT, AR or BOWL`, "role");
     if (basePrice === undefined) fail("base_price is blank", "base_price");
     else if (basePrice === null) fail("base_price must be a whole number of lakhs, at least 1", "base_price");
@@ -67,10 +70,20 @@ export function parsePlayersSheet(raws: RawRow[], ctx: { teamCodes: Set<string> 
     if (t20 === null) fail("T20 must be a whole number", "T20");
     if (code && seenCode.has(code)) fail(`player_id ${code} is already on row ${seenCode.get(code)}`, "player_id");
     if (code && !seenCode.has(code)) seenCode.set(code, row);
-    const nameKey = name.toLowerCase();
-    if (name && seenName.has(nameKey)) {
+    // Points sheets find players by name within their team, so two teammates with one name need
+    // player_ids to tell them apart.
+    const nameKey = normalizeName(name);
+    const teamNameKey = `${teamCode}:${nameKey}`;
+    const twin = name && teamCode ? seenTeamName.get(teamNameKey) : undefined;
+    if (twin && (!code || !twin.hasCode)) {
+      fail(`Row ${twin.row} has a ${teamCode} player with the same name — give both a player_id so points can tell them apart`, "player_id");
+    } else if (twin) {
+      issues.push(warning(row, `Row ${twin.row} has a ${teamCode} player with the same name; points sheets will need their player_id`, "name"));
+    } else if (name && seenName.has(nameKey)) {
       issues.push(warning(row, `Another player on row ${seenName.get(nameKey)} has the same name — check they're different people`, "name"));
-    } else if (name) seenName.set(nameKey, row);
+    }
+    if (name && !seenName.has(nameKey)) seenName.set(nameKey, row);
+    if (name && teamCode && !twin) seenTeamName.set(teamNameKey, { row, hasCode: !!code });
     if (ok && role && typeof basePrice === "number") {
       rows.push({
         row,
@@ -88,6 +101,42 @@ export function parsePlayersSheet(raws: RawRow[], ctx: { teamCodes: Set<string> 
   });
   if (mapped.length === 0) issues.push(error(0, "The sheet has no rows"));
   return { rows, issues };
+}
+
+/**
+ * Fill in blank player_ids. A row whose name (and team) matches a player already uploaded keeps
+ * that player's id — so re-uploading by name never duplicates anyone — else it gets a slug of the
+ * name ("virat-kohli"), with "-<team>" added when the plain slug is taken.
+ */
+export function assignPlayerCodes(rows: PlayerRow[], existing: Array<{ code: string; name: string; teamCode: string }>): PlayerRow[] {
+  const explicit = new Set(rows.filter((r) => r.code).map((r) => r.code));
+  const taken = new Set(explicit);
+  const existingByTeamName = new Map(existing.map((p) => [`${p.teamCode}:${normalizeName(p.name)}`, p.code]));
+  const existingByName = new Map<string, string[]>();
+  for (const p of existing) existingByName.set(normalizeName(p.name), [...(existingByName.get(normalizeName(p.name)) ?? []), p.code]);
+  const claim = (r: PlayerRow, code: string | undefined): PlayerRow => {
+    if (r.code || !code || taken.has(code)) return r;
+    taken.add(code);
+    return { ...r, code };
+  };
+  // Pass 1: the same name in the same team is that player. Pass 2: a name that exists exactly once
+  // elsewhere is that player moving team. (Same-team matches go first so a namesake on another
+  // team can't take them.)
+  const sameTeam = rows.map((r) => claim(r, existingByTeamName.get(`${r.teamCode}:${normalizeName(r.name)}`)));
+  const out = sameTeam.map((r) => {
+    const anywhere = existingByName.get(normalizeName(r.name));
+    return claim(r, anywhere?.length === 1 ? anywhere[0] : undefined);
+  });
+  // Pass 3: new players get a fresh slug.
+  return out.map((r) => {
+    if (r.code) return r;
+    const base = slugifyName(r.name) || "player";
+    let code = base;
+    if (taken.has(code)) code = `${base}-${r.teamCode.toLowerCase()}`;
+    for (let n = 2; taken.has(code); n++) code = `${base}-${r.teamCode.toLowerCase()}-${n}`;
+    taken.add(code);
+    return { ...r, code };
+  });
 }
 
 export interface ExistingPlayer {

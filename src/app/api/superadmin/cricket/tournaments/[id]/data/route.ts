@@ -6,7 +6,8 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
-import { db, cricketTeams, cricketPlayers, cricketFixtures, cricketPlayerPoints, cricketUploads, users } from "@/lib/db";
+import { db, cricketTeams, cricketPlayers, cricketFixtures, cricketPlayerPoints, cricketUploads, cricketTournaments, users } from "@/lib/db";
+import { playoffMatchesByTeam, playoffState } from "@/lib/sports/cricket/match-counts";
 import { formatIst } from "@/lib/sports/cricket/sheets/ist";
 import { errorResponse, requireSuperAdmin } from "@/lib/sports/cricket/http";
 
@@ -25,8 +26,15 @@ export async function GET(request: NextRequest, { params }: Params) {
       return NextResponse.json({ rows: teams.map((t) => ({ id: t.id, code: t.code, name: t.name, basePrice: t.basePrice })) });
     }
     if (kind === "players") {
-      const players = await db.select().from(cricketPlayers).where(eq(cricketPlayers.tournamentId, id)).orderBy(asc(cricketPlayers.name));
+      const [players, stages, [t]] = await Promise.all([
+        db.select().from(cricketPlayers).where(eq(cricketPlayers.tournamentId, id)).orderBy(asc(cricketPlayers.name)),
+        db.select({ stage: cricketFixtures.stage, teamAId: cricketFixtures.teamAId, teamBId: cricketFixtures.teamBId }).from(cricketFixtures).where(eq(cricketFixtures.tournamentId, id)),
+        db.select({ kind: cricketTournaments.kind }).from(cricketTournaments).where(eq(cricketTournaments.id, id)).limit(1),
+      ]);
+      // Group-stage counts come from the sheet; playoff matches from the uploaded playoff fixtures.
+      const playoffsByTeam = playoffMatchesByTeam(stages);
       return NextResponse.json({
+        playoffs: playoffState(t?.kind ?? "window", stages.filter((s) => s.stage === "playoff").length),
         rows: players.map((p) => ({
           id: p.id,
           code: p.code,
@@ -38,6 +46,7 @@ export async function GET(request: NextRequest, { params }: Params) {
           matchesTest: p.matchesTest,
           matchesOdi: p.matchesOdi,
           matchesT20: p.matchesT20,
+          playoffMatches: playoffsByTeam.get(p.teamId) ?? 0,
         })),
       });
     }
@@ -47,6 +56,7 @@ export async function GET(request: NextRequest, { params }: Params) {
           id: cricketFixtures.id,
           series: cricketFixtures.series,
           fixtureNo: cricketFixtures.fixtureNo,
+          stage: cricketFixtures.stage,
           matchFormat: cricketFixtures.matchFormat,
           teamAId: cricketFixtures.teamAId,
           teamBId: cricketFixtures.teamBId,
@@ -64,6 +74,7 @@ export async function GET(request: NextRequest, { params }: Params) {
           id: f.id,
           series: f.series,
           fixtureNo: f.fixtureNo,
+          stage: f.stage,
           format: f.matchFormat,
           teamA: codeOf.get(f.teamAId) ?? "",
           teamB: codeOf.get(f.teamBId) ?? "",
