@@ -65,7 +65,7 @@ export default function CricketTournamentPage() {
     const res = await fetch(`/api/superadmin/cricket/tournaments/${tournamentId}`, { method: "DELETE" });
     const data = await res.json();
     if (!res.ok) setError(data.error ?? "Couldn't delete");
-    else window.location.href = "/superadmin/cricket";
+    else window.location.href = "/superadmin/cricket?tab=tournaments";
   };
 
   const handleSignOut = async () => {
@@ -86,7 +86,7 @@ export default function CricketTournamentPage() {
         onSignOut={handleSignOut}
       />
       <main className="mx-auto max-w-6xl space-y-6 px-4 py-6 sm:py-10">
-        <Link href="/superadmin/cricket" className="text-sm text-gray-400 hover:text-white">
+        <Link href="/superadmin/cricket?tab=tournaments" className="text-sm text-gray-400 hover:text-white">
           ← Tournaments
         </Link>
         {error && <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</div>}

@@ -12,7 +12,7 @@ from every match, and the highest total wins. No captains, no transfers, no game
 ## Data: tournaments and uploads
 
 There is no cricket API. A **tournament** (e.g. "IPL 2026") is uploaded by the superadmin at
-`/superadmin/cricket` as four spreadsheets, and any number of leagues play on it.
+the Cricket dashboard's **Tournaments** tab (`/superadmin/cricket?tab=tournaments`) as four spreadsheets, and any number of leagues play on it.
 
 | Sheet | Columns (aliases accepted, see `sheets/columns.ts`) | Replaces |
 |---|---|---|

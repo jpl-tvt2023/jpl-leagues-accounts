@@ -45,7 +45,7 @@ the league formats each one offers; adding a sport starts there.
 | App Router pages | `src/app/**` |
 | Per-league public pages | `src/app/[leagueSlug]/**` (cricket leagues: `src/app/[leagueSlug]/cricket/**`) |
 | Admin dashboard | `src/app/admin/[leagueId]/page.tsx` |
-| Superadmin dashboard | `src/app/superadmin/page.tsx` |
+| Superadmin dashboards | `src/app/superadmin/SuperadminDashboard.tsx`, one route each: General `/superadmin` (Admins, Users, Feedback), Football `/superadmin/football` (FPL Leagues, Operations, PL Standings, Score Adjustments), Cricket `/superadmin/cricket` (cricket Leagues, Tournaments); `?tab=` picks the tab |
 | Drizzle schema | `src/lib/db/schema.ts` (shared + FPL tables), `src/lib/db/schema-cricket.ts` (cricket tables) |
 | Auth + sessions | `src/lib/auth.ts`, `src/middleware.ts`, `src/lib/viewer.ts` |
 | Which team a request acts as | `src/lib/team-actor.ts` (see [10-accounts-and-membership.md](10-accounts-and-membership.md)) |

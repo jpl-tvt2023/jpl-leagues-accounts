@@ -190,7 +190,7 @@ export default function AdminHelpPage() {
       <div className="space-y-2">
         <p>
           This league was created before Google sign-in, and its team IDs and passwords no longer work. Ask your superadmin to
-          switch it to Google sign-in (Superadmin → Leagues). Teams, scores and history are kept.
+          switch it to Google sign-in (Superadmin → Football → Leagues). Teams, scores and history are kept.
         </p>
         <p>
           Then have each player sign in with Google and send you their username, and add them to their own team from the

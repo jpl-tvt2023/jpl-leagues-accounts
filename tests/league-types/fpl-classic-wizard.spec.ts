@@ -35,12 +35,11 @@ test.describe.serial("FPL Classic — creation wizard", () => {
 
   test("creates a league end-to-end: verify the id, skip straight to details, submit", async ({ page }) => {
     await uiSignInSuperadmin(page);
-    await page.goto("/superadmin");
+    await page.goto("/superadmin/football");
 
     await page.getByRole("button", { name: "+ Create League" }).click();
 
-    // Sport, then format. Picking FPL Classic must jump to the FPL step — not team_size.
-    await page.getByRole("button", { name: /Fantasy Premier League|FPL/i }).first().click();
+    // The Football dashboard presets the sport. Picking FPL Classic must jump to the FPL step — not team_size.
     await page.getByRole("button", { name: /FPL Classic/i }).first().click();
     await expect(page.getByRole("heading", { name: "Which FPL league?" })).toBeVisible();
 
@@ -102,10 +101,9 @@ test.describe.serial("FPL Classic — creation wizard", () => {
 
   test("an unknown league id is reported in the wizard, not swallowed", async ({ page }) => {
     await uiSignInSuperadmin(page);
-    await page.goto("/superadmin");
+    await page.goto("/superadmin/football");
 
     await page.getByRole("button", { name: "+ Create League" }).click();
-    await page.getByRole("button", { name: /Fantasy Premier League|FPL/i }).first().click();
     await page.getByRole("button", { name: /FPL Classic/i }).first().click();
 
     await page.getByPlaceholder("e.g. 314159").fill("999999");

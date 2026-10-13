@@ -25,7 +25,7 @@ Every league has an `auth_mode`:
 | Who can act for a team | Its members (`team_members`) | Nobody — its team logins no longer work |
 | How people get on a team | Invite link, teammate invite, or the admin's Members tab | None until it's switched |
 
-**Switching an old league** (`switchLeagueToGoogleSignIn` in [`src/lib/membership.ts`](../src/lib/membership.ts); Superadmin → Leagues → *Switch to Google sign-in*, or `PATCH /api/superadmin/leagues/[id] { authMode: "members" }`):
+**Switching an old league** (`switchLeagueToGoogleSignIn` in [`src/lib/membership.ts`](../src/lib/membership.ts); Superadmin → Football → Leagues → *Switch to Google sign-in*, or `PATCH /api/superadmin/leagues/[id] { authMode: "members" }`):
 - sets `auth_mode = "members"` and wipes the old team password hashes; teams, players, fixtures, scores and history are untouched;
 - writes a `LEAGUE_SWITCHED_TO_GOOGLE` audit row, and can't be undone;
 - creates **no** league invite. After the switch every team is open, and a league invite gives whoever opens it the next open team, not their own. So players sign in with Google and send the admin their username, and the admin puts each one on their own team from the Members tab (assign by username).
