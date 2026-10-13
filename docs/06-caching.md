@@ -1,12 +1,13 @@
 # 06 · Caching
 
-Three Upstash Redis layers handle different latency vs freshness tradeoffs. All live in [`src/lib/sports/fpl/cache.ts`](../src/lib/sports/fpl/cache.ts).
+Three Upstash Redis layers handle the FPL formats; cricket has its own (last row). The FPL ones live in [`src/lib/sports/fpl/cache.ts`](../src/lib/sports/fpl/cache.ts).
 
 | Layer | Keys | TTL | Written by | Read by | Invalidation |
 |---|---|---|---|---|---|
 | **FPL score cache** | `fpl:{leagueId}:gw{N}:{fplId}` | 24h | `calculateTeamGameweekScore` after FPL fetch | scoring handler, standings hit-penalty loop | TTL only |
 | **Live GW cache** | `live:gw:{N}:league:{leagueId}` | 10 min | `setLiveCachedScores` after a manual refresh / `/api/fixtures/live` cold fetch | Fixtures page (in-progress GWs) | TTL only; `clearLiveCache` called per-GW at the start of `processOneLeagueOneGw` |
 | **Page cache** | `standings:{leagueId}`, `fixtures:{leagueId}`, `playoffs:{leagueId}` | 25h | The corresponding GET routes after a successful build | Same routes on next request | `invalidateLeaguePageCache(leagueId)` — called by every score/advance/generate handler |
+| **Cricket league view** (separate client in [`src/lib/sports/cricket/cache.ts`](../src/lib/sports/cricket/cache.ts)) | `crk:league:v1:{leagueId}:d{dataVersion}:s{stateVersion}` | 1h | `getLeagueView` after a build | every cricket page via `/api/cricket/league` | none needed: an upload bumps the tournament's `dataVersion`, a sale or settings change bumps the league's `stateVersion`, so stale keys are never read again |
 
 ## How a typical request flows
 

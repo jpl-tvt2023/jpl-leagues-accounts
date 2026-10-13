@@ -2,13 +2,16 @@
 
 This document maps each league format to its **code paths** — scoring processor, advance helper, tie IDs, schedule constants. Use it as a directory when you need to change format behaviour.
 
-A league's `format` field is one of:
+A league's `format` field is one of (all listed, with their sport and capabilities, in `src/lib/sports/registry.ts`):
 
 - `"tvt"` — Team-vs-Team head-to-head, sizes 8 / 16 / 32 (distinguished by `teamSize`).
 - `"continental-championship"` — three parallel competitions (JPL + Cup Groups + JCL/JEL).
 - `"auction"` — bid-based squad construction.
+- `"fpl-classic"` — a public mirror of an official FPL mini-league (no gameweek rows).
+- `"cricket-auction"` — the Classic Cricket Auction, a different sport entirely. It has its own module,
+  tables and pages; see [11-cricket.md](11-cricket.md). Nothing in this document applies to it.
 
-The `format` + `teamSize` combo drives every routing decision (scoring processor, advance dispatcher, palette, help/rules component).
+The `format` + `teamSize` combo drives every routing decision (scoring processor, advance dispatcher, palette, help/rules component). Formats without FPL gameweeks (`fpl-classic`, `cricket-auction`) are fenced off from the gameweek machinery by the registry's `usesGameweeks` (route guards in `src/lib/sports/route-guards.ts`, and the auto-processing plan's `NON_GAMEWEEK_FORMATS` exclusion).
 
 ---
 

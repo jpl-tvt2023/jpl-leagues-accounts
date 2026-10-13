@@ -16,6 +16,7 @@ The stack is intentionally lean: Next.js 16 (App Router) on Vercel, Drizzle ORM 
 8. **[08-engineering-decisions.md](08-engineering-decisions.md)** — notable tradeoffs and why we made them.
 9. **[09-environments.md](09-environments.md)** — the local test, staging and production tiers: what each one points at, why nothing is shared between them, and how to set up a new one.
 10. **[10-accounts-and-membership.md](10-accounts-and-membership.md)** — how people sign in and play in many leagues: legacy vs members-mode leagues, `team_members`, how every team-scoped API resolves its team, and the guard that keeps this repo off production's database.
+11. **[11-cricket.md](11-cricket.md)** — the cricket module: tournament uploads, the franchise and player auctions, scoring, and how cricket stays out of the FPL code paths.
 
 ## Quick start for new engineers
 

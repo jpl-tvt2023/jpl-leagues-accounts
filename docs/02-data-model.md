@@ -83,6 +83,25 @@ erDiagram
 | `trade_proposals` | Inter-team trade requests with money + player swap. |
 | `notifications` | In-app notifications (currently used by the auction flow for trade events). |
 
+### Cricket (`src/lib/db/schema-cricket.ts`)
+
+Cricket keeps its own tables; see [11-cricket.md](11-cricket.md).
+
+| Table | Purpose |
+|---|---|
+| `cricket_tournaments` | A tournament (IPL 2026, or a window of series) and its `data_version` |
+| `cricket_teams` | Real teams (franchises/countries) with the franchise base price |
+| `cricket_players` | Players: team, role, base price, overseas, expected matches per format |
+| `cricket_fixtures` | Fixtures, unique per (tournament, series, fixture number); IST start stored as UTC |
+| `cricket_player_points` | One points total per player per fixture |
+| `cricket_uploads` | Audit row per committed upload |
+| `cricket_league_config` | A league's tournament, purse, squad rules, franchise boost, timers, `state_version` |
+| `cricket_team_state` | Each team's purse, spend and penalty slots |
+| `cricket_auction_sessions` / `_lots` / `_bid_logs` / `_turn_events` | The live auction (franchise and player sessions) |
+| `cricket_wishlists` | Auto-nomination priority lists |
+| `cricket_squad_players` / `cricket_franchise_ownership` | What each team bought |
+| `cricket_team_penalties` | Missed-nomination penalties and redemptions |
+
 ### Cache + recovery
 
 | Table | Purpose |
@@ -111,7 +130,7 @@ npm run db:generate          # creates a new migration file in drizzle/
 npm run db:push              # applies pending migrations to your DATABASE_URL
 ```
 
-The latest migration is `drizzle/0025_accounts_membership.sql` (accounts and membership). Migrations from 0021 on are hand-written and applied with idempotent `scripts/apply-*.mjs` scripts rather than `drizzle-kit migrate`.
+The latest migration is `drizzle/0027_cricket.sql` (the cricket tables, applied with `scripts/apply-0027-cricket.mjs`). Migrations from 0021 on are hand-written and applied with idempotent `scripts/apply-*.mjs` scripts rather than `drizzle-kit migrate`.
 
 ⚠️ In this repo every database command is limited to a local `file:` database or the `jpl-india` Turso database — see `src/lib/db/target-guard.ts`.
 

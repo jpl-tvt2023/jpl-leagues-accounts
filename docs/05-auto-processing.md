@@ -46,7 +46,7 @@ sequenceDiagram
 
 | Path | Method | Purpose |
 |---|---|---|
-| `/api/admin/process-all/plan` | GET | Compute the work list. Reads the FPL `bootstrap-static` once, builds `dueGws` (GWs whose deadline has passed AND FPL marked `finished=true`), pulls the active leagues, writes `CRON_RUN_START` to `audit_logs`, returns `{ runId, dueGws[], leagues[], globalErrors[] }`. |
+| `/api/admin/process-all/plan` | GET | Compute the work list. Reads the FPL `bootstrap-static` once, builds `dueGws` (GWs whose deadline has passed AND FPL marked `finished=true`), pulls the active leagues, writes `CRON_RUN_START` to `audit_logs`, returns `{ runId, dueGws[], leagues[], globalErrors[] }`. Leagues whose format has no FPL gameweeks (`NON_GAMEWEEK_FORMATS` in `src/lib/sports/registry.ts`: FPL Classic and cricket) are never in the plan. |
 | `/api/admin/process-all/league-gw` | POST | The workhorse. Body: `{ runId, league, gw }`. Runs `processOneLeagueOneGw` for that pair. Bounded ≤ ~15s. Subject to per-admin rate limit (30/min). |
 | `/api/admin/process-all/finish` | POST | Body: `{ runId, dueGws, results, globalErrors }`. Writes `CRON_RUN_END` to `audit_logs`, populates live-FPL cache for any in-progress GW. |
 
