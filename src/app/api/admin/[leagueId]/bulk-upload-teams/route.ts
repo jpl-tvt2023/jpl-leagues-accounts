@@ -8,6 +8,7 @@ import { db, teams, players, groups, leagues } from "@/lib/db";
 import { eq, and, ne, inArray, sql } from "drizzle-orm";
 import { generateId } from "@/lib/id";
 import { getAuthorizedLeagueId } from "@/lib/league-auth";
+import { refuseIfCricket } from "@/lib/sports/route-guards";
 
 interface TeamRow {
   teamLoginId: string;
@@ -36,6 +37,8 @@ export async function POST(request: NextRequest) {
   try {
     const leagueId = await getAuthorizedLeagueId(request);
     if (!leagueId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const cricket = await refuseIfCricket(leagueId);
+    if (cricket) return cricket;
 
     const body = await request.json();
     const { teams: rows } = body as { teams: TeamRow[] };

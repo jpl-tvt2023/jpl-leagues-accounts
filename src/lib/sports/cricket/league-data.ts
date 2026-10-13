@@ -13,6 +13,7 @@ import {
   cricketSquadPlayers,
   cricketFranchiseOwnership,
   cricketTeamPenalties,
+  cricketBackups,
 } from "@/lib/db";
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -33,5 +34,6 @@ export async function deleteCricketLeagueData(tx: Tx, leagueId: string): Promise
   await tx.delete(cricketTeamPenalties).where(eq(cricketTeamPenalties.leagueId, leagueId));
   await tx.delete(cricketAuctionSessions).where(eq(cricketAuctionSessions.leagueId, leagueId));
   await tx.delete(cricketTeamState).where(eq(cricketTeamState.leagueId, leagueId));
+  await tx.delete(cricketBackups).where(eq(cricketBackups.leagueId, leagueId));
   await tx.delete(cricketLeagueConfig).where(eq(cricketLeagueConfig.leagueId, leagueId));
 }

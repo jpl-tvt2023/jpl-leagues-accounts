@@ -23,6 +23,7 @@ async function payload(leagueId: string) {
       teams: tournament.teams,
       players: tournament.players,
       fixtures: tournament.fixtures,
+      playoffFixtures: tournament.playoffFixtures,
       fixturesScored: tournament.fixturesScored,
     },
     settings: settingsOf(info),

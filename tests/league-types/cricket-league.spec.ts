@@ -110,11 +110,41 @@ test.describe.serial("cricket: league", () => {
     await uiSignInSuperadmin(page);
     await page.goto(`/admin/${league.slug}`);
     await expect(page).toHaveURL(new RegExp(`/admin/${league.slug}/cricket$`));
+    // The FPL auction console's sections, in its order; it opens on Manager Management.
+    const tabs = page.getByRole("group", { name: "Section" }).first().getByRole("button");
+    await expect(tabs).toHaveText(["Manager Management", "Members", "Backup", "Scoring", "Auction", "Finance", "Settings", "Feedback"]);
+    await expect(page.getByRole("heading", { name: "Manager Management" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Rename" })).toHaveCount(4);
     await expect(page.getByRole("tab", { name: "Auction" }).or(page.getByRole("button", { name: "Auction" })).first()).toBeVisible();
     await page.getByRole("tab", { name: "Auction" }).or(page.getByRole("button", { name: "Auction" })).first().click();
     await expect(page.getByText("+ Franchise auction")).toBeVisible();
     await page.goto(`/${league.slug}/cricket/auction`);
     await expect(page.getByText(/hasn't been set up yet/)).toBeVisible();
+  });
+
+  test("admin: Manager Management renames teams; the FPL team routes refuse a cricket league", async ({ request }) => {
+    await apiSignInSuperadmin(request);
+    const list = await request.get(`/api/admin/${league.slug}/cricket/teams`).then((r) => r.json());
+    expect(list.teams).toHaveLength(4);
+    const [first, second] = list.teams as Array<{ id: string; name: string }>;
+    const ok = await request.patch(`/api/admin/${league.slug}/cricket/teams`, { data: { teamId: first.id, name: "  Renamed   XI " } });
+    expect(ok.status(), await ok.text()).toBe(200);
+    const view = await request.get(`/api/cricket/league?league=${league.slug}`).then((r) => r.json());
+    expect(view.teams.find((t: { id: string }) => t.id === first.id).ownName).toBe("Renamed XI");
+    const dup = await request.patch(`/api/admin/${league.slug}/cricket/teams`, { data: { teamId: second.id, name: "renamed xi" } });
+    expect(dup.status()).toBe(409);
+
+    const add = await request.post(`/api/admin/${league.slug}/create-team`, { data: { name: "Extra" } });
+    expect(add.status()).toBe(400);
+    expect((await add.json()).error).toMatch(/set when it is created/);
+    expect((await request.delete(`/api/admin/${league.slug}/delete-team`, { data: { teamId: first.id } })).status()).toBe(400);
+  });
+
+  test("admin: finance starts every team on the full purse with nothing spent", async ({ request }) => {
+    await apiSignInSuperadmin(request);
+    const fin = await request.get(`/api/admin/${league.slug}/cricket/finance`).then((r) => r.json());
+    expect(fin.rows).toHaveLength(4);
+    expect(fin.rows.every((r: { spent: number; purse: number }) => r.spent === 0 && r.purse === fin.startingPurse)).toBe(true);
   });
 
   test("admin: settings save before the auction, and the season can be marked complete", async ({ request }) => {

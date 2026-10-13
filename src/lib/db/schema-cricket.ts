@@ -339,6 +339,22 @@ export const cricketTeamPenalties = sqliteTable("cricket_team_penalties", {
   teamIdx: index("cricket_team_penalties_team").on(table.teamId),
 }));
 
+/**
+ * Stored snapshots of a league's auction state (squads, franchises, purses, penalties, sessions),
+ * for the console's Backup tab. Taken by hand, and automatically when the player auction completes.
+ * The payload is the same JSON a downloaded backup carries (lib/sports/cricket/backup.ts).
+ */
+export const cricketBackups = sqliteTable("cricket_backups", {
+  id: text("id").primaryKey(),
+  leagueId: text("league_id").notNull().references(() => leagues.id, { onDelete: "cascade" }),
+  trigger: text("trigger", { enum: ["manual", "player-auction-complete"] }).notNull(),
+  createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
+  payload: text("payload").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+}, (table) => ({
+  leagueIdx: index("cricket_backups_league").on(table.leagueId, table.createdAt),
+}));
+
 export type CricketTournament = typeof cricketTournaments.$inferSelect;
 export type CricketTeam = typeof cricketTeams.$inferSelect;
 export type CricketPlayer = typeof cricketPlayers.$inferSelect;

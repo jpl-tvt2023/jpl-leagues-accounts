@@ -101,6 +101,7 @@ Cricket keeps its own tables; see [11-cricket.md](11-cricket.md).
 | `cricket_wishlists` | Auto-nomination priority lists |
 | `cricket_squad_players` / `cricket_franchise_ownership` | What each team bought |
 | `cricket_team_penalties` | Missed-nomination penalties and redemptions |
+| `cricket_backups` | Stored snapshots of a league's auction state (console Backup tab; migration 0029), taken by hand or when the player auction completes |
 
 ### Cache + recovery
 

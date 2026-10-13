@@ -3,6 +3,7 @@ import { db, teams, players, groups } from "@/lib/db";
 import { eq, and, sql } from "drizzle-orm";
 import { generateId } from "@/lib/id";
 import { getAuthorizedLeagueId } from "@/lib/league-auth";
+import { refuseIfCricket } from "@/lib/sports/route-guards";
 import { fetchClubOwnershipMap } from "@/lib/sports/fpl/teams/rename-rows";
 
 /**
@@ -14,6 +15,8 @@ export async function POST(request: NextRequest) {
   try {
     const leagueId = await getAuthorizedLeagueId(request);
     if (!leagueId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const cricket = await refuseIfCricket(leagueId);
+    if (cricket) return cricket;
 
     const body = await request.json();
     const {

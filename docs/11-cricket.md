@@ -99,6 +99,34 @@ exists. Money is **lakhs** everywhere (`formatLakhs`: 200 → "₹2 Cr").
   stop once the player auction completes — squads are final. Completing the player auction with short
   squads needs `force`. The superadmin can **simulate** both auctions instantly for rehearsals and tests.
 
+## League console (`/admin/[slug]/cricket`)
+
+Laid out like the FPL auction console, with its sections in its order (`admin/[leagueId]/cricket/page.tsx`):
+
+| Tab | What it does | Code |
+|---|---|---|
+| Manager Management | Every team with its managers, squad size, spent and purse left; rename a team (unique in the league, 60 characters) | `CricketManagersTab`, `GET/PATCH api/admin/[slug]/cricket/teams`, `listManagerTeams` / `renameTeam` in `admin.ts` |
+| Members | The league's invite link, join requests and rosters (shared with FPL) | `../MembersTab` |
+| Backup | Download a backup, take one now, restore from a file or a saved snapshot | `CricketBackupTab`, `backup.ts`, `api/admin/[slug]/cricket/{backup,backups,backups/[id],restore}` |
+| Scoring | Tournament data status (fixtures, playoffs, scored), link to the data, standings | — |
+| Auction | Sessions, the live lot, corrections | `CricketAuctionAdmin` |
+| Finance | Per team: players bought, franchise, penalty redemptions, spent, purse left — flagged if they don't add up | `CricketFinanceTab`, `GET api/admin/[slug]/cricket/finance`, `financeRows` |
+| Settings | League settings, Mark complete / Reopen | `CricketSettingsForm` |
+| Feedback | League feedback (shared with FPL) | `../FeedbackTab` |
+
+A cricket league's teams are made when it is created (their purses live in `cricket_team_state`), so
+the FPL team routes (add, delete, bulk upload, edit) refuse cricket leagues (`refuseIfCricket`).
+
+**Backups** (`backup.ts`, table `cricket_backups`, migration 0029). A backup is the league's auction
+state as one JSON payload: team names and purses, squads, franchises, penalties and sessions, with
+players and franchises recorded by **code** so a backup survives tournament re-uploads. The download
+is a zip of `backup.json` plus readable sheets. Snapshots are stored when taken by hand and
+automatically when the player auction completes. **Restore** (typed-slug confirmation) first checks
+everything — the backup is this league's, every team, player and franchise still exists, no session is
+running — and writes nothing if any check fails; otherwise one batch wipes the auction state, recreates
+the sessions (an active one comes back paused) and writes one sold lot per purchase, so undo, move and
+the sales feed keep working. Tournament data is not part of a backup.
+
 ## Scoring (`scoring.ts`)
 
 Pure and computed on demand — no gameweeks and no processing step:
