@@ -5,6 +5,7 @@ import { isSuperAdmin } from "@/lib/privilege";
 import { getRequestSession, sessionTeamIdInLeague } from "@/lib/team-actor";
 import { buildTeamLedger, buildAllTeamsSummary } from "@/lib/sports/fpl/formats/auction/finance";
 import { fetchClubOwnershipMap } from "@/lib/sports/fpl/teams/rename-rows";
+import { refuseUnlessFplAuction } from "@/lib/sports/route-guards";
 
 /**
  * GET /api/auction/finance
@@ -31,6 +32,8 @@ export async function GET(request: NextRequest) {
     if (!leagueIdParam) {
       return NextResponse.json({ error: "leagueId is required" }, { status: 400 });
     }
+    const notAuction = await refuseUnlessFplAuction(leagueIdParam);
+    if (notAuction) return notAuction;
     const summaries = await buildAllTeamsSummary(leagueIdParam);
     // PL Club Auction rename + ownedClub for tier-chip rendering.
     const clubByTeamId = await fetchClubOwnershipMap(leagueIdParam);
@@ -51,6 +54,8 @@ export async function GET(request: NextRequest) {
   if (teamRow.length === 0) {
     return NextResponse.json({ error: "Team not found" }, { status: 404 });
   }
+  const notAuction = await refuseUnlessFplAuction(teamRow[0].leagueId);
+  if (notAuction) return notAuction;
 
   // Any team in the same league (any member) may view a ledger; admins may too.
   if (!admin && session && session.type !== "admin") {

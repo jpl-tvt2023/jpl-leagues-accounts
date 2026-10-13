@@ -34,6 +34,7 @@ export function CricketAuctionAdmin({
   const [busy, setBusy] = useState(false);
   const [version, setVersion] = useState(0);
   const [scheduleAt, setScheduleAt] = useState("");
+  const [moving, setMoving] = useState<{ lotId: string; toTeamId: string; price: string } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -53,8 +54,9 @@ export function CricketAuctionAdmin({
     };
   }, [leagueId, version]);
 
-  const act = async (body: Record<string, unknown>, confirmText?: string) => {
-    if (confirmText && !confirm(confirmText)) return;
+  /** Run an admin action; true if it went through. */
+  const act = async (body: Record<string, unknown>, confirmText?: string): Promise<boolean> => {
+    if (confirmText && !confirm(confirmText)) return false;
     setBusy(true);
     setError(null);
     try {
@@ -63,15 +65,13 @@ export function CricketAuctionAdmin({
       if (!res.ok) {
         // Completing with short squads: offer to force it.
         if (body.action === "complete" && res.status === 409 && /short of a full squad/.test(out.error ?? "")) {
-          if (confirm(`${out.error}\n\nComplete anyway? Squads are then final.`)) {
-            await act({ ...body, force: true });
-          }
-          return;
+          return confirm(`${out.error}\n\nComplete anyway? Squads are then final.`) ? act({ ...body, force: true }) : false;
         }
         setError(out.error ?? "That didn't work");
       }
       setVersion((v) => v + 1);
       onChanged();
+      return res.ok;
     } finally {
       setBusy(false);
     }
@@ -203,18 +203,80 @@ export function CricketAuctionAdmin({
         {state.sales.length === 0 ? (
           <p className="mt-2 text-sm text-gray-400">Nothing sold yet.</p>
         ) : (
-          <ul className="mt-2 divide-y divide-white/5 text-sm">
-            {state.sales.map((s) => (
-              <li key={s.lotId} className="flex items-center justify-between gap-2 py-1.5">
-                <span className="text-gray-200">
-                  {s.name} → {name(s.teamId)} · {formatLakhs(s.price)}
-                </span>
-                <button type="button" disabled={busy} className="text-xs text-red-300 hover:underline disabled:opacity-40" onClick={() => act({ action: "undo-sale", lotId: s.lotId }, `Undo the sale of ${s.name}? The money goes back and it's unsold again.`)}>
-                  Undo
-                </button>
-              </li>
-            ))}
-          </ul>
+          <>
+            <p className="mt-1 text-xs text-gray-400">Undo makes it unsold again. Move gives it to another team, refunding the first. Both stop once the player auction is complete.</p>
+            <ul className="mt-2 divide-y divide-white/5 text-sm">
+              {state.sales.map((s) => (
+                <li key={s.lotId} className="py-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-gray-200">
+                      {s.name} → {name(s.teamId)} · {formatLakhs(s.price)}
+                    </span>
+                    <span className="flex gap-3">
+                      <button
+                        type="button"
+                        disabled={busy}
+                        className="text-xs text-green-300 hover:underline disabled:opacity-40"
+                        onClick={() => setMoving(moving?.lotId === s.lotId ? null : { lotId: s.lotId, toTeamId: "", price: String(s.price) })}
+                      >
+                        Move
+                      </button>
+                      <button type="button" disabled={busy} className="text-xs text-red-300 hover:underline disabled:opacity-40" onClick={() => act({ action: "undo-sale", lotId: s.lotId }, `Undo the sale of ${s.name}? The money goes back and it's unsold again.`)}>
+                        Undo
+                      </button>
+                    </span>
+                  </div>
+                  {moving?.lotId === s.lotId && (
+                    <div className="mt-2 flex flex-wrap items-end gap-2">
+                      <label className="text-xs text-gray-400">
+                        To
+                        <select
+                          value={moving.toTeamId}
+                          onChange={(e) => setMoving({ ...moving, toTeamId: e.target.value })}
+                          className="mt-1 block rounded-lg border border-white/10 bg-black/30 px-3 py-1.5 text-sm text-white"
+                        >
+                          <option value="">Choose a team</option>
+                          {state.teams
+                            .filter((t) => t.id !== s.teamId)
+                            .map((t) => (
+                              <option key={t.id} value={t.id}>
+                                {t.name}
+                              </option>
+                            ))}
+                        </select>
+                      </label>
+                      <label className="text-xs text-gray-400">
+                        Price (lakhs)
+                        <input
+                          type="number"
+                          min={0}
+                          step={5}
+                          value={moving.price}
+                          onChange={(e) => setMoving({ ...moving, price: e.target.value })}
+                          className="mt-1 block w-28 rounded-lg border border-white/10 bg-black/30 px-3 py-1.5 text-sm text-white"
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        disabled={busy || !moving.toTeamId || moving.price === ""}
+                        className={primary}
+                        onClick={async () => {
+                          const price = Number(moving.price);
+                          const ok = await act(
+                            { action: "transfer-sale", lotId: s.lotId, toTeamId: moving.toTeamId, price },
+                            `Move ${s.name} to ${name(moving.toTeamId)} for ${formatLakhs(price)}? ${name(s.teamId)} gets ${formatLakhs(s.price)} back.`,
+                          );
+                          if (ok) setMoving(null);
+                        }}
+                      >
+                        Move
+                      </button>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </>
         )}
       </section>
 

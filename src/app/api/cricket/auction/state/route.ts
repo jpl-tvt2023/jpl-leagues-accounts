@@ -18,8 +18,14 @@ export async function GET(request: NextRequest) {
     let snap = await buildAuctionSnapshot(league);
     if (!snap) return NextResponse.json({ error: "Cricket league not found" }, { status: 404 });
     if (snap.current?.status === "active") {
-      await tick(snap.current.sessionId, "rest");
-      snap = (await buildAuctionSnapshot(league)) ?? snap;
+      // Moving the clock on is best-effort: if it collides with another request's write, the room
+      // still gets its snapshot, and the stream or the next read moves it on (every step is a CAS).
+      try {
+        await tick(snap.current.sessionId, "rest");
+        snap = (await buildAuctionSnapshot(league)) ?? snap;
+      } catch (err) {
+        console.warn("cricket auction state: tick skipped:", err instanceof Error ? err.message : err);
+      }
     }
     const myTeamId = await sessionTeamIdInLeague(await getRequestSession(request), snap.leagueId);
     return NextResponse.json({ ...snap, myTeamId }, { headers: { "Cache-Control": "no-store" } });

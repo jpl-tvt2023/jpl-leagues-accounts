@@ -4,6 +4,7 @@ import { eq, and, asc, sql } from "drizzle-orm";
 import { isSuperAdmin } from "@/lib/privilege";
 import { getRequestSession, sessionActsAsTeam } from "@/lib/team-actor";
 import { generateId } from "@/lib/id";
+import { refuseUnlessFplAuction } from "@/lib/sports/route-guards";
 
 /** Shared auth + ownership check. Teams may only touch their own wishlist; super-admins any. */
 async function authorize(request: NextRequest, teamId: string | null | undefined) {
@@ -78,6 +79,8 @@ export async function POST(request: NextRequest) {
   if (!leagueId) {
     return NextResponse.json({ error: "leagueId is required" }, { status: 400 });
   }
+  const notAuction = await refuseUnlessFplAuction(leagueId);
+  if (notAuction) return notAuction;
 
   // Normalize to an array regardless of input shape so the rest of the handler is one path.
   const toAdd: Array<{ fplElementId: number; playerName: string }> = Array.isArray(players)
