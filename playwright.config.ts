@@ -37,11 +37,16 @@ export default defineConfig({
   // and `workers: 1`, an unscoped second project would re-run every spec at a phone viewport
   // and roughly double an already-slow suite — so `mobile` runs only the phone specs (drawer,
   // layout), and `chromium` skips them.
+  //
+  // Soak specs (`*-soak.spec.ts`: a dozen pollers hammering one local SQLite file) are opt-in — run
+  // them on their own with SOAK=1. After that much contention the local libsql driver can leave a
+  // connection on a stale read for a minute or two, failing whichever specs happen to run next.
+  // (Turso, which the deployed site uses, goes through a different, HTTP client.)
   projects: [
     {
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
-      testIgnore: /mobile-[\w-]+\.spec\.ts/,
+      testIgnore: [/mobile-[\w-]+\.spec\.ts/, ...(process.env.SOAK ? [] : [/-soak\.spec\.ts$/])],
     },
     {
       name: "mobile",

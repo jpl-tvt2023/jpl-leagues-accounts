@@ -82,6 +82,9 @@ function runDrizzlePush() {
 
 async function seedSuperadmin(url: string) {
   const client = createClient({ url });
+  // WAL, as the app sets for any local file (see src/lib/db/index.ts) — set here too so the very
+  // first test runs in it whatever opens the file first.
+  await client.execute("PRAGMA journal_mode = WAL");
   const db = drizzle(client);
 
   const existing = await db

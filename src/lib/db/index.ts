@@ -30,6 +30,15 @@ const client = createClient(dbConfig);
 // query executes.
 export const fkReady = client.execute("PRAGMA foreign_keys = ON");
 
+// Local SQLite files (dev.db, test.db) run in WAL mode, as Turso does. In the default
+// rollback-journal mode readers block a commit and there is no busy timeout, so under many
+// concurrent auction polls a write could fail half-committed and keep the file locked — every later
+// write then failed "database is locked". The mode is stored in the file, so after the first run
+// this is a no-op. Remote (libsql://) databases are untouched.
+if (dbConfig.url.startsWith("file:")) {
+  void client.execute("PRAGMA journal_mode = WAL").catch(() => undefined);
+}
+
 // Cricket tables live in their own file (schema-cricket.ts) so the cricket module stays separate;
 // the client sees both.
 const schema = { ...fplSchema, ...cricketSchema };

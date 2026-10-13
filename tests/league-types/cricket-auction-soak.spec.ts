@@ -4,7 +4,8 @@
  * auto-nominate from wishlists. Afterwards: turns followed the ring with no skips or double turns,
  * every lot sold exactly once, and every purse adds up.
  *
- * Run with: npm run test:e2e -- tests/league-types/cricket-auction-soak.spec.ts
+ * Opt-in, and best run on its own (see playwright.config.ts):
+ *   SOAK=1 npm run test:e2e -- tests/league-types/cricket-auction-soak.spec.ts
  */
 
 import { test, expect } from "@playwright/test";
