@@ -3,9 +3,10 @@ import { db, teams, auditLogs, gameweekChips, gameweeks } from "@/lib/db";
 import { leagues } from "@/lib/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { generateId } from "@/lib/id";
-import { invalidateLeaguePageCache } from "@/lib/fpl-cache";
+import { invalidateLeaguePageCache } from "@/lib/sports/fpl/cache";
 import { getAuthorizedLeagueId } from "@/lib/league-auth";
-import { isChipWasted } from "@/lib/formats/tvt/chip-waste";
+import { refuseIfNoGameweeks } from "@/lib/sports/route-guards";
+import { isChipWasted } from "@/lib/sports/fpl/formats/tvt/chip-waste";
 
 // Valid chip types (existing + 3 new chips)
 const VALID_CHIPS = [
@@ -73,6 +74,8 @@ export async function POST(request: NextRequest) {
   try {
     const leagueId = await getAuthorizedLeagueId(request);
     if (!leagueId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const noGameweeks = await refuseIfNoGameweeks(leagueId);
+    if (noGameweeks) return noGameweeks;
 
     const body = await request.json();
     const { teamId, chipType, status, reason, used, gameweek } = body;
@@ -316,6 +319,8 @@ export async function GET(request: NextRequest) {
   try {
     const leagueId = await getAuthorizedLeagueId(request);
     if (!leagueId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const noGameweeks = await refuseIfNoGameweeks(leagueId);
+    if (noGameweeks) return noGameweeks;
 
     // Get all teams with chip status for this league
     const allTeams = await db.query.teams.findMany({

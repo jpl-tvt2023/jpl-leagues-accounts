@@ -6,7 +6,7 @@ import { useParams } from "next/navigation";
 import { LeagueNav } from "@/components/LeagueNav";
 import { LoadingScreen } from "@/components/LoadingScreen";
 import { useEnforceFormat, useLeague } from "@/lib/league-context";
-import type { MatchCenterPayload } from "@/lib/match-center/load";
+import type { MatchCenterPayload } from "@/lib/sports/fpl/match-center/load";
 import { PreDeadline } from "../../_components/match-center/PreDeadline";
 import { Scoreboard, matchStatus, type CompareChoice } from "../../_components/match-center/Scoreboard";
 import { TeamTable } from "../../_components/match-center/TeamTable";

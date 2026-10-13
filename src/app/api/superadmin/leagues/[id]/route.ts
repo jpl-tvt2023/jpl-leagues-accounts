@@ -8,10 +8,11 @@ import {
 } from "@/lib/db/schema";
 import { eq, inArray } from "drizzle-orm";
 import { isSuperAdmin } from "@/lib/privilege";
-import { invalidateLeaguePageCache } from "@/lib/fpl-cache";
-import { validateEnabledChipsArray } from "@/lib/formats/tvt/chip-validation";
-import { findEnabledChipsLock } from "@/lib/formats/tvt/enabled-chips-lock";
+import { invalidateLeaguePageCache } from "@/lib/sports/fpl/cache";
+import { validateEnabledChipsArray } from "@/lib/sports/fpl/formats/tvt/chip-validation";
+import { findEnabledChipsLock } from "@/lib/sports/fpl/formats/tvt/enabled-chips-lock";
 import { MembershipError, switchLeagueToGoogleSignIn } from "@/lib/membership";
+import { deleteCricketLeagueData } from "@/lib/sports/cricket/league-data";
 
 /**
  * PATCH /api/superadmin/leagues/[id] { name?, season?, isActive?, enabledChips?, authMode? }
@@ -188,6 +189,9 @@ export async function DELETE(
     await tx.delete(fplClassicEntryGws).where(eq(fplClassicEntryGws.leagueId, id));
     await tx.delete(fplClassicEntrants).where(eq(fplClassicEntrants.leagueId, id));
     await tx.delete(fplClassicConfig).where(eq(fplClassicConfig.leagueId, id));
+    // 7c. Cricket league data (auction, squads, franchises, purses, settings). The tournament it
+    //     played on is shared and stays.
+    await deleteCricketLeagueData(tx, id);
     // 8. Settings (depend on league)
     await tx.delete(settings).where(eq(settings.leagueId, id));
     // 9. League admins (depend on league)

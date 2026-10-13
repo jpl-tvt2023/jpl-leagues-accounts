@@ -26,7 +26,7 @@ import {
   beginIntermission,
   setNominationDeadline,
   handleNominationTimeout,
-} from "@/lib/formats/auction/resolve-bid";
+} from "@/lib/sports/fpl/formats/auction/resolve-bid";
 import { eq, and, isNotNull } from "drizzle-orm";
 
 const LEAGUE_ID = "zz-verify-turn";

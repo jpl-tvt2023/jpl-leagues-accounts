@@ -5,7 +5,7 @@
 // Teams page, Dashboard, Admin views.
 
 import type { ClubTier } from "@/lib/db/schema";
-import { TIER_LABEL } from "@/lib/teams/display-name";
+import { TIER_LABEL } from "@/lib/sports/fpl/teams/display-name";
 
 interface TierChipProps {
   tier: ClubTier;
@@ -28,7 +28,7 @@ const TIER_STYLE: Record<ClubTier, string> = {
   promoted: "bg-emerald-500/20 text-emerald-200 border-emerald-500/40",
 };
 
-// Mirrors CLUB_TIER_BONUS in src/lib/formats/auction/club-auction.ts — the actual scoring values.
+// Mirrors CLUB_TIER_BONUS in src/lib/sports/fpl/formats/auction/club-auction.ts — the actual scoring values.
 const TIER_BONUS: Record<ClubTier, string> = {
   top8:     "+4W/+2D per fixture",
   mid:      "+6W/+3D per fixture",

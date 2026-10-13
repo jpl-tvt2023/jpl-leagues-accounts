@@ -6,9 +6,9 @@ import {
   advanceNominator,
   setNominationDeadline,
   handleNominationTimeout,
-} from "@/lib/formats/auction/resolve-bid";
-import { CLUB_AUCTION_SESSION_TYPE } from "@/lib/formats/auction/club-auction";
-import { buildLotMetaResolver, EMPTY_LOT_META, type LotMeta } from "@/lib/formats/auction/lot-meta";
+} from "@/lib/sports/fpl/formats/auction/resolve-bid";
+import { CLUB_AUCTION_SESSION_TYPE } from "@/lib/sports/fpl/formats/auction/club-auction";
+import { buildLotMetaResolver, EMPTY_LOT_META, type LotMeta } from "@/lib/sports/fpl/formats/auction/lot-meta";
 
 // Force dynamic so Vercel doesn't buffer/cache the SSE response
 export const dynamic = "force-dynamic";

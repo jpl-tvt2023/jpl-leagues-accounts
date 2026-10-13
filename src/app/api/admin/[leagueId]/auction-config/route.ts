@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, gameweeks, leagues, auctionScores } from "@/lib/db";
 import { and, eq, lt } from "drizzle-orm";
 import { getAuthorizedLeagueId } from "@/lib/league-auth";
-import { invalidateLeaguePageCache } from "@/lib/fpl-cache";
-import { parseReleaseCycleGws, validateReleaseCycleGws } from "@/lib/formats/auction/cycle";
+import { invalidateLeaguePageCache } from "@/lib/sports/fpl/cache";
+import { parseReleaseCycleGws, validateReleaseCycleGws } from "@/lib/sports/fpl/formats/auction/cycle";
 
 /**
  * PATCH /api/admin/[leagueId]/auction-config

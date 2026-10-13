@@ -3,8 +3,8 @@ import { db, teams } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { isSuperAdmin } from "@/lib/privilege";
 import { getRequestSession, sessionTeamIdInLeague } from "@/lib/team-actor";
-import { buildTeamLedger, buildAllTeamsSummary } from "@/lib/formats/auction/finance";
-import { fetchClubOwnershipMap } from "@/lib/teams/rename-rows";
+import { buildTeamLedger, buildAllTeamsSummary } from "@/lib/sports/fpl/formats/auction/finance";
+import { fetchClubOwnershipMap } from "@/lib/sports/fpl/teams/rename-rows";
 
 /**
  * GET /api/auction/finance

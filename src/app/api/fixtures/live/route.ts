@@ -9,9 +9,9 @@ import {
   setLiveCachedScores,
   type LiveFixtureScore,
   type LiveGameweekData,
-} from "@/lib/fpl-cache";
-import { computeLiveFixtureScores } from "@/lib/fpl-live/tvt-live-scores";
-import { withFplBudget, FplUnavailableError } from "@/lib/fpl/gateway";
+} from "@/lib/sports/fpl/cache";
+import { computeLiveFixtureScores } from "@/lib/sports/fpl/live/tvt-live-scores";
+import { withFplBudget, FplUnavailableError } from "@/lib/sports/fpl/gateway";
 
 // Vercel Hobby ceiling — a full gameweek sweep needs room.
 export const maxDuration = 60;

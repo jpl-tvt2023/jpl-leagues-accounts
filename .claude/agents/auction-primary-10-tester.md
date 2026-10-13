@@ -21,11 +21,11 @@ You are the Auction Primary specialist. "Primary" tier is the simpler auction va
 npm run test:reset && npm run test:e2e -- tests/league-types/auction-primary-10.spec.ts
 ```
 
-The spec creates the league with `isSimulated: true`, so the entire snake-draft completes in milliseconds via [src/lib/formats/auction/simulate.ts](../../src/lib/formats/auction/simulate.ts).
+The spec creates the league with `isSimulated: true`, so the entire snake-draft completes in milliseconds via [src/lib/sports/fpl/formats/auction/simulate.ts](../../src/lib/sports/fpl/formats/auction/simulate.ts).
 
 ## Owned files
 - Spec: [tests/league-types/auction-primary-10.spec.ts](../../tests/league-types/auction-primary-10.spec.ts)
-- Reference: [src/lib/formats/auction/economy.ts](../../src/lib/formats/auction/economy.ts), [src/lib/formats/auction/simulate.ts](../../src/lib/formats/auction/simulate.ts)
+- Reference: [src/lib/sports/fpl/formats/auction/economy.ts](../../src/lib/sports/fpl/formats/auction/economy.ts), [src/lib/sports/fpl/formats/auction/simulate.ts](../../src/lib/sports/fpl/formats/auction/simulate.ts)
 
 ## Coverage checklist (admin)
 1. League created with `teamSize=10`, `auctionTier="primary"`, `clubAuctionEnabled=false`.

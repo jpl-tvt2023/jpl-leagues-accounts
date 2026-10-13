@@ -3,7 +3,7 @@ import { and, eq, ne } from "drizzle-orm";
 import { db, users } from "@/lib/db";
 import { getRequestPerson, publicProfile } from "@/lib/accounts";
 import { normalizeUsername, usernameProblem } from "@/lib/username";
-import { lookUpFplEntry } from "@/lib/fpl-teams";
+import { lookUpFplEntry } from "@/lib/sports/fpl/user-teams";
 import { jsonNoStore } from "@/lib/http/no-store";
 
 export const dynamic = "force-dynamic";

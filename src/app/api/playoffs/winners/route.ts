@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { leagues, playoffTies, teams, players, gameweeks, fixtures, results } from "@/lib/db/schema";
 import { eq, and, desc, inArray } from "drizzle-orm";
-import { computeLeagueStageStandings } from "@/lib/standings/league-stage";
+import { computeLeagueStageStandings } from "@/lib/sports/fpl/standings/league-stage";
 
 /**
  * Hall of Champions — return the FULL position set for the league's format on

@@ -89,6 +89,9 @@ const PUBLIC_ROUTES = [
   // matcher above — a future POST under this prefix (e.g. an admin sync trigger) stays
   // authenticated on its own path, not under this one.
   "/api/fpl-classic",
+  // Cricket leagues' read endpoints (standings, pool, fixtures). GET only, per the matcher above;
+  // every cricket action (bids, nominations, admin) is a POST and stays authenticated.
+  "/api/cricket",
   // Test-only FPL stub. The route itself 404s unless NODE_ENV=test, so
   // whitelisting it here is inert in production.
   "/api/test-fpl-stub",

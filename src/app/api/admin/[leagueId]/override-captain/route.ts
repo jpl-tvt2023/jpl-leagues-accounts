@@ -3,8 +3,9 @@ import { db, teams, players, gameweeks, gameweekCaptains, auditLogs } from "@/li
 import { leagues } from "@/lib/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { generateId } from "@/lib/id";
-import { invalidateLeaguePageCache, clearLiveCache } from "@/lib/fpl-cache";
+import { invalidateLeaguePageCache, clearLiveCache } from "@/lib/sports/fpl/cache";
 import { getAuthorizedLeagueId } from "@/lib/league-auth";
+import { refuseIfNoGameweeks } from "@/lib/sports/route-guards";
 
 /**
  * POST /api/admin/[leagueId]/override-captain
@@ -14,6 +15,8 @@ export async function POST(request: NextRequest) {
   try {
     const leagueId = await getAuthorizedLeagueId(request);
     if (!leagueId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const noGameweeks = await refuseIfNoGameweeks(leagueId);
+    if (noGameweeks) return noGameweeks;
 
     const body = await request.json();
     const { teamId, playerId, gameweekNumber, reason } = body;
@@ -178,6 +181,8 @@ export async function GET(request: NextRequest) {
   try {
     const leagueId = await getAuthorizedLeagueId(request);
     if (!leagueId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const noGameweeks = await refuseIfNoGameweeks(leagueId);
+    if (noGameweeks) return noGameweeks;
 
     // Get all teams with their players
     const teamsWithPlayers = await db.query.teams.findMany({

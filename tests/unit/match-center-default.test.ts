@@ -1,12 +1,12 @@
 /**
- * Which fixture the Match Center opens on from the nav (src/lib/match-center/default-fixture.ts).
+ * Which fixture the Match Center opens on from the nav (src/lib/sports/fpl/match-center/default-fixture.ts).
  *
  * Run with: npm run test:unit
  */
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { pickDefaultFixture, type DefaultFixtureCandidate } from "../../src/lib/match-center/default-fixture";
+import { pickDefaultFixture, type DefaultFixtureCandidate } from "../../src/lib/sports/fpl/match-center/default-fixture";
 
 // Deadlines a week apart: GW8 26 Sep, GW9 3 Oct, GW10 10 Oct.
 const deadline = (gw: number) => new Date(Date.UTC(2026, 7, 1) + gw * 7 * 86_400_000);

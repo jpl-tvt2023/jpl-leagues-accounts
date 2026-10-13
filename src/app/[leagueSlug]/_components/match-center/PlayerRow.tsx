@@ -1,8 +1,8 @@
 "use client";
 
 import { HelpTip } from "@/components/HelpTip";
-import { POSITION_COLORS, positionLabel } from "@/lib/fpl/positions";
-import type { SheetOwner, SheetRow } from "@/lib/match-center/team-sheet";
+import { POSITION_COLORS, positionLabel } from "@/lib/sports/fpl/positions";
+import type { SheetOwner, SheetRow } from "@/lib/sports/fpl/match-center/team-sheet";
 import { breakdownLabel, formatKickoff, shortManagerName } from "./labels";
 
 /** This row's player as seen from the other team's sheet. */

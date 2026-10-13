@@ -5,7 +5,7 @@
  * Penalty-slot redemption stays available. Squad cap is 15 (no bonus slots).
  *
  * The harness runs the auction in `isSimulated: true` mode so the entire
- * draft completes in milliseconds via src/lib/formats/auction/simulate.ts —
+ * draft completes in milliseconds via src/lib/sports/fpl/formats/auction/simulate.ts —
  * fast enough to assert post-draft state in every test run.
  *
  * Run with: npm run test:e2e -- tests/league-types/auction-primary-10.spec.ts

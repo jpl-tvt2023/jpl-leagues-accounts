@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { sportInfo } from "@/lib/sports";
+import { formatCaps, isCricketFormat } from "@/lib/sports/registry";
 
 export interface PublicLeague {
   id: string;
@@ -84,7 +85,7 @@ export function PublicLeagueCard({ league, compact = false }: { league: PublicLe
               )}
             </div>
             <p className="text-xs sm:text-sm text-gray-400">
-              {league.sport.toUpperCase()} · {league.format.toUpperCase()} · {league.season}
+              {league.sport.toUpperCase()} · {isCricketFormat(league.format) ? formatCaps(league.format).label : league.format.toUpperCase()} · {league.season}
             </p>
           </div>
         </div>
@@ -97,6 +98,12 @@ export function PublicLeagueCard({ league, compact = false }: { league: PublicLe
               <Link href={`/${league.slug}/jpl-cup-standings`} className={SECONDARY_BTN}>JPL Cup Standings</Link>
               <Link href={`/${league.slug}/jpl-cup-fixtures`} className={SECONDARY_BTN}>JPL Cup Fixtures</Link>
               <Link href={`/${league.slug}/playoffs`} className={SECONDARY_BTN}>Playoffs</Link>
+            </>
+          ) : isCricketFormat(league.format) ? (
+            <>
+              <Link href={`/${league.slug}/cricket/standings`} className={primary}>Standings</Link>
+              <Link href={`/${league.slug}/cricket/fixtures`} className={SECONDARY_BTN}>Fixtures</Link>
+              <Link href={`/${league.slug}/cricket/players`} className={SECONDARY_BTN}>Players</Link>
             </>
           ) : league.format === "fpl-classic" ? (
             /* Only the two pages this format actually has. Linking Fixtures or

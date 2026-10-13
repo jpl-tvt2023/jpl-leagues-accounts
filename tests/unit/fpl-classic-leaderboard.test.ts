@@ -10,7 +10,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { rankRows, topN, type Rankable } from "../../src/lib/fpl-classic/leaderboard";
+import { rankRows, topN, type Rankable } from "../../src/lib/sports/fpl/formats/fpl-classic/leaderboard";
 
 function row(entrantId: string, value: number, name = entrantId, tieBreak: number | null = null): Rankable {
   return { entrantId, value, name, tieBreak };

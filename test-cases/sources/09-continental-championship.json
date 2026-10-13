@@ -18,7 +18,7 @@
         "soThat": "the JPL Continental Championship cup stage can begin on GW6 with a fair, snake-seeded distribution",
         "sourceRefs": [
           "src/app/api/admin/[leagueId]/generate-cup-groups/route.ts:25-230",
-          "src/lib/formats/continental-championship/fixtures.ts:141-178"
+          "src/lib/sports/fpl/formats/continental-championship/fixtures.ts:141-178"
         ]
       },
       {
@@ -91,8 +91,8 @@
         "iWant": "the cup-stage processor to evaluate human-vs-Ghost results on every double-header GW (6,8,…,24,27,29,33,35,38)",
         "soThat": "Ghost scores are computed from the other 4 human team scores and cup points are awarded automatically",
         "sourceRefs": [
-          "src/lib/formats/continental-championship/process-gameweek.ts:19-455",
-          "src/lib/formats/continental-championship/scoring.ts:1-47"
+          "src/lib/sports/fpl/formats/continental-championship/process-gameweek.ts:19-455",
+          "src/lib/sports/fpl/formats/continental-championship/scoring.ts:1-47"
         ]
       },
       {
@@ -164,14 +164,14 @@
         "id": "BR-TC-006",
         "rule": "Snake distribution into 4 groups: rank 1→A, 2→B, 3→C, 4→D, 5→D, 6→C, 7→B, 8→A, 9→A, 10→B, 11→C, 12→D, 13→D, 14→C, 15→B, 16→A, 17→A, 18→B, 19→C, 20→D. Each group receives exactly 5 human teams.",
         "sourceRefs": [
-          "src/lib/formats/continental-championship/fixtures.ts:141-178"
+          "src/lib/sports/fpl/formats/continental-championship/fixtures.ts:141-178"
         ]
       },
       {
         "id": "BR-TC-007",
         "rule": "seedCupGroups throws `Cup group seeding requires exactly 20 teams, got <N>` if not exactly 20 ranked teams are passed.",
         "sourceRefs": [
-          "src/lib/formats/continental-championship/fixtures.ts:144-146"
+          "src/lib/sports/fpl/formats/continental-championship/fixtures.ts:144-146"
         ]
       },
       {
@@ -193,14 +193,14 @@
         "id": "BR-TC-010",
         "rule": "Cup-group fixtures are generated via the circle method on 6 teams (5 humans + 1 Ghost) with 2 repetitions = 10 matchdays. Each human plays 8 human matches + 2 Ghost matches.",
         "sourceRefs": [
-          "src/lib/formats/continental-championship/fixtures.ts:73-125"
+          "src/lib/sports/fpl/formats/continental-championship/fixtures.ts:73-125"
         ]
       },
       {
         "id": "BR-TC-011",
         "rule": "Cup matchdays are pinned to GWs [6, 8, 10, 12, 14, 16, 18, 20, 22, 24]; rep 1 = GW6/8/10/12/14, rep 2 = GW16/18/20/22/24 with home/away swapped relative to rep 1.",
         "sourceRefs": [
-          "src/lib/formats/continental-championship/fixtures.ts:81-122"
+          "src/lib/sports/fpl/formats/continental-championship/fixtures.ts:81-122"
         ]
       },
       {
@@ -286,74 +286,74 @@
         "rule": "Cup standings per group return rank, teamId, teamName, wins, draws, losses, goalFor, goalAgainst, goalDifference, cupGroupPoints — Ghost teams are excluded from the display rows.",
         "sourceRefs": [
           "src/app/api/continental-championship/cup-standings/route.ts:86-105",
-          "src/lib/formats/continental-championship/standings.ts:32-101"
+          "src/lib/sports/fpl/formats/continental-championship/standings.ts:32-101"
         ]
       },
       {
         "id": "BR-TC-024",
         "rule": "Cup-stage scoring (Human-vs-Ghost and Human-vs-Human): cupGroupPoints uses W=2 / D=1 / L=0. Draws ARE possible — for H-vs-Ghost when humanScore === ceil(avg of 4 humans) and for H-vs-Human cup-day fixtures (standard H2H tied-score outcome). The UI jpl-cup-standings already renders a D column for both branches.",
         "sourceRefs": [
-          "src/lib/formats/continental-championship/scoring.ts:6-19",
-          "src/lib/formats/continental-championship/standings.ts:11-15",
-          "src/lib/formats/continental-championship/process-gameweek.ts:398-414"
+          "src/lib/sports/fpl/formats/continental-championship/scoring.ts:6-19",
+          "src/lib/sports/fpl/formats/continental-championship/standings.ts:11-15",
+          "src/lib/sports/fpl/formats/continental-championship/process-gameweek.ts:398-414"
         ]
       },
       {
         "id": "BR-TC-025",
         "rule": "Cup standings are sorted by cupGroupPoints DESC, then GD (goalFor - goalAgainst) DESC, then GF DESC. The inline comment above the sort matches the code (previously the comment said GA ASC was the tiebreaker, which was never true).",
         "sourceRefs": [
-          "src/lib/formats/continental-championship/standings.ts:87-99"
+          "src/lib/sports/fpl/formats/continental-championship/standings.ts:87-99"
         ]
       },
       {
         "id": "BR-TC-026",
         "rule": "Ghost score for a cup-group fixture = ceil(mean of the OTHER 4 human team scores in the same cup group for that GW). Throws if not exactly 4 human scores are supplied.",
         "sourceRefs": [
-          "src/lib/formats/continental-championship/scoring.ts:14-24",
-          "src/lib/formats/continental-championship/process-gameweek.ts:614-641"
+          "src/lib/sports/fpl/formats/continental-championship/scoring.ts:14-24",
+          "src/lib/sports/fpl/formats/continental-championship/process-gameweek.ts:614-641"
         ]
       },
       {
         "id": "BR-TC-027",
         "rule": "On a Ghost cup fixture: humanScore > ghostScore → win; humanScore <= ghostScore → loss (ties count as a loss for the human).",
         "sourceRefs": [
-          "src/lib/formats/continental-championship/scoring.ts:33-35"
+          "src/lib/sports/fpl/formats/continental-championship/scoring.ts:33-35"
         ]
       },
       {
         "id": "BR-TC-028",
         "rule": "Pass 2 cup-stage processing only runs on GWs [6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 27, 29, 33, 35, 38] (DOUBLE_HEADER_GWS) — cup-group fixtures outside this set are skipped.",
         "sourceRefs": [
-          "src/lib/formats/continental-championship/process-gameweek.ts:19-19",
-          "src/lib/formats/continental-championship/process-gameweek.ts:360-365"
+          "src/lib/sports/fpl/formats/continental-championship/process-gameweek.ts:19-19",
+          "src/lib/sports/fpl/formats/continental-championship/process-gameweek.ts:360-365"
         ]
       },
       {
         "id": "BR-TC-029",
         "rule": "Cup-group fixtures without an assigned groupId are skipped (continue) during Pass 2 — no result is written.",
         "sourceRefs": [
-          "src/lib/formats/continental-championship/process-gameweek.ts:366-370"
+          "src/lib/sports/fpl/formats/continental-championship/process-gameweek.ts:366-370"
         ]
       },
       {
         "id": "BR-TC-030",
         "rule": "Cup-group results never apply bonus points (homeGotBonus=false, awayGotBonus=false) and never count chip flags (homeUsedDoublePointer=false, awayUsedDoublePointer=false).",
         "sourceRefs": [
-          "src/lib/formats/continental-championship/process-gameweek.ts:417-433"
+          "src/lib/sports/fpl/formats/continental-championship/process-gameweek.ts:417-433"
         ]
       },
       {
         "id": "BR-TC-031",
         "rule": "Cup-group processing updates team.cupGroupPoints ONLY for non-Ghost teams. Ghost team cupGroupPoints remain 0.",
         "sourceRefs": [
-          "src/lib/formats/continental-championship/process-gameweek.ts:435-445"
+          "src/lib/sports/fpl/formats/continental-championship/process-gameweek.ts:435-445"
         ]
       },
       {
         "id": "BR-TC-032",
         "rule": "Force-reprocess of a TC GW reverts cupGroupPoints for human teams (Math.max(0, …)) and deletes the existing result before re-running Pass 2.",
         "sourceRefs": [
-          "src/lib/formats/continental-championship/process-gameweek.ts:91-105"
+          "src/lib/sports/fpl/formats/continental-championship/process-gameweek.ts:91-105"
         ]
       },
       {
@@ -396,7 +396,7 @@
         "rule": "JCL teams = ranks 1-2 from each cup group (8 total). JEL teams = ranks 3-4 from each cup group (8 total). Cup-group rank 5 does not qualify.",
         "sourceRefs": [
           "src/app/api/admin/[leagueId]/generate-brackets/route.ts:159-167",
-          "src/lib/formats/continental-championship/standings.ts:116-145"
+          "src/lib/sports/fpl/formats/continental-championship/standings.ts:116-145"
         ]
       },
       {
@@ -513,10 +513,10 @@
       },
       {
         "id": "BR-TC-055",
-        "rule": "restore-continental-championship reuses restoreFixtures from src/lib/backup/restore-tvt.ts which, when the target league format is continental-championship, performs a TC-aware wipe phase: (a) reassigns every non-ghost team out of any cup group back to the PL group A (or null if no PL group exists), (b) zeros teams.cupGroupPoints on those humans, (c) hard-deletes every team with isGhost=true for the league, (d) hard-deletes every Cup-A/B/C/D group row. playoff_ties and challenger_survival_entries are already wiped by the earlier shared delete step. The resulting league is in a clean pre-cup-groups state that allows admins to re-run /generate-cup-groups + /generate-brackets without orphan FK errors. KNOWN LIMITATION: full round-trip restoration of cup-stage rows (cup-group fixtures, JCL/JEL knockout fixtures, ghost-team identity, cup groups) requires a separate backup-writer enhancement to serialize those rows into the backup payload — that follow-up is tracked in DEF-TC-003 notes and the success message at route.ts:89 still reads tracked follow-up.",
+        "rule": "restore-continental-championship reuses restoreFixtures from src/lib/sports/fpl/backup/restore-tvt.ts which, when the target league format is continental-championship, performs a TC-aware wipe phase: (a) reassigns every non-ghost team out of any cup group back to the PL group A (or null if no PL group exists), (b) zeros teams.cupGroupPoints on those humans, (c) hard-deletes every team with isGhost=true for the league, (d) hard-deletes every Cup-A/B/C/D group row. playoff_ties and challenger_survival_entries are already wiped by the earlier shared delete step. The resulting league is in a clean pre-cup-groups state that allows admins to re-run /generate-cup-groups + /generate-brackets without orphan FK errors. KNOWN LIMITATION: full round-trip restoration of cup-stage rows (cup-group fixtures, JCL/JEL knockout fixtures, ghost-team identity, cup groups) requires a separate backup-writer enhancement to serialize those rows into the backup payload — that follow-up is tracked in DEF-TC-003 notes and the success message at route.ts:89 still reads tracked follow-up.",
         "sourceRefs": [
           "src/app/api/admin/[leagueId]/restore-continental-championship/route.ts:82-89",
-          "src/lib/backup/restore-tvt.ts:128-197"
+          "src/lib/sports/fpl/backup/restore-tvt.ts:128-197"
         ]
       },
       {
@@ -532,7 +532,7 @@
         "rule": "There is no separate JEL conference competition in code today — only JCL (top 2) and JEL (3rd-4th). The /europa route is reserved/aliased to /jpl-cup-standings. // CODE-CONFIRMED: doc/spec gap — confirm with product owner.",
         "sourceRefs": [
           "src/app/[leagueSlug]/jel/page.tsx:1-6",
-          "src/lib/formats/continental-championship/standings.ts:116-145"
+          "src/lib/sports/fpl/formats/continental-championship/standings.ts:116-145"
         ]
       },
       {
@@ -1027,7 +1027,7 @@
       "actualBehaviour": "Admin must manually re-run /generate-cup-groups + /generate-brackets after every restore, which loses any partial cup standings and breaks audit history.",
       "sourceRefs": [
         "src/app/api/admin/[leagueId]/restore-continental-championship/route.ts:82-89",
-        "src/lib/backup/restore-tvt.ts"
+        "src/lib/sports/fpl/backup/restore-tvt.ts"
       ],
       "linkedBusinessRules": [
         "BR-TC-055"
@@ -1039,8 +1039,8 @@
       "pinningTestCases": [
         "TC-TC-045"
       ],
-      "notes": "Extend restore payload schema to include cup-group fixtures (competitionType=cup-group), Ghost teams (isGhost=true), and jcl/jel knockout fixtures + ties. Then teach restoreFixtures to insert all three classes. Coordinate with module 14 (Backups).\n[DEV] Self-verified: tsc passes for touched files (pre-existing tests/league-types/* errors unrelated, identical to DEF-PLAYOFF-003 baseline). Manual diff review clean. Awaiting QA re-run of pinningTestCases.\n[DEV] Applied the analog of DEF-PLAYOFF-003: extended the shared restore wipe phase (src/lib/backup/restore-tvt.ts:130-179) so that when league.format === 'continental-championship', the wipe also (a) re-assigns humans currently sitting in cup groups back to the PL group, (b) zeros cupGroupPoints on humans, (c) deletes Ghost teams (isGhost=true), (d) deletes the Cup-A/B/C/D group rows. cup-group + jcl/jel-knockout fixtures and playoffTies are already wiped by the existing fixture/playoffTies deletes (gameweekId / leagueId scoped). Result: post-restore the league is in a pre-cup-groups state matching the restored PL fixtures, so admin can re-run /generate-cup-groups and /generate-brackets without hitting BR-TC-004 'Cup groups already exist' or orphan FK errors.\n[DEV-QUESTION] Full round-trip per the original expectedBehaviour (re-inserting cup-group fixtures, Ghost teams, knockout fixtures, and playoffTies from the backup) requires a backup payload schema bump (new sheets: cupGroups, ghostTeams, cupFixtures with competitionType+groupId, knockoutFixtures with leg/tieId/roundName, playoffTies). That is a module 14 (Backups) change crossing payload version. Raise a separate defect / BR (BR-BACKUP-???) before extending the writer? This fix matches the precedent set by DEF-PLAYOFF-003 (wipe stale TC state so the league cleanly accepts re-seeding); it does not yet meet the 'no re-seed needed' ideal in expectedBehaviour.\n[QA] Re-run TC-TC-045 against the fix. Expected behaviour now: after restore-continental-championship on a TC league with seeded cup groups + Ghost teams + (optionally) generated brackets, the response remains `{ success: true, fixturesInserted: N, ... }` AND the post-restore DB state has: 0 rows in groups where groupType='cup' for the league, 0 rows in teams where isGhost=true for the league, all surviving (human) teams' groupId reassigned to the PL group (or null if none), all surviving teams' cupGroupPoints=0, 0 rows in playoff_ties for the leagueId, 0 cup-group/knockout fixtures, only restored PL fixtures present. TC-TC-045's expectedResult text was written to pin the defective behaviour and should be updated to assert the corrected post-restore state.\n[BA] BR-TC-055 + AC-TC-045 currently describe the defective behaviour ('Cup fixtures + jpl-cup knockouts are not in the backup payload yet — tracked follow-up') and the success message string in restore-continental-championship/route.ts:89. The functional gap (no round-trip of cup fixtures/knockouts) is still real — this fix only stops the league from getting wedged. Consider: (a) update BR-TC-055 to reflect the new wipe semantics and the residual gap, (b) remove the // CODE-CONFIRMED annotation if you decide the wedge-prevention is the v1 fix, (c) raise a new BR / defect coordinated with module 14 for the full round-trip if product wants it. Note also the success-message string at route.ts:89 still reads 'tracked follow-up' — leave as-is or rewrite to 'Cup-stage state cleared — re-run Seed Cup Groups + Generate Brackets after restore.'\n[QA-VERIFIED]: 2026-05-25 — TC-TC-045 inverted; cup-stage wipe confirmed. Backup-writer round-trip gap noted by senior-dev still tracked. [BA-UPDATED]: 2026-05-26 — BR-TC-055 + AC-TC-045 updated. Backup-writer round-trip follow-up remains tracked.",
-      "resolution": "Extended restoreFixtures in src/lib/backup/restore-tvt.ts to clear TC-specific cup-stage state during the existing wipe phase when league.format === 'continental-championship' (lines 130-179): re-assigns humans out of cup groups back to the PL group, zeros their cupGroupPoints, deletes Ghost teams, and deletes the Cup-A/B/C/D group rows. cup-group + knockout fixtures and playoffTies were already covered by the prior gameweekId/leagueId-scoped deletes. Added `groups` to the @/lib/db import (line 11) and `format: leagues.format` to the league SELECT (line 130). Result: post-restore a TC league is in a pre-cup-groups state matching the restored PL fixtures, unblocking /generate-cup-groups + /generate-brackets. Full payload round-trip (re-inserting cup-stage rows from the backup) remains a backup-writer follow-up gated on the [DEV-QUESTION] in notes.",
+      "notes": "Extend restore payload schema to include cup-group fixtures (competitionType=cup-group), Ghost teams (isGhost=true), and jcl/jel knockout fixtures + ties. Then teach restoreFixtures to insert all three classes. Coordinate with module 14 (Backups).\n[DEV] Self-verified: tsc passes for touched files (pre-existing tests/league-types/* errors unrelated, identical to DEF-PLAYOFF-003 baseline). Manual diff review clean. Awaiting QA re-run of pinningTestCases.\n[DEV] Applied the analog of DEF-PLAYOFF-003: extended the shared restore wipe phase (src/lib/sports/fpl/backup/restore-tvt.ts:130-179) so that when league.format === 'continental-championship', the wipe also (a) re-assigns humans currently sitting in cup groups back to the PL group, (b) zeros cupGroupPoints on humans, (c) deletes Ghost teams (isGhost=true), (d) deletes the Cup-A/B/C/D group rows. cup-group + jcl/jel-knockout fixtures and playoffTies are already wiped by the existing fixture/playoffTies deletes (gameweekId / leagueId scoped). Result: post-restore the league is in a pre-cup-groups state matching the restored PL fixtures, so admin can re-run /generate-cup-groups and /generate-brackets without hitting BR-TC-004 'Cup groups already exist' or orphan FK errors.\n[DEV-QUESTION] Full round-trip per the original expectedBehaviour (re-inserting cup-group fixtures, Ghost teams, knockout fixtures, and playoffTies from the backup) requires a backup payload schema bump (new sheets: cupGroups, ghostTeams, cupFixtures with competitionType+groupId, knockoutFixtures with leg/tieId/roundName, playoffTies). That is a module 14 (Backups) change crossing payload version. Raise a separate defect / BR (BR-BACKUP-???) before extending the writer? This fix matches the precedent set by DEF-PLAYOFF-003 (wipe stale TC state so the league cleanly accepts re-seeding); it does not yet meet the 'no re-seed needed' ideal in expectedBehaviour.\n[QA] Re-run TC-TC-045 against the fix. Expected behaviour now: after restore-continental-championship on a TC league with seeded cup groups + Ghost teams + (optionally) generated brackets, the response remains `{ success: true, fixturesInserted: N, ... }` AND the post-restore DB state has: 0 rows in groups where groupType='cup' for the league, 0 rows in teams where isGhost=true for the league, all surviving (human) teams' groupId reassigned to the PL group (or null if none), all surviving teams' cupGroupPoints=0, 0 rows in playoff_ties for the leagueId, 0 cup-group/knockout fixtures, only restored PL fixtures present. TC-TC-045's expectedResult text was written to pin the defective behaviour and should be updated to assert the corrected post-restore state.\n[BA] BR-TC-055 + AC-TC-045 currently describe the defective behaviour ('Cup fixtures + jpl-cup knockouts are not in the backup payload yet — tracked follow-up') and the success message string in restore-continental-championship/route.ts:89. The functional gap (no round-trip of cup fixtures/knockouts) is still real — this fix only stops the league from getting wedged. Consider: (a) update BR-TC-055 to reflect the new wipe semantics and the residual gap, (b) remove the // CODE-CONFIRMED annotation if you decide the wedge-prevention is the v1 fix, (c) raise a new BR / defect coordinated with module 14 for the full round-trip if product wants it. Note also the success-message string at route.ts:89 still reads 'tracked follow-up' — leave as-is or rewrite to 'Cup-stage state cleared — re-run Seed Cup Groups + Generate Brackets after restore.'\n[QA-VERIFIED]: 2026-05-25 — TC-TC-045 inverted; cup-stage wipe confirmed. Backup-writer round-trip gap noted by senior-dev still tracked. [BA-UPDATED]: 2026-05-26 — BR-TC-055 + AC-TC-045 updated. Backup-writer round-trip follow-up remains tracked.",
+      "resolution": "Extended restoreFixtures in src/lib/sports/fpl/backup/restore-tvt.ts to clear TC-specific cup-stage state during the existing wipe phase when league.format === 'continental-championship' (lines 130-179): re-assigns humans out of cup groups back to the PL group, zeros their cupGroupPoints, deletes Ghost teams, and deletes the Cup-A/B/C/D group rows. cup-group + knockout fixtures and playoffTies were already covered by the prior gameweekId/leagueId-scoped deletes. Added `groups` to the @/lib/db import (line 11) and `format: leagues.format` to the league SELECT (line 130). Result: post-restore a TC league is in a pre-cup-groups state matching the restored PL fixtures, unblocking /generate-cup-groups + /generate-brackets. Full payload round-trip (re-inserting cup-stage rows from the backup) remains a backup-writer follow-up gated on the [DEV-QUESTION] in notes.",
       "resolutionDate": "2026-05-25"
     },
     {
@@ -1054,9 +1054,9 @@
       "expectedBehaviour": "Either (a) update scoring.ts comment to say `no draws possible vs Ghost` and document that human-vs-human draws are allowed, or (b) decide cup-group is always W=2/L=0 even between humans and tighten the H-vs-H code to drop ties.",
       "actualBehaviour": "Current state silently mixes W/D/L outcomes in the same cup group (Ghost matches never draw, human matches can) — confusing for QA, admins, and consumers reading the docstring.",
       "sourceRefs": [
-        "src/lib/formats/continental-championship/scoring.ts:1-47",
-        "src/lib/formats/continental-championship/standings.ts:15",
-        "src/lib/formats/continental-championship/process-gameweek.ts:398-414"
+        "src/lib/sports/fpl/formats/continental-championship/scoring.ts:1-47",
+        "src/lib/sports/fpl/formats/continental-championship/standings.ts:15",
+        "src/lib/sports/fpl/formats/continental-championship/process-gameweek.ts:398-414"
       ],
       "linkedBusinessRules": [
         "BR-TC-024"
@@ -1070,7 +1070,7 @@
         "TC-TC-057"
       ],
       "notes": "Prefer option (a) — keeping H-vs-H draws preserves the cup-stage standings sort tiebreaker and matches the UI which already shows a `D` column (jpl-cup-standings:212). [DEV] Self-verified: tsc clean. [QA-VERIFIED] Pinning TC(s) inverted. [BA-UPDATED] BR/AC text refreshed.",
-      "resolution": "Updated docstring in src/lib/formats/continental-championship/scoring.ts:6-19 to accurately describe Human-vs-Ghost outcomes (Win/Loss/Draw — equality is rare but possible since both scores are integers) AND that Human-vs-Human cup fixtures follow standard H2H with draws (1+1) possible. Updated the cupGroupPoints comment in src/lib/formats/continental-championship/standings.ts:11-15 to acknowledge that draws are possible (not 'no draws possible' as previously stated).",
+      "resolution": "Updated docstring in src/lib/sports/fpl/formats/continental-championship/scoring.ts:6-19 to accurately describe Human-vs-Ghost outcomes (Win/Loss/Draw — equality is rare but possible since both scores are integers) AND that Human-vs-Human cup fixtures follow standard H2H with draws (1+1) possible. Updated the cupGroupPoints comment in src/lib/sports/fpl/formats/continental-championship/standings.ts:11-15 to acknowledge that draws are possible (not 'no draws possible' as previously stated).",
       "resolutionDate": "2026-05-26"
     },
     {
@@ -1080,11 +1080,11 @@
       "status": "Fixed",
       "discoveredBy": "business-analyst",
       "discoveredDate": "2026-05-23",
-      "description": "src/lib/formats/continental-championship/standings.ts exports extractBracketSeeds (lines 116-145) returning `{ jcl, jel }` from the 4 cup-group standings. The only caller that needs it — generate-brackets/route.ts — instead reimplements the same logic inline (lines 88-167).",
+      "description": "src/lib/sports/fpl/formats/continental-championship/standings.ts exports extractBracketSeeds (lines 116-145) returning `{ jcl, jel }` from the 4 cup-group standings. The only caller that needs it — generate-brackets/route.ts — instead reimplements the same logic inline (lines 88-167).",
       "expectedBehaviour": "Either the route should import and call extractBracketSeeds, OR the helper should be removed.",
       "actualBehaviour": "Two divergent implementations of the same rule (`top-2 → JCL, 3rd-4th → JEL`). A change in one is not picked up by the other.",
       "sourceRefs": [
-        "src/lib/formats/continental-championship/standings.ts:116-145",
+        "src/lib/sports/fpl/formats/continental-championship/standings.ts:116-145",
         "src/app/api/admin/[leagueId]/generate-brackets/route.ts:128-167"
       ],
       "linkedBusinessRules": [
@@ -1096,7 +1096,7 @@
         "TC-TC-058"
       ],
       "notes": "Refactor generate-brackets to compute cup standings via computeCupGroupStandings and pull seeds via extractBracketSeeds. Lower priority — no functional bug today, only a maintainability hazard. [DEV] Self-verified: cleanup-only fix; no behaviour change. [QA-VERIFIED] Inverted pinning TC(s). [BA-UPDATED] BR/AC text refreshed.",
-      "resolution": "Removed the unused extractBracketSeeds helper from src/lib/formats/continental-championship/standings.ts (along with its JSDoc) and the dangling import from src/app/api/admin/[leagueId]/generate-brackets/route.ts. generate-brackets does its own seed extraction inline; the helper had no other callers.",
+      "resolution": "Removed the unused extractBracketSeeds helper from src/lib/sports/fpl/formats/continental-championship/standings.ts (along with its JSDoc) and the dangling import from src/app/api/admin/[leagueId]/generate-brackets/route.ts. generate-brackets does its own seed extraction inline; the helper had no other callers.",
       "resolutionDate": "2026-05-26"
     },
     {
@@ -1110,7 +1110,7 @@
       "expectedBehaviour": "Update the comment to match the implementation (or update the implementation to match the comment if GA-ASC was the intended product spec).",
       "actualBehaviour": "Confusing for future maintainers and for QA writing tiebreak edge-case tests.",
       "sourceRefs": [
-        "src/lib/formats/continental-championship/standings.ts:90-99"
+        "src/lib/sports/fpl/formats/continental-championship/standings.ts:90-99"
       ],
       "linkedBusinessRules": [
         "BR-TC-025"
@@ -1121,7 +1121,7 @@
         "TC-TC-059"
       ],
       "notes": "One-line comment fix. [DEV] Self-verified: cleanup-only fix; no behaviour change. [QA-VERIFIED] Inverted pinning TC(s). [BA-UPDATED] BR/AC text refreshed.",
-      "resolution": "Updated the sort comment in src/lib/formats/continental-championship/standings.ts:90 to match the actual code (sort by cupGroupPoints DESC, then GD DESC, then GF DESC). The previous comment claimed GA ASC was a tiebreaker, which the code never did. No behaviour change.",
+      "resolution": "Updated the sort comment in src/lib/sports/fpl/formats/continental-championship/standings.ts:90 to match the actual code (sort by cupGroupPoints DESC, then GD DESC, then GF DESC). The previous comment claimed GA ASC was a tiebreaker, which the code never did. No behaviour change.",
       "resolutionDate": "2026-05-26"
     },
     {
@@ -2073,7 +2073,7 @@
       "author": "qa-tester",
       "createdDate": "2026-05-23",
       "status": "Not Executed",
-      "notes": "Pins DEF-TC-003 current behaviour; BR-TC-055\n[QA-VERIFY] Updated post-DEF-TC-003 fix on 2026-05-25. Retagged Regression -> Positive. Asserts new wipe semantics in src/lib/backup/restore-tvt.ts:128-197 (cup groups deleted, Ghost teams deleted, humans reassigned to PL group with cupGroupPoints=0, playoffTies + challenger_survival_entries wiped via earlier delete). Backup-writer round-trip (re-insertion of cup-stage rows from payload) is a separate follow-up gap flagged by senior-dev — not asserted by this test."
+      "notes": "Pins DEF-TC-003 current behaviour; BR-TC-055\n[QA-VERIFY] Updated post-DEF-TC-003 fix on 2026-05-25. Retagged Regression -> Positive. Asserts new wipe semantics in src/lib/sports/fpl/backup/restore-tvt.ts:128-197 (cup groups deleted, Ghost teams deleted, humans reassigned to PL group with cupGroupPoints=0, playoffTies + challenger_survival_entries wiped via earlier delete). Backup-writer round-trip (re-insertion of cup-stage rows from payload) is a separate follow-up gap flagged by senior-dev — not asserted by this test."
     },
     {
       "id": "TC-TC-046",

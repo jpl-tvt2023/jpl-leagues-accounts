@@ -12,7 +12,7 @@ import { fplClassicConfig, fplClassicAwards } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { isSuperAdmin } from "@/lib/privilege";
 import { FPL_CLASSIC_FORMAT } from "@/lib/format-palette";
-import { getActiveFplGameweek } from "@/lib/fpl/event-status";
+import { getActiveFplGameweek } from "@/lib/sports/fpl/event-status";
 
 export async function GET(request: NextRequest) {
   if (!(await isSuperAdmin(request))) {

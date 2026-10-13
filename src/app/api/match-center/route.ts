@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { jsonNoStore } from "@/lib/http/no-store";
-import { loadMatchCenter, MatchCenterError } from "@/lib/match-center/load";
+import { loadMatchCenter, MatchCenterError } from "@/lib/sports/fpl/match-center/load";
 
 // A cold Match Center is a handful of FPL reads behind the gateway's pacing.
 export const maxDuration = 30;

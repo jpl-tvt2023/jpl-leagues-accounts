@@ -18,7 +18,7 @@ import {
   fplChipLabel,
   seasonChipSlots,
   type FplSeasonChip,
-} from "../../src/lib/fpl-league/chips";
+} from "../../src/lib/sports/fpl/fpl-league/chips";
 
 const chip = (name: string, event: number) => ({ name, time: "", event });
 

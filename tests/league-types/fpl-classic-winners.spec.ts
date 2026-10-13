@@ -7,7 +7,7 @@
  * worse than showing nothing.
  *
  * Also asserts the standing rule that no prize, amount or currency field appears anywhere in the
- * payload — see the warning at the top of lib/fpl-classic/awards.ts.
+ * payload — see the warning at the top of lib/sports/fpl/formats/fpl-classic/awards.ts.
  *
  * Run with: npm run test:e2e -- tests/league-types/fpl-classic-winners.spec.ts
  */

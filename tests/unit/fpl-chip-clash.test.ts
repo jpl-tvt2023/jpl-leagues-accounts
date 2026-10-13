@@ -17,9 +17,9 @@ import {
   fplChipsPlayedInGw,
   tvtChipWasteReason,
   tvtChipWasteReasonFor,
-} from "../../src/lib/formats/tvt/fpl-chip-clash";
-import { isChipWasted, isChipDisclosable } from "../../src/lib/formats/tvt/chip-waste";
-import type { FplChipStatus } from "../../src/lib/fpl-league/chips";
+} from "../../src/lib/sports/fpl/formats/tvt/fpl-chip-clash";
+import { isChipWasted, isChipDisclosable } from "../../src/lib/sports/fpl/formats/tvt/chip-waste";
+import type { FplChipStatus } from "../../src/lib/sports/fpl/fpl-league/chips";
 
 /** A manager who played `code` in `gw`, and nothing else. */
 function played(code: string, gw: number): FplChipStatus {

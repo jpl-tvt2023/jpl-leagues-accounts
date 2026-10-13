@@ -101,7 +101,7 @@ export async function createAuctionLeague(
     clubAuctionEnabled?: boolean;
     /**
      * isSimulated=true means starting the auction session auto-allocates players
-     * via the snake-draft simulator (see src/lib/formats/auction/simulate.ts).
+     * via the snake-draft simulator (see src/lib/sports/fpl/formats/auction/simulate.ts).
      * Cuts auction setup from minutes of clicking to milliseconds. Default true.
      */
     isSimulated?: boolean;

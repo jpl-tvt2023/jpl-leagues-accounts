@@ -3,12 +3,14 @@
 import { AppNav } from "./AppNav";
 import { getFormatPalette } from "@/lib/format-palette";
 import { useOptionalLeague } from "@/lib/league-context";
+import { isCricketFormat, type LeagueFormat } from "@/lib/sports/registry";
 
 export interface LeagueNavProps {
   leagueSlug: string;
   leagueName: string;
   currentPage: string;
-  format: "auction" | "continental-championship" | "tvt" | "fpl-classic";
+  /** Ignored inside a cricket league: its pages always get the cricket nav (see below). */
+  format: LeagueFormat;
   /** Optional: when provided, distinguishes TVT-8 / TVT-16 / TVT-32 in the format chip. */
   teamSize?: number | null;
   /** Auction-only: "primary" hides the Marketplace tab (trades disabled). Defaults to "complete". */
@@ -34,7 +36,7 @@ export function LeagueNav({
   leagueSlug,
   leagueName,
   currentPage,
-  format,
+  format: formatProp,
   teamSize = null,
   auctionTier = null,
   isLoggedIn,
@@ -43,14 +45,19 @@ export function LeagueNav({
   title,
   hideBottomNav,
 }: LeagueNavProps) {
+  // Shared pages (feedback, team settings) pick a format with an FPL-only ternary; inside a cricket
+  // league the league's own format wins, so they show the cricket nav rather than TVT's.
+  const leagueCtx = useOptionalLeague();
+  const format: LeagueFormat =
+    leagueCtx && isCricketFormat(leagueCtx.league.format) ? (leagueCtx.league.format as LeagueFormat) : formatProp;
   const palette = getFormatPalette(format, teamSize);
 
   // A person has a dashboard and team page per league, so inside a league point at that league's
   // own — whatever the page passed as a fallback.
-  const viewer = useOptionalLeague()?.viewer;
+  const viewer = leagueCtx?.viewer;
   const isPerson = !!viewer?.authenticated;
   const hasTeamHere = isPerson && !!viewer?.teamId;
-  const effectiveDashboardHref = hasTeamHere ? `/${leagueSlug}/dashboard` : dashboardHref;
+  const effectiveDashboardHref = hasTeamHere ? (isCricketFormat(format) ? `/${leagueSlug}/cricket/dashboard` : `/${leagueSlug}/dashboard`) : dashboardHref;
   const settingsHref = isPerson ? (hasTeamHere ? `/${leagueSlug}/team` : "/account") : undefined;
 
   return (

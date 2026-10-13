@@ -6,7 +6,7 @@ Client review of the closed-defect log surfaced new feedback on 6 entries. Net e
 
 | Defect | Module | Scope of revision |
 |---|---|---|
-| DEF-CHIP-007 | Captains & Chips | Cap formula now `ceil(nonPlayoffGws / 2)` via new helper `src/lib/captains.ts`. TVT default → 15 (unchanged), TVT-8 → 18 (was wrongly 15), TC → 19 (unchanged). 3 callsites swapped; dashboard pre-existing drift also corrected. |
+| DEF-CHIP-007 | Captains & Chips | Cap formula now `ceil(nonPlayoffGws / 2)` via new helper `src/lib/sports/fpl/captains.ts`. TVT default → 15 (unchanged), TVT-8 → 18 (was wrongly 15), TC → 19 (unchanged). 3 callsites swapped; dashboard pre-existing drift also corrected. |
 | DEF-CHIP-009 | Captains & Chips | Captain CSV import + auto-fallback now bypass the cap (with audit reason). New `gameweek_captains.bypassReason` column via migration `0015_add_captain_bypass_reason.sql`. `captaincyChipsUsed` now increments past cap to reflect reality. |
 | DEF-TRADE-002 | Auction Marketplace | Tier gate removed from `/api/auction/release` (POST+DELETE). Release now works in any tier; the live-auction guard is the sole restriction. |
 | DEF-TRADE-003 | Auction Marketplace | No code change. Client confirmed; guard is now tier-agnostic after DEF-TRADE-002 revision. |
@@ -16,7 +16,7 @@ Client review of the closed-defect log surfaced new feedback on 6 entries. Net e
 ### New artifacts from this revision
 
 - **Migrations:** `drizzle/0014_drop_veto_columns.sql`, `drizzle/0015_add_captain_bypass_reason.sql`.
-- **New code:** `src/lib/captains.ts` (shared `computeCaptainCap` / `computeCaptainCheckLimit` helpers).
+- **New code:** `src/lib/sports/fpl/captains.ts` (shared `computeCaptainCap` / `computeCaptainCheckLimit` helpers).
 - **New test cases:** TC-CHIP-081..084 (cap-formula + bypass scenarios), TC-TRADE-073 (Primary blocked during live auction), TC-AUC-120..123 (anti-snipe positive + boundary).
 - **TC inversions:** TC-CHIP-077, TC-CHIP-064 (CSV bypass), TC-TRADE-053 (Primary release success), TC-TRADE-025/068/070 (strengthened to assert schema absence via PRAGMA), TC-TRADE-054/072 (re-affirmed; guard is now sole restriction).
 - **Stale AC fix:** AC-CHIP-046 rewritten — previously described the old reject behaviour; now describes bypass-with-reason.

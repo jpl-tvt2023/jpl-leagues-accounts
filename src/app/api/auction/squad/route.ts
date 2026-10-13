@@ -2,16 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, teams, leagues, auctionOwnership, auctionScores, auctionClubOwnership, auctionSessions, teamPenalties } from "@/lib/db";
 import { eq, and, isNull, desc, or } from "drizzle-orm";
 import { verifySession, SESSION_COOKIE_NAME } from "@/lib/auth";
-import { calculateFMV, calculatePurse } from "@/lib/formats/auction/economy";
-import { fetchElementInfo, fetchBootstrapData } from "@/lib/fpl";
+import { calculateFMV, calculatePurse } from "@/lib/sports/fpl/formats/auction/economy";
+import { fetchElementInfo, fetchBootstrapData } from "@/lib/sports/fpl/api";
 import type { ClubTier } from "@/lib/db/schema";
 import {
   MAX_SQUAD_SIZE,
   MAX_BONUS_SLOTS,
   effectiveMaxSquadSize,
   nextBonusSlotCost,
-} from "@/lib/formats/auction/squad-rules";
-import { getPlTeamFullName } from "@/lib/data/pl-team-full-names";
+} from "@/lib/sports/fpl/formats/auction/squad-rules";
+import { getPlTeamFullName } from "@/lib/sports/fpl/data/pl-team-full-names";
 
 // Mirrors the constants in redeem-slot/route.ts. Surfaces the cheapest redeem cost so the slot-
 // status UI can render the inline Redeem button without a second API call.

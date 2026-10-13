@@ -3,14 +3,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Sheet } from "@/components/ui/Sheet";
 import { HelpTip } from "@/components/HelpTip";
-import type { TvtChipGain } from "@/lib/formats/tvt/chip-gain";
+import type { TvtChipGain } from "@/lib/sports/fpl/formats/tvt/chip-gain";
 import {
   aggregateGwStats,
   type GwStatsPayload,
   type StatEntry,
   type StatManagerRef,
-} from "@/lib/fixtures-stats/aggregate";
-import { positionLabel } from "@/lib/fpl/positions";
+} from "@/lib/sports/fpl/fixtures-stats/aggregate";
+import { positionLabel } from "@/lib/sports/fpl/positions";
 import type { Fixture, LiveFixtureScore } from "../shared";
 import { bonusPointsFor } from "../shared";
 import type { ChipDisplay } from "../ChallengeTip";

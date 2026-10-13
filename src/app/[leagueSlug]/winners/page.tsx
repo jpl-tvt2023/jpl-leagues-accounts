@@ -1,6 +1,6 @@
 "use client";
 
-import { fplEntryUrl } from "@/lib/fpl-links";
+import { fplEntryUrl } from "@/lib/sports/fpl/links";
 
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";

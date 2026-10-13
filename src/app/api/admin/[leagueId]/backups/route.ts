@@ -4,7 +4,7 @@ import { backups } from "@/lib/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { getAuthorizedLeagueId } from "@/lib/league-auth";
 import { generateId } from "@/lib/id";
-import { generateBackupRows } from "@/lib/backup/generate";
+import { generateBackupRows } from "@/lib/sports/fpl/backup/generate";
 
 /**
  * GET /api/admin/[leagueId]/backups

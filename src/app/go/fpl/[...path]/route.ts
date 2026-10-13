@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { FPL_ALLOWED_PATH } from "@/lib/fpl-links";
+import { FPL_ALLOWED_PATH } from "@/lib/sports/fpl/links";
 
 /**
  * GET /go/fpl/entry/{id}/event/{n}  →  302 to the official FPL site.

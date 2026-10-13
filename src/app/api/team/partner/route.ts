@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { leagueFromRequest, resolveTeamActor, teamActorDenied } from "@/lib/team-actor";
 import { MembershipError, readPlayerDetails, savePartnerByOwner } from "@/lib/membership";
-import { invalidateLeaguePageCache } from "@/lib/fpl-cache";
+import { invalidateLeaguePageCache } from "@/lib/sports/fpl/cache";
 
 export const dynamic = "force-dynamic";
 

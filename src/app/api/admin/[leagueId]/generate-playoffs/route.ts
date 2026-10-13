@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { fixtures, playoffTies, gameweeks, results, groups, teams, leagues, challengerSurvivalEntries } from "@/lib/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
-import { invalidateLeaguePageCache } from "@/lib/fpl-cache";
+import { invalidateLeaguePageCache } from "@/lib/sports/fpl/cache";
 import { getAuthorizedLeagueId } from "@/lib/league-auth";
+import { refuseIfNoGameweeks } from "@/lib/sports/route-guards";
 import { generateId } from "@/lib/id";
 import {
   RO16_SEEDING,
@@ -17,7 +18,7 @@ import {
   ensurePlayoffGws,
   getInitialRoundNames,
   type GSMatch16,
-} from "@/lib/formats/tvt/playoffs";
+} from "@/lib/sports/fpl/formats/tvt/playoffs";
 
 /**
  * GET /api/admin/[leagueId]/generate-playoffs
@@ -26,6 +27,8 @@ import {
 export async function GET(request: NextRequest) {
   const leagueId = await getAuthorizedLeagueId(request);
   if (!leagueId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const noGameweeks = await refuseIfNoGameweeks(leagueId);
+  if (noGameweeks) return noGameweeks;
 
   const existingTies = await db.select().from(playoffTies)
     .where(eq(playoffTies.leagueId, leagueId))
@@ -43,6 +46,8 @@ export async function GET(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const leagueId = await getAuthorizedLeagueId(request);
   if (!leagueId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const noGameweeks = await refuseIfNoGameweeks(leagueId);
+  if (noGameweeks) return noGameweeks;
 
   const allTies = await db.select({ tieId: playoffTies.tieId })
     .from(playoffTies)
@@ -95,6 +100,8 @@ export async function DELETE(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const leagueId = await getAuthorizedLeagueId(request);
   if (!leagueId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const noGameweeks = await refuseIfNoGameweeks(leagueId);
+  if (noGameweeks) return noGameweeks;
 
   // Fetch league config
   const leagueRow = await db.select({

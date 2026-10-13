@@ -13,7 +13,7 @@ import {
   PL_FULL_NAMES,
   PL_FULL_NAMES_BY_SHORT,
   getPlTeamFullName,
-} from "../src/lib/data/pl-team-full-names";
+} from "../src/lib/sports/fpl/data/pl-team-full-names";
 
 interface BootstrapTeam {
   id: number;

@@ -3,8 +3,8 @@ import { and, eq } from "drizzle-orm";
 import { db, teamMembers, users } from "@/lib/db";
 import { leagueFromRequest, resolveTeamActor, teamActorDenied } from "@/lib/team-actor";
 import { MembershipError, readPlayerDetails, saveOwnPlayer } from "@/lib/membership";
-import { hasFplTeam } from "@/lib/fpl-teams";
-import { invalidateLeaguePageCache } from "@/lib/fpl-cache";
+import { hasFplTeam } from "@/lib/sports/fpl/user-teams";
+import { invalidateLeaguePageCache } from "@/lib/sports/fpl/cache";
 
 export const dynamic = "force-dynamic";
 

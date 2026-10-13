@@ -4,11 +4,11 @@ import { db, teams, teamPenalties, auctionSessions, auctionBids, leagues } from 
 import { eq, and, isNull, asc, desc, or, sql } from "drizzle-orm";
 import { verifySession, SESSION_COOKIE_NAME } from "@/lib/auth";
 import { isSuperAdmin } from "@/lib/privilege";
-import { calculatePurse } from "@/lib/formats/auction/economy";
+import { calculatePurse } from "@/lib/sports/fpl/formats/auction/economy";
 import { createNotification } from "@/lib/notifications";
-import { setNominationDeadline } from "@/lib/formats/auction/resolve-bid";
-import { CLUB_AUCTION_SESSION_TYPE } from "@/lib/formats/auction/club-auction";
-import { invalidateLeaguePageCache } from "@/lib/fpl-cache";
+import { setNominationDeadline } from "@/lib/sports/fpl/formats/auction/resolve-bid";
+import { CLUB_AUCTION_SESSION_TYPE } from "@/lib/sports/fpl/formats/auction/club-auction";
+import { invalidateLeaguePageCache } from "@/lib/sports/fpl/cache";
 
 // Pricing rules: £2.5M while still inside the cycle that issued the penalty;
 // £5M once that cycle has ended (i.e. before/during a later mini-auction).

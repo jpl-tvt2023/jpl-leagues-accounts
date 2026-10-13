@@ -15,7 +15,7 @@ import {
   PICK_VICE,
   type GwStatsManager,
   type GwStatsPayload,
-} from "../../src/lib/fixtures-stats/aggregate";
+} from "../../src/lib/sports/fpl/fixtures-stats/aggregate";
 
 function squad(captain: number, captainMult = 2): [number, number, number][] {
   // 11 starters + 4 bench; elements 100.. are filler, distinct per captain to keep counts clean.

@@ -16,7 +16,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, leagues } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { FPL_CLASSIC_FORMAT } from "@/lib/format-palette";
-import { buildClassicWinnersPayload } from "@/lib/fpl-classic/winners";
+import { buildClassicWinnersPayload } from "@/lib/sports/fpl/formats/fpl-classic/winners";
 
 export const maxDuration = 30;
 

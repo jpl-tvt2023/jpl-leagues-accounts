@@ -14,7 +14,7 @@ import {
   resolveSubmissionWindow,
   SUBMISSION_LOCK_MS,
   FORCE_OPEN_WITHIN_MS,
-} from "../../src/lib/gameweek-window";
+} from "../../src/lib/sports/fpl/gameweeks/window";
 
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;

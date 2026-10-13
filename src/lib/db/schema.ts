@@ -85,7 +85,7 @@ export const leagues = sqliteTable("leagues", {
 
   // JPL Auction: gameweeks at which pending player releases are finalized (refund credited,
   // player returns to the pool). JSON array of GW numbers, ascending — parsed via
-  // parseReleaseCycleGws in lib/formats/auction/cycle.ts. The '[10,20,30]' default reproduces
+  // parseReleaseCycleGws in lib/sports/fpl/formats/auction/cycle.ts. The '[10,20,30]' default reproduces
   // the old hardcoded `gw % 10 === 0` cadence, so pre-existing leagues are unaffected.
   releaseCycleGws: text("release_cycle_gws").notNull().default('[10,20,30]'),
 
@@ -154,7 +154,7 @@ export const teams = sqliteTable("teams", {
   // JPL Auction: Bonus slots unlocked via purse purchase (0 = default 15-slot cap;
   // 1 = slot 16 unlocked for £10M; 2 = slot 17 unlocked for £20M; 3 = slot 18 unlocked for £30M).
   // Locked-slot unlocks are only allowed after the initial auction completes.
-  // Canonical pricing lives in src/lib/formats/auction/squad-rules.ts (£10M/£20M/£30M).
+  // Canonical pricing lives in src/lib/sports/fpl/formats/auction/squad-rules.ts (£10M/£20M/£30M).
   bonusSlots: integer("bonus_slots").notNull().default(0),
   
   // Chip tracking — Set 1 and Set 2 (boundaries vary by league variant, see league.playoffStartGw)
@@ -168,7 +168,7 @@ export const teams = sqliteTable("teams", {
   // cancel sets one false. Every read that trusted them reported a chip played in an earlier
   // gameweek as still available, and the submission guard that shared them let one chip be
   // played twice in a set. Usage is derived from gameweek_chips — see
-  // src/lib/formats/tvt/chip-usage.ts. These columns are kept only because the admin
+  // src/lib/sports/fpl/formats/tvt/chip-usage.ts. These columns are kept only because the admin
   // override/import routes still write them alongside the rows.
   doublePointerSet1Used: integer("double_pointer_set1_used", { mode: "boolean" }).notNull().default(false),
   challengeChipSet1Used: integer("challenge_chip_set1_used", { mode: "boolean" }).notNull().default(false),
@@ -333,7 +333,7 @@ export const gameweekChips = sqliteTable("gameweek_chips", {
   //
   // Free text rather than a boolean because the reasons differ and the UI states them:
   // "Win-Win wasted — 8 transfer hits" vs "Double Pointer wasted — Bench Boost played the same
-  // gameweek". Set by the scorer; see lib/formats/tvt/chip-waste.ts for how waste is detected
+  // gameweek". Set by the scorer; see lib/sports/fpl/formats/tvt/chip-waste.ts for how waste is detected
   // across this and the two older representations.
   //
   // ⚠️ Waste is recorded HERE, never by flipping isValid to false. The force-reprocess reset in
@@ -365,7 +365,7 @@ export const gameweekChips = sqliteTable("gameweek_chips", {
  * A playoff tie: one bracket position within one league.
  *
  * `tie_id` is a bracket-position LABEL ("RO16-A", "16T-SF-A", "JCL-SF-1"), taken from the seeding
- * tables in `lib/formats/tvt/playoffs.ts`. It carries no league component, so it is unique only
+ * tables in `lib/sports/fpl/formats/tvt/playoffs.ts`. It carries no league component, so it is unique only
  * within a league — hence the composite primary key.
  *
  * It used to be the primary key on its own, which meant the first league to generate playoffs
@@ -871,9 +871,9 @@ export type AuthHandoff = typeof authHandoffs.$inferSelect;
 // defensive minimal-column fallbacks today.
 //
 // ⚠️ No `gameweeks` rows are ever created for an fpl-classic league. The scoring orchestrator
-// (lib/cron/process-all.ts) discovers work by iterating `gameweeks` rows, so creating them would
+// (lib/sports/fpl/cron/process-all.ts) discovers work by iterating `gameweeks` rows, so creating them would
 // make an unscoreable league structurally visible to it. Gameweek deadlines come from FPL's own
-// bootstrap data instead — see lib/fpl/gw-calendar.ts.
+// bootstrap data instead — see lib/sports/fpl/gw-calendar.ts.
 // ============================================
 
 /** Per-league config and sync bookkeeping. */
@@ -898,7 +898,7 @@ export const fplClassicConfig = sqliteTable("fpl_classic_config", {
   // Highest gameweek for which EVERY active entrant has a persisted fpl_classic_entry_gws row.
   // At or below this, data is immutable and served from SQL; above it, from the live Redis block.
   // Advanced only on a fully successful settle sweep — never on a partial one, or a gap here
-  // becomes permanently missing data. See lib/fpl-classic/sync.ts.
+  // becomes permanently missing data. See lib/sports/fpl/formats/fpl-classic/sync.ts.
   settledThroughGw: integer("settled_through_gw").notNull().default(0),
   // Last sync failure, surfaced in the superadmin row so a silently-stalled league is visible.
   lastSyncError: text("last_sync_error"),
@@ -924,7 +924,7 @@ export const fplClassicEntrants = sqliteTable("fpl_classic_entrants", {
   joinedTime: integer("joined_time", { mode: "timestamp" }),
   // The gameweek our first sync saw this entrant. The award-eligibility floor: a manager who
   // joined at GW10 must not be crowned winner of a GW3 leaderboard. Their FULL history still
-  // counts toward the season standings table — see lib/fpl-classic/standings.ts.
+  // counts toward the season standings table — see lib/sports/fpl/formats/fpl-classic/standings.ts.
   firstSeenGw: integer("first_seen_gw").notNull().default(1),
 
   // Denormalised so a cold Redis cache or an FPL outage still renders an honest ordered table.
@@ -946,7 +946,7 @@ export const fplClassicEntrants = sqliteTable("fpl_classic_entrants", {
 /**
  * One row per entrant per CONCLUDED gameweek. Written once by the settle sweep. The only thing
  * that ever rewrites one is a superadmin single-gameweek refresh ("Process GWn", refreshGameweek in
- * lib/fpl-classic/sync.ts), which re-fetches from FPL and overwrites the score columns — never
+ * lib/sports/fpl/formats/fpl-classic/sync.ts), which re-fetches from FPL and overwrites the score columns — never
  * `monthKey`. Frozen awards built from the old values stay frozen until a force-recompute.
  */
 export const fplClassicEntryGws = sqliteTable("fpl_classic_entry_gws", {
@@ -989,7 +989,7 @@ export const fplClassicEntryGws = sqliteTable("fpl_classic_entry_gws", {
  * never conflated.
  *
  * There is no prize, amount, or currency column, and none may be added — the platform announces
- * winners, it does not list prizes. See lib/formats/fpl-classic/awards.ts.
+ * winners, it does not list prizes. See lib/sports/fpl/formats/fpl-classic/awards.ts.
  */
 export const fplClassicAwards = sqliteTable("fpl_classic_awards", {
   id: text("id").primaryKey(),

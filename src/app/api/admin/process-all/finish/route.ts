@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { finishRun, type LeagueResult } from "@/lib/cron/process-all";
+import { finishRun, type LeagueResult } from "@/lib/sports/fpl/cron/process-all";
 import { isSuperAdmin } from "@/lib/privilege";
 
 export const maxDuration = 60;

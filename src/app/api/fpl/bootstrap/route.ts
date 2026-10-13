@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { fetchElementInfo, fetchBootstrapData } from "@/lib/fpl";
+import { fetchElementInfo, fetchBootstrapData } from "@/lib/sports/fpl/api";
 
 /**
  * GET /api/fpl/bootstrap

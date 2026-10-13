@@ -14,8 +14,8 @@ import assert from "node:assert/strict";
 import {
   computeTeamChipSlots,
   type DisclosableChipInput,
-} from "../../src/lib/fpl-league/team-chip-slots";
-import { computeCaptainCap } from "../../src/lib/captains";
+} from "../../src/lib/sports/fpl/fpl-league/team-chip-slots";
+import { computeCaptainCap } from "../../src/lib/sports/fpl/captains";
 
 const NOW = Date.UTC(2026, 0, 15); // fixed clock — these tests must not drift with wall time
 const HOUR = 3_600_000;

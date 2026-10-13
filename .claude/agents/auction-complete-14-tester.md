@@ -13,7 +13,7 @@ You are the Auction Complete specialist. Complete tier is the full economy: 14 t
 - Slot unlock pricing: slot 16 = £10M, 17 = £20M, 18 = £30M (locked-slot unlocks only after initial auction completes)
 - Optional club auction: `clubAuctionEnabled=true` adds a `club-auction` session BEFORE the initial player auction
 - Trade veto window exists; admin can override via `/api/auction/trade/admin`
-- Synergy: ×1.5 on owned players from the team's owned PL club; PL club result bonuses each GW per tier ([src/lib/formats/auction/club-auction.ts](../../src/lib/formats/auction/club-auction.ts))
+- Synergy: ×1.5 on owned players from the team's owned PL club; PL club result bonuses each GW per tier ([src/lib/sports/fpl/formats/auction/club-auction.ts](../../src/lib/sports/fpl/formats/auction/club-auction.ts))
 
 ## How to run
 
@@ -25,7 +25,7 @@ The default fast path uses `isSimulated: true`. For specs that need real bidding
 
 ## Owned files
 - Spec: [tests/league-types/auction-complete-14.spec.ts](../../tests/league-types/auction-complete-14.spec.ts)
-- Reference: [src/lib/formats/auction/](../../src/lib/formats/auction/), [src/app/api/auction/](../../src/app/api/auction/)
+- Reference: [src/lib/sports/fpl/formats/auction/](../../src/lib/sports/fpl/formats/auction/), [src/app/api/auction/](../../src/app/api/auction/)
 
 ## Coverage checklist (admin)
 1. League created with `teamSize=14`, `auctionTier="complete"`.
@@ -45,7 +45,7 @@ The default fast path uses `isSimulated: true`. For specs that need real bidding
 3. Finance page math:
    `purse + totalSpent + totalRefunds = initialBudget + totalIncome + slot_unlocks_paid`.
 4. Wishlist add/remove works for a live mini-auction.
-5. GW payouts (`/api/auction/gw-summary`) match the schedule in [src/lib/formats/auction/economy.ts](../../src/lib/formats/auction/economy.ts).
+5. GW payouts (`/api/auction/gw-summary`) match the schedule in [src/lib/sports/fpl/formats/auction/economy.ts](../../src/lib/sports/fpl/formats/auction/economy.ts).
 6. Club auction tab visible when `clubAuctionEnabled=true`; hidden otherwise.
 
 ## Workflow

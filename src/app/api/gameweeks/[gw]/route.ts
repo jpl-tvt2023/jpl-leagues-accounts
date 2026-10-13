@@ -1,20 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, gameweeks, teams, players, groups, results, gameweekCaptains, gameweekChips, auditLogs, type Gameweek, type Fixture, type Team, type Player, type Group, type Result, type GameweekCaptain, type GameweekChip } from "@/lib/db";
-import { calculateTeamGameweekScore } from "@/lib/fpl";
-import { calculateTVTTeamScore, determineMatchResult } from "@/lib/formats/tvt/scoring";
-import { computeGameweekAwards, type AwardFixtureInput } from "@/lib/formats/tvt/gameweek-awards";
-import { getTop2FromGroup } from "@/lib/formats/tvt/chip-validation";
-import { getAllCachedScores, invalidateLeaguePageCache } from "@/lib/fpl-cache";
+import { calculateTeamGameweekScore } from "@/lib/sports/fpl/api";
+import { calculateTVTTeamScore, determineMatchResult } from "@/lib/sports/fpl/formats/tvt/scoring";
+import { computeGameweekAwards, type AwardFixtureInput } from "@/lib/sports/fpl/formats/tvt/gameweek-awards";
+import { getTop2FromGroup } from "@/lib/sports/fpl/formats/tvt/chip-validation";
+import { getAllCachedScores, invalidateLeaguePageCache } from "@/lib/sports/fpl/cache";
 import { eq, and, isNull, inArray, sql } from "drizzle-orm";
 import { generateId } from "@/lib/id";
 import { leagues, challengerSurvivalEntries } from "@/lib/db/schema";
-import { processContinentalChampionshipGameweek } from "@/lib/formats/continental-championship/process-gameweek";
-import { processAuctionGameweek } from "@/lib/formats/auction/process-gameweek";
-import { pickTempCaptain } from "@/lib/scoring/temp-captain";
-import { resolveFplChipStatuses } from "@/lib/fpl-league/chip-status-map";
-import { tvtChipWasteReasonFor } from "@/lib/formats/tvt/fpl-chip-clash";
-import { chipName as tvtChipName } from "@/lib/formats/tvt/chip-labels";
-import { computeCaptainCap, computeCaptainCheckLimit } from "@/lib/captains";
+import { processContinentalChampionshipGameweek } from "@/lib/sports/fpl/formats/continental-championship/process-gameweek";
+import { processAuctionGameweek } from "@/lib/sports/fpl/formats/auction/process-gameweek";
+import { pickTempCaptain } from "@/lib/sports/fpl/scoring/temp-captain";
+import { resolveFplChipStatuses } from "@/lib/sports/fpl/fpl-league/chip-status-map";
+import { tvtChipWasteReasonFor } from "@/lib/sports/fpl/formats/tvt/fpl-chip-clash";
+import { chipName as tvtChipName } from "@/lib/sports/fpl/formats/tvt/chip-labels";
+import { computeCaptainCap, computeCaptainCheckLimit } from "@/lib/sports/fpl/captains";
+import { refuseIfNoGameweeks } from "@/lib/sports/route-guards";
 
 interface RouteParams {
   params: Promise<{ gw: string }>;
@@ -322,6 +323,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         { status: 404 }
       );
     }
+    const noGameweeks = await refuseIfNoGameweeks(leagueId);
+    if (noGameweeks) return noGameweeks;
     const gwWhere = and(eq(gameweeks.number, gameweekNumber), eq(gameweeks.leagueId, leagueId));
 
     const gwList = await db.query.gameweeks.findMany({

@@ -11,7 +11,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { tvtChipGain, type TvtChipGainInput } from "../../src/lib/formats/tvt/chip-gain";
+import { tvtChipGain, type TvtChipGainInput } from "../../src/lib/sports/fpl/formats/tvt/chip-gain";
 
 function gain(over: Partial<TvtChipGainInput> & { chipType: string }) {
   return tvtChipGain({ isWasted: false, own: null, opp: null, settled: false, ...over });

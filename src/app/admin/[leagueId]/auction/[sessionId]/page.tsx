@@ -8,10 +8,10 @@ import { AppNav } from "@/components/AppNav";
 import { TierChip } from "@/components/TierChip";
 import { AuctionTimerRing } from "@/components/AuctionTimerRing";
 import { formatCurrency } from "@/lib/format/currency";
-import { effectiveMaxSquadSize } from "@/lib/formats/auction/squad-rules";
+import { effectiveMaxSquadSize } from "@/lib/sports/fpl/formats/auction/squad-rules";
 import type { ClubTier } from "@/lib/db/schema";
-import { POSITION_LABELS, POSITION_COLORS, POSITION_ORDER } from "@/lib/fpl/positions";
-import { getPlTeamFullName } from "@/lib/data/pl-team-full-names";
+import { POSITION_LABELS, POSITION_COLORS, POSITION_ORDER } from "@/lib/sports/fpl/positions";
+import { getPlTeamFullName } from "@/lib/sports/fpl/data/pl-team-full-names";
 
 const CLUB_AUCTION_TYPE = "club-auction";
 /** Rows rendered at once in the available-players panel. ~700 unfiltered players re-rendering on

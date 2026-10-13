@@ -17,8 +17,9 @@
  */
 
 import { CONTINENTAL_FORMAT, FPL_CLASSIC_FORMAT } from "./format-palette";
+import { isCricketFormat, type LeagueFormat } from "./sports/registry";
 
-export type LeagueFormat = "auction" | "continental-championship" | "tvt" | "fpl-classic";
+export type { LeagueFormat };
 
 /** `accent` = the orange "← Platform Admin" treatment; `back` = the yellow "← Leagues" treatment. */
 export type NavTone = "default" | "accent" | "back";
@@ -79,6 +80,7 @@ const ICON_BY_KEY: Record<string, NavIconName> = {
   "admin-leagues": "leagues",
   "admin-help": "help",
   superadmin: "admin",
+  "superadmin-cricket": "players",
   "superadmin-help": "help",
   "platform-admin": "admin",
   leagues: "leagues",
@@ -277,6 +279,44 @@ function buildLeague(ctx: Extract<NavContext, { surface: "league" }>, runtime: N
     );
   }
 
+  if (isCricketFormat(format)) {
+    // Cricket leagues live entirely under /[slug]/cricket/* — none of the FPL pages apply. Keys
+    // reuse the FPL ones (standings, squad, …) so icons and `currentPage` matching just work.
+    const c = (path: string) => p(`cricket/${path}`);
+    const cricketHome: NavItem = home.href === p("dashboard") ? { ...home, href: c("dashboard") } : home;
+    return model(
+      [
+        {
+          id: "league",
+          heading: "League",
+          items: [
+            cricketHome,
+            { key: "standings", label: "Standings", href: c("standings") },
+            { key: "fixtures", label: "Fixtures", href: c("fixtures") },
+            { key: "teams", label: "Squads", href: c("squads") },
+            { key: "players", label: "Player Pool", href: c("players"), shortLabel: "Players" },
+            { key: "winners", label: "Winners", href: c("winners") },
+          ],
+        },
+        { id: "auction", heading: "Auction", items: [{ key: "auction", label: "Auction", href: c("auction") }] },
+        { id: "my-team", heading: "My Team", items: when(isLoggedIn, { key: "squad", label: "My Squad", href: c("squad") }) },
+        {
+          id: "help",
+          heading: "Help",
+          items: [
+            { key: "rules", label: "Rules", href: c("rules") },
+            { key: "help", label: "Help", href: c("help") },
+            ...feedback,
+          ],
+        },
+        { id: "account", heading: "Account", items: settings },
+      ],
+      isLoggedIn,
+      isLoggedIn ? { kind: "signOut" } : { kind: "signIn", href: "/signin" },
+      ["dashboard", "standings", "auction", isLoggedIn ? "squad" : "teams"],
+    );
+  }
+
   if (format === CONTINENTAL_FORMAT) {
     return model(
       [
@@ -416,6 +456,12 @@ function buildAdminLeague(ctx: Extract<NavContext, { surface: "admin-league" }>)
     ];
   } else if (format === "auction") {
     leaguePages = [{ key: "standings", label: "Standings", href: p("standings") }];
+  } else if (isCricketFormat(format)) {
+    leaguePages = [
+      { key: "standings", label: "Standings", href: p("cricket/standings") },
+      { key: "fixtures", label: "Fixtures", href: p("cricket/fixtures") },
+      { key: "teams", label: "Squads", href: p("cricket/squads") },
+    ];
   } else {
     leaguePages = [
       { key: "standings", label: "Standings", href: p("standings") },
@@ -489,6 +535,7 @@ export function buildNavModel(ctx: NavContext, runtime: NavRuntime = {}): NavMod
             heading: "Platform",
             items: [
               { key: "superadmin", label: "Dashboard", href: "/superadmin" },
+              { key: "superadmin-cricket", label: "Cricket Data", href: "/superadmin/cricket" },
               { key: "superadmin-help", label: "Help", href: "/superadmin/help" },
             ],
           },

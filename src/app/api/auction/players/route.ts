@@ -4,8 +4,8 @@ import { auctionOwnership } from "@/lib/db/schema";
 import { eq, and, lt, gte, or, isNull } from "drizzle-orm";
 import { isSuperAdmin } from "@/lib/privilege";
 import { getRequestSession, sessionTeamIdInLeague } from "@/lib/team-actor";
-import { fetchElementInfo, fetchElementGameweekPoints, fetchBootstrapData } from "@/lib/fpl";
-import { fetchClubOwnershipMap } from "@/lib/teams/rename-rows";
+import { fetchElementInfo, fetchElementGameweekPoints, fetchBootstrapData } from "@/lib/sports/fpl/api";
+import { fetchClubOwnershipMap } from "@/lib/sports/fpl/teams/rename-rows";
 
 /**
  * GET /api/auction/players?leagueId=xxx&gameweek=N&page=1&pageSize=50

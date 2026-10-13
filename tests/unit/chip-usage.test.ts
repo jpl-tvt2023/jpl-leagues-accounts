@@ -11,8 +11,8 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { chipsUsedInSet, chipGameweekInSet, type ChipUsageRow } from "../../src/lib/formats/tvt/chip-usage";
-import { getChipSet } from "../../src/lib/formats/tvt/chip-set";
+import { chipsUsedInSet, chipGameweekInSet, type ChipUsageRow } from "../../src/lib/sports/fpl/formats/tvt/chip-usage";
+import { getChipSet } from "../../src/lib/sports/fpl/formats/tvt/chip-set";
 
 // TVT-16/32 defaults: playoffs from GW31, so Set 1 = GW1-15 and Set 2 = GW16-30.
 const PLAYOFF_START = 31;

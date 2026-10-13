@@ -12,7 +12,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mergeClassicPages } from "../../src/lib/fpl/classic-league";
+import { mergeClassicPages } from "../../src/lib/sports/fpl/classic-league";
 
 const LEAGUE = { id: 900001, name: "Stub Classic", start_event: 1, closed: false };
 

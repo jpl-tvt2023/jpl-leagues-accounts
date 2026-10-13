@@ -17,7 +17,7 @@ import {
   isReleaseCycleBoundary,
   parseReleaseCycleGws,
   validateReleaseCycleGws,
-} from "../../src/lib/formats/auction/cycle";
+} from "../../src/lib/sports/fpl/formats/auction/cycle";
 
 /* ── isReleaseCycleBoundary ─────────────────────────────────────────────── */
 

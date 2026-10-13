@@ -1,7 +1,7 @@
 "use client";
 
-import { GW_PAYOUTS, MINIMUM_FLOOR_PAYOUT } from "@/lib/formats/auction/economy";
-import { DEFAULT_RELEASE_CYCLE_GWS, formatReleaseCycleGws } from "@/lib/formats/auction/cycle";
+import { GW_PAYOUTS, MINIMUM_FLOOR_PAYOUT } from "@/lib/sports/fpl/formats/auction/economy";
+import { DEFAULT_RELEASE_CYCLE_GWS, formatReleaseCycleGws } from "@/lib/sports/fpl/formats/auction/cycle";
 import { RuleItem, SectionHeader, formatPayout } from "./shared";
 
 export function AuctionRules({

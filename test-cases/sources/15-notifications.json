@@ -102,7 +102,7 @@
         "iWant": "a per-team notification when a gameweek is scored",
         "soThat": "I see my rank, points, and payout the moment scoring completes",
         "sourceRefs": [
-          "src/lib/formats/auction/process-gameweek.ts:307-330"
+          "src/lib/sports/fpl/formats/auction/process-gameweek.ts:307-330"
         ]
       },
       {
@@ -111,7 +111,7 @@
         "iWant": "a notification when release refunds are credited to my purse",
         "soThat": "I can reconcile my purse changes with the players I released",
         "sourceRefs": [
-          "src/lib/formats/auction/process-gameweek.ts:332-346"
+          "src/lib/sports/fpl/formats/auction/process-gameweek.ts:332-346"
         ]
       },
       {
@@ -130,7 +130,7 @@
         "iWant": "a notification when I win a PL Club Auction",
         "soThat": "I see what was paid and what my team will be renamed to",
         "sourceRefs": [
-          "src/lib/formats/auction/club-auction.ts:482-493"
+          "src/lib/sports/fpl/formats/auction/club-auction.ts:482-493"
         ]
       },
       {
@@ -359,14 +359,14 @@
         "id": "BR-NOTIF-028",
         "rule": "TRIGGER gw_processed: `processAuctionGameweek` fires one notification per ranked team after a successful scoring transaction. Body includes rank, points, and payout in £M. Link=`/{slug}/gw-results?gw={gwNumber}`. Skipped on the race-loss path (another caller already scored).",
         "sourceRefs": [
-          "src/lib/formats/auction/process-gameweek.ts:295-330"
+          "src/lib/sports/fpl/formats/auction/process-gameweek.ts:295-330"
         ]
       },
       {
         "id": "BR-NOTIF-029",
         "rule": "TRIGGER release_refund: `processAuctionGameweek` fires one notification per team that received a refund this GW, body=\"£{X}M for {N} released player(s)\", link=`/{slug}/finance`. Singular vs plural is grammatical on count===1.",
         "sourceRefs": [
-          "src/lib/formats/auction/process-gameweek.ts:332-346"
+          "src/lib/sports/fpl/formats/auction/process-gameweek.ts:332-346"
         ]
       },
       {
@@ -387,7 +387,7 @@
         "id": "BR-NOTIF-032",
         "rule": "TRIGGER club_purchased: `settleClubAuction` fires one best-effort notification to the winning bidder when a club is sold, title=\"You bought {playerName}\", body details purchase price, tier, and rename behaviour. Failures are logged but do not roll back the auction settlement.",
         "sourceRefs": [
-          "src/lib/formats/auction/club-auction.ts:482-493"
+          "src/lib/sports/fpl/formats/auction/club-auction.ts:482-493"
         ]
       },
       {
@@ -396,8 +396,8 @@
         "sourceRefs": [
           "src/app/api/auction/redeem-slot/route.ts:200-213",
           "src/app/api/auction/unlock-slot/route.ts:146-157",
-          "src/lib/formats/auction/process-gameweek.ts:307-349",
-          "src/lib/formats/auction/club-auction.ts:482-493"
+          "src/lib/sports/fpl/formats/auction/process-gameweek.ts:307-349",
+          "src/lib/sports/fpl/formats/auction/club-auction.ts:482-493"
         ]
       },
       {

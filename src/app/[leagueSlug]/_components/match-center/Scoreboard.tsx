@@ -5,7 +5,7 @@ import { FplEntryLink } from "@/components/FplEntryLink";
 import { GwNavigator } from "@/components/GwNavigator";
 import { HelpTip } from "@/components/HelpTip";
 import { LiveFreshness } from "@/components/LiveFreshness";
-import type { MatchCenterPayload, MatchCenterSide, MatchCenterTeamOption } from "@/lib/match-center/load";
+import type { MatchCenterPayload, MatchCenterSide, MatchCenterTeamOption } from "@/lib/sports/fpl/match-center/load";
 import { BonusPill } from "../fixtures/BonusPill";
 import { bonusPointsFor } from "../fixtures/shared";
 import { formatCountdown, rawChip } from "./labels";

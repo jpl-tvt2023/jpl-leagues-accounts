@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
-import { pickDefaultGameweek } from "@/lib/gameweeks/default-gw";
+import { pickDefaultGameweek } from "@/lib/sports/fpl/gameweeks/default-gw";
 import { LoadingScreen } from "@/components/LoadingScreen";
 import { LeagueNav } from "@/components/LeagueNav";
 import { useEnforceFormat, useLeague } from "@/lib/league-context";
@@ -112,7 +112,7 @@ export default function JplCupFixturesPage() {
         setAvailableGWs(available);
         if (available.length > 0) {
           // Deadline-driven, same rule as the league fixtures page: the
-          // gameweek being played, else the next one. See lib/gameweeks/default-gw.
+          // gameweek being played, else the next one. See lib/sports/fpl/gameweeks/default-gw.
           const choices = available
             .map((gw) => {
               const gwFixtures: Fixture[] = cupFixtures[gw] || [];

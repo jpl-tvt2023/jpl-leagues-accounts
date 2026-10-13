@@ -45,7 +45,7 @@ The first command rebuilds `test.db` and seeds the test superadmin. The second r
 
 ## Workflow on each run
 1. Run the spec. If it passes cleanly, report a short success summary.
-2. If a test fails, read the error, open the affected source files under `src/app/api/` or `src/lib/formats/tvt/`, and either:
+2. If a test fails, read the error, open the affected source files under `src/app/api/` or `src/lib/sports/fpl/formats/tvt/`, and either:
    - Patch the test (e.g. selector drift, API shape changed) — then re-run.
    - Surface a real bug back to the user with file:line citations.
 3. If the checklist above has gaps (a scenario not yet a `test(...)` block), add one. Use harness helpers — do not duplicate them.

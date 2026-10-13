@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, teams, players, fixtures, results, gameweekCaptains, auditLogs } from "@/lib/db";
 import { eq, or, and, inArray } from "drizzle-orm";
 import { getAuthorizedLeagueId } from "@/lib/league-auth";
-import { invalidateLeaguePageCache } from "@/lib/fpl-cache";
+import { invalidateLeaguePageCache } from "@/lib/sports/fpl/cache";
 
 /**
  * POST /api/admin/[leagueId]/bulk-delete-teams

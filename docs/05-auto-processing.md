@@ -46,7 +46,7 @@ sequenceDiagram
 
 | Path | Method | Purpose |
 |---|---|---|
-| `/api/admin/process-all/plan` | GET | Compute the work list. Reads the FPL `bootstrap-static` once, builds `dueGws` (GWs whose deadline has passed AND FPL marked `finished=true`), pulls the active leagues, writes `CRON_RUN_START` to `audit_logs`, returns `{ runId, dueGws[], leagues[], globalErrors[] }`. |
+| `/api/admin/process-all/plan` | GET | Compute the work list. Reads the FPL `bootstrap-static` once, builds `dueGws` (GWs whose deadline has passed AND FPL marked `finished=true`), pulls the active leagues, writes `CRON_RUN_START` to `audit_logs`, returns `{ runId, dueGws[], leagues[], globalErrors[] }`. Leagues whose format has no FPL gameweeks (`NON_GAMEWEEK_FORMATS` in `src/lib/sports/registry.ts`: FPL Classic and cricket) are never in the plan. |
 | `/api/admin/process-all/league-gw` | POST | The workhorse. Body: `{ runId, league, gw }`. Runs `processOneLeagueOneGw` for that pair. Bounded ≤ ~15s. Subject to per-admin rate limit (30/min). |
 | `/api/admin/process-all/finish` | POST | Body: `{ runId, dueGws, results, globalErrors }`. Writes `CRON_RUN_END` to `audit_logs`, populates live-FPL cache for any in-progress GW. |
 
@@ -54,7 +54,7 @@ All three are superadmin-only (`isSuperAdmin` check).
 
 ## The "one league × one GW" unit
 
-`processOneLeagueOneGw` lives in [`src/lib/cron/process-all.ts`](../src/lib/cron/process-all.ts). For a given `(league, gw)` it:
+`processOneLeagueOneGw` lives in [`src/lib/sports/fpl/cron/process-all.ts`](../src/lib/sports/fpl/cron/process-all.ts). For a given `(league, gw)` it:
 
 1. **Clears the live FPL cache** for that GW (so subsequent reads pick up fresh data).
 2. **Pre-flight scoring check** — counts unscored fixtures for this league at this GW via a cheap SQL query. If 0, sets `scoreSkipped: true`. If >0:
@@ -74,7 +74,7 @@ Earlier iterations had the orchestrator make actual HTTPS `fetch()` calls to the
 1. **Vercel Deployment Protection** intercepted same-origin internal fetches with an HTML SSO redirect, breaking JSON parsing on every call.
 2. Each inner fetch paid ~250ms of edge + middleware overhead. Multiply by ~70 calls per per-league run and you were burning seconds on roundtrips alone.
 
-The fix was to import the route handler functions directly and invoke them with a constructed `NextRequest`. See `callHandlerDirect` in [`src/lib/cron/process-all.ts`](../src/lib/cron/process-all.ts) — sets the headers middleware would normally inject (`x-session-type: superadmin`, etc.), constructs the request, awaits the handler. Zero HTTP, zero edge layer.
+The fix was to import the route handler functions directly and invoke them with a constructed `NextRequest`. See `callHandlerDirect` in [`src/lib/sports/fpl/cron/process-all.ts`](../src/lib/sports/fpl/cron/process-all.ts) — sets the headers middleware would normally inject (`x-session-type: superadmin`, etc.), constructs the request, awaits the handler. Zero HTTP, zero edge layer.
 
 ## Browser orchestration
 

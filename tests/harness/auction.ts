@@ -1,7 +1,7 @@
 /**
  * Auction harness — drives /api/auction/session for both real-bidding flows
  * (slow, drives the SSE stream) and isSimulated mode (fast, auto-allocates
- * via src/lib/formats/auction/simulate.ts).
+ * via src/lib/sports/fpl/formats/auction/simulate.ts).
  *
  * For most specs the fast path is enough: createAuctionLeague(...,
  * isSimulated: true), then `createAndRunInitialAuction(...)` to fully draft

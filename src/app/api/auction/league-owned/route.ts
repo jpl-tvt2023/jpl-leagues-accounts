@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { auctionOwnership, leagues, teams } from "@/lib/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { verifySession, SESSION_COOKIE_NAME } from "@/lib/auth";
-import { calculatePurse } from "@/lib/formats/auction/economy";
+import { calculatePurse } from "@/lib/sports/fpl/formats/auction/economy";
 
 // A player is "owned" (and so excluded from the nominate pool) while active OR pending release —
 // a pending-release player still belongs to its team until the release finalises. Without including

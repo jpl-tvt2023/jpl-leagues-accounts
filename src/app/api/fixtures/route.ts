@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { db, fixtures, teams, gameweeks, leagues } from "@/lib/db";
-import { dailyTick } from "@/lib/cron/daily-tick";
+import { dailyTick } from "@/lib/sports/fpl/cron/daily-tick";
 import { gameweekChips } from "@/lib/db/schema";
 import { eq, inArray } from "drizzle-orm";
-import { getCachedFixtures, setCachedFixtures } from "@/lib/fpl-cache";
-import { disclosedGwCount } from "@/lib/gameweeks/disclosure";
-import { chipCode, chipName } from "@/lib/formats/tvt/chip-labels";
-import { buildChallengeMatches } from "@/lib/formats/tvt/challenge-match-query";
-import type { ChallengeMatch } from "@/lib/formats/tvt/challenge-match";
-import { isChipDisclosable, isChipWasted } from "@/lib/formats/tvt/chip-waste";
-import { resolveFplChipStatuses } from "@/lib/fpl-league/chip-status-map";
-import type { FplChipStatus } from "@/lib/fpl-league/chips";
+import { getCachedFixtures, setCachedFixtures } from "@/lib/sports/fpl/cache";
+import { disclosedGwCount } from "@/lib/sports/fpl/gameweeks/disclosure";
+import { chipCode, chipName } from "@/lib/sports/fpl/formats/tvt/chip-labels";
+import { buildChallengeMatches } from "@/lib/sports/fpl/formats/tvt/challenge-match-query";
+import type { ChallengeMatch } from "@/lib/sports/fpl/formats/tvt/challenge-match";
+import { isChipDisclosable, isChipWasted } from "@/lib/sports/fpl/formats/tvt/chip-waste";
+import { resolveFplChipStatuses } from "@/lib/sports/fpl/fpl-league/chip-status-map";
+import type { FplChipStatus } from "@/lib/sports/fpl/fpl-league/chips";
 import { players } from "@/lib/db/schema";
 
 /** One team's chip for one gameweek, as rendered on that team's fixture card. */
@@ -40,7 +40,7 @@ export interface FixtureChip {
   wastedReason?: string | null;
   /**
    * The EXTRA league points the scorer awarded (gameweek_chips.pointsAwarded) — null until the
-   * chip is processed. Feeds the stats card's "pts gained" (lib/formats/tvt/chip-gain.ts).
+   * chip is processed. Feeds the stats card's "pts gained" (lib/sports/fpl/formats/tvt/chip-gain.ts).
    */
   pointsAwarded?: number | null;
 }
@@ -212,9 +212,9 @@ export async function GET(request: NextRequest) {
         if (!gw || gw.deadline > now) return false;      // not public yet
         if (!isChipDisclosable(c)) return false;         // rejected declaration, never played
         // Filtering HISTORY by the league's CURRENT chip set is safe only because the set cannot
-        // change once a season is under way — see lib/formats/tvt/enabled-chips-lock.ts, which
+        // change once a season is under way — see lib/sports/fpl/formats/tvt/enabled-chips-lock.ts, which
         // enforces that on the superadmin write path. Without that guard this line would hide
-        // chips that were already played and scored while lib/standings/league-stage.ts kept
+        // chips that were already played and scored while lib/sports/fpl/standings/league-stage.ts kept
         // their points in the table, leaving points on screen with nothing explaining them.
         // If the lock is ever relaxed, this filter has to go with it.
         return enabledChips.includes(c.chipType);

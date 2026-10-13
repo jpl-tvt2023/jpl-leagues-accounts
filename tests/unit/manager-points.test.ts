@@ -21,8 +21,8 @@ import assert from "node:assert/strict";
 import {
   managerGameweekPoints,
   type ManagerPointsContext,
-} from "../../src/lib/fpl-live/manager-points";
-import type { FPLGameweekPicks } from "../../src/lib/fpl";
+} from "../../src/lib/sports/fpl/live/manager-points";
+import type { FPLGameweekPicks } from "../../src/lib/sports/fpl/api";
 
 type PickSpec = {
   element: number;

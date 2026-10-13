@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, teams, leagues, auctionScores, gameweeks, leagueAdmins } from "@/lib/db";
 import { eq, and, asc } from "drizzle-orm";
 import { getRequestSession, sessionActsAsTeam } from "@/lib/team-actor";
-import { calculatePurse } from "@/lib/formats/auction/economy";
+import { calculatePurse } from "@/lib/sports/fpl/formats/auction/economy";
 
 /**
  * GET /api/auction/economy?teamId=xxx

@@ -4,19 +4,23 @@ import { leagues, teams, groups, fplClassicConfig, fplClassicEntrants } from "@/
 import { eq, count } from "drizzle-orm";
 import { isSuperAdmin } from "@/lib/privilege";
 import { generateId } from "@/lib/id";
-import { getCurrentGameweekNumber } from "@/lib/gameweeks/current-gw";
-import { validateEnabledChipsArray } from "@/lib/formats/tvt/chip-validation";
-import { findEnabledChipsLock } from "@/lib/formats/tvt/enabled-chips-lock";
-import { DEFAULT_RELEASE_CYCLE_GWS, validateReleaseCycleGws } from "@/lib/formats/auction/cycle";
+import { getCurrentGameweekNumber } from "@/lib/sports/fpl/gameweeks/current-gw";
+import { validateEnabledChipsArray } from "@/lib/sports/fpl/formats/tvt/chip-validation";
+import { findEnabledChipsLock } from "@/lib/sports/fpl/formats/tvt/enabled-chips-lock";
+import { DEFAULT_RELEASE_CYCLE_GWS, validateReleaseCycleGws } from "@/lib/sports/fpl/formats/auction/cycle";
 import { FPL_CLASSIC_FORMAT } from "@/lib/format-palette";
 import {
   fetchClassicLeagueStandings,
   FplClassicLeagueNotFoundError,
   type FplClassicStandingsPayload,
-} from "@/lib/fpl/classic-league";
-import { withFplBudget, FplUnavailableError } from "@/lib/fpl/gateway";
+} from "@/lib/sports/fpl/classic-league";
+import { withFplBudget, FplUnavailableError } from "@/lib/sports/fpl/gateway";
 import { isReservedLeagueSlug } from "@/lib/reserved-slugs";
 import { createLeagueInvite } from "@/lib/membership";
+import { formatBelongsToSport, isCricketFormat, isKnownSport } from "@/lib/sports/registry";
+import { cricketLeagueConfig, cricketTeamState } from "@/lib/db/schema-cricket";
+import { getTournament } from "@/lib/sports/cricket/tournaments";
+import { MAX_CRICKET_MANAGERS, validateCricketSettings, type CricketLeagueSettings } from "@/lib/sports/cricket/league-settings";
 
 export async function GET(request: NextRequest) {
   if (!(await isSuperAdmin(request))) {
@@ -99,6 +103,8 @@ export async function POST(request: NextRequest) {
     initialBudget, isSimulated, clubAuctionEnabled, auctionTier, startGameweek, releaseCycleGws,
     // fpl-classic only.
     fplLeagueId, scoringMetric, winnerCutPercent,
+    // cricket-auction only: { tournamentId, purse, squadRules, … } — see lib/sports/cricket/league-settings.ts.
+    cricket,
     // Optional and only ever "members": people join via invite link and sign in with Google.
     authMode,
   } = body;
@@ -118,6 +124,9 @@ export async function POST(request: NextRequest) {
   }
   if (!isFplClassic && (!slug || !name)) {
     return NextResponse.json({ error: "slug, name, sport, format, and season are required" }, { status: 400 });
+  }
+  if (!isKnownSport(sport) || !formatBelongsToSport(format, sport)) {
+    return NextResponse.json({ error: `Format "${format}" isn't offered for sport "${sport}"` }, { status: 400 });
   }
 
   // Mutable so the fpl-classic branch below can fill in what the request never sent. Every other
@@ -139,6 +148,8 @@ export async function POST(request: NextRequest) {
   let resolvedWinnerCutPercent = 30;
   let classicPayload: FplClassicStandingsPayload | null = null;
   let fplLeagueIdNum: number | null = null;
+  // cricket-auction only.
+  let cricketSettings: CricketLeagueSettings | null = null;
 
   if (format === "continental-championship") {
     // Continental Championship: hardcoded values
@@ -261,6 +272,21 @@ export async function POST(request: NextRequest) {
       resolvedSlug = `league-${fplLeagueIdNum}-${String(season).toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
     }
     resolvedName = classicPayload.league.name;
+  } else if (isCricketFormat(format)) {
+    // Classic Cricket Auction: managers are placeholder teams like the FPL auction; everything
+    // cricket-specific lives in cricket_league_config / cricket_team_state (inserted below).
+    resolvedTeamSize = teamSize ?? 10;
+    if (!Number.isInteger(resolvedTeamSize) || resolvedTeamSize < 2 || resolvedTeamSize > MAX_CRICKET_MANAGERS) {
+      return NextResponse.json({ error: `Number of managers must be between 2 and ${MAX_CRICKET_MANAGERS}` }, { status: 400 });
+    }
+    resolvedGroupCount = 0;
+    resolvedPlayoffStartGw = 39; // no playoffs
+    resolvedEnabledChips = [];
+    const tournamentId = typeof cricket?.tournamentId === "string" ? cricket.tournamentId : "";
+    const tournament = tournamentId ? await getTournament(tournamentId) : null;
+    const check = validateCricketSettings(cricket, { tournamentKind: tournament?.kind ?? null });
+    if (!check.ok) return NextResponse.json({ error: check.error }, { status: 400 });
+    cricketSettings = check.value;
   } else {
     return NextResponse.json({ error: `Format "${format}" is not supported` }, { status: 400 });
   }
@@ -342,12 +368,28 @@ export async function POST(request: NextRequest) {
       // team key, which backups/restores and the importers match teams by; password stays "".
       // (fpl-classic: resolvedTeamSize is 0, so this loop runs zero times — see the comment on
       // the fpl-classic branch above for why that is how "no login accounts" is guaranteed.)
+      // cricket-auction: the league's settings row, before its teams' purse rows point at it.
+      if (cricketSettings) {
+        await tx.insert(cricketLeagueConfig).values({
+          leagueId: id,
+          tournamentId: cricketSettings.tournamentId,
+          purse: cricketSettings.purse,
+          squadRules: JSON.stringify(cricketSettings.squadRules),
+          franchiseAuctionEnabled: cricketSettings.franchiseAuctionEnabled,
+          franchiseBoostPercent: cricketSettings.franchiseBoostPercent,
+          penaltyRedeemPrice: cricketSettings.penaltyRedeemPrice,
+          bidTimerSeconds: cricketSettings.bidTimerSeconds,
+          nominationTimeoutSeconds: cricketSettings.nominationTimeoutSeconds,
+        });
+      }
+
       for (let i = 1; i <= resolvedTeamSize; i++) {
         const loginId = `${resolvedSlug}-Team${i}`;
         const groupId = teamIndexToGroupId.get(i);
+        const teamId = generateId();
 
         await tx.insert(teams).values({
-          id: generateId(),
+          id: teamId,
           teamLoginId: loginId,
           name: `Team ${i}`,
           leagueId: id,
@@ -357,6 +399,9 @@ export async function POST(request: NextRequest) {
           ...(groupId ? { groupId } : {}),
           ...(format === "auction" ? { purse: initialBudget ?? 100_000_000 } : {}),
         });
+        if (cricketSettings) {
+          await tx.insert(cricketTeamState).values({ teamId, leagueId: id, purse: cricketSettings.purse });
+        }
         createdTeams++;
       }
 
@@ -384,7 +429,7 @@ export async function POST(request: NextRequest) {
         // Everyone present at league creation is a founding member — the same gameweek the
         // league itself starts scoring from. A manager who shows up in a LATER sync (after
         // someone joins the FPL mini-league mid-season) gets that later gameweek instead; see
-        // syncRoster in lib/fpl-classic/sync.ts.
+        // syncRoster in lib/sports/fpl/formats/fpl-classic/sync.ts.
         const entrantRows = classicPayload.entries.map((entry) => ({
           id: generateId(),
           leagueId: id,

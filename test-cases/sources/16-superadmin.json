@@ -83,7 +83,7 @@
         "soThat": "I never see an empty tier picker for a fresh database",
         "sourceRefs": [
           "src/app/api/superadmin/pl-standings/route.ts:27-50",
-          "src/lib/data/pl-standings-seed.ts:1-37"
+          "src/lib/sports/fpl/data/pl-standings-seed.ts:1-37"
         ]
       },
       {
@@ -268,7 +268,7 @@
         "rule": "GET /api/superadmin/pl-standings is self-seeding: if no row with id PL_STANDINGS_SEED_ID ('current') exists, it inserts one using the hard-coded constants PL_STANDINGS_SEED_SEASON ('2025-26'), PL_STANDINGS_SEED_TOP8 (8 IDs), PL_STANDINGS_SEED_MID (9 IDs), PL_STANDINGS_SEED_PROMOTED (3 IDs).",
         "sourceRefs": [
           "src/app/api/superadmin/pl-standings/route.ts:27-50",
-          "src/lib/data/pl-standings-seed.ts:23-37"
+          "src/lib/sports/fpl/data/pl-standings-seed.ts:23-37"
         ]
       },
       {
@@ -357,10 +357,10 @@
       },
       {
         "id": "BR-SUPER-029",
-        "rule": "PATCH /api/superadmin/score-adjustments adjusts the targeted auctionScores row (totalPoints, synergyBonus, clubResultBonus) and, in the SAME transaction, re-ranks every auctionScores row in (leagueId, gameweekId) by totalPoints desc with teamId asc as a deterministic tiebreaker. Each row whose computed rank or payout changes is updated with the new rank and the new payout (resolved via getPayoutForRank in src/lib/formats/auction/economy.ts). For every team whose payout changed, teams.purse and teams.totalIncome are adjusted by the payout delta (positive when the rank improved, negative when it dropped), keeping the leaderboard, admin finance overview, and the GW payout ledger fully consistent.",
+        "rule": "PATCH /api/superadmin/score-adjustments adjusts the targeted auctionScores row (totalPoints, synergyBonus, clubResultBonus) and, in the SAME transaction, re-ranks every auctionScores row in (leagueId, gameweekId) by totalPoints desc with teamId asc as a deterministic tiebreaker. Each row whose computed rank or payout changes is updated with the new rank and the new payout (resolved via getPayoutForRank in src/lib/sports/fpl/formats/auction/economy.ts). For every team whose payout changed, teams.purse and teams.totalIncome are adjusted by the payout delta (positive when the rank improved, negative when it dropped), keeping the leaderboard, admin finance overview, and the GW payout ledger fully consistent.",
         "sourceRefs": [
           "src/app/api/superadmin/score-adjustments/route.ts:130-184",
-          "src/lib/formats/auction/economy.ts (getPayoutForRank)"
+          "src/lib/sports/fpl/formats/auction/economy.ts (getPayoutForRank)"
         ]
       },
       {
@@ -2319,7 +2319,7 @@
       "actualBehaviour": "[101..120] is accepted and stored; PL Club Auction tier resolution silently breaks until the row is corrected.",
       "sourceRefs": [
         "src/app/api/superadmin/pl-standings/route.ts:119-152",
-        "src/lib/data/pl-standings-seed.ts:39-51"
+        "src/lib/sports/fpl/data/pl-standings-seed.ts:39-51"
       ],
       "linkedBusinessRules": [
         "BR-SUPER-021"
@@ -2360,7 +2360,7 @@
         "TC-SUPER-068"
       ],
       "notes": "Critical because payout is real money/economy. Cross-references module 11 (Auction Economy) — the safe fix is to call the same reprocess helper module 11 uses after scoring. Defer test cases to QA once the architectural call (inline recompute vs queued reprocess) is made. [DEV] Self-verified: tsc passes for touched file, manual diff review clean. Awaiting QA re-run of pinningTestCases. [QA] Re-run TC-SUPER-051 (now expected to FAIL — pre-fix pin) and TC-SUPER-068 (now expected to PASS — post-fix pin). [BA] BR-SUPER-029 / AC-SUPER-031 should be updated to spell out that the inline recompute uses `totalPoints desc → teamId asc` as the deterministic tiebreaker (the heavier squadValue+purse tiebreakers used in module 11's full GW processor are out of scope for a PATCH); confirm this is the intended behaviour. [QA-VERIFIED]: 2026-05-25 — TC-SUPER-051 inverted, TC-SUPER-068 confirmed; rank/payout recompute + purse/totalIncome adjustment confirmed. [BA-UPDATED]: 2026-05-25 — BR-SUPER-029 + AC-SUPER-031 updated to reflect fixed behaviour.",
-      "resolution": "In src/app/api/superadmin/score-adjustments/route.ts:130-186, after updating the patched auctionScores row inside the existing transaction, reload all auction_scores rows for (leagueId, gameweekId), sort them by totalPoints desc with teamId asc as the deterministic tiebreaker, and write the resulting rank + getPayoutForRank(rank) (imported from src/lib/formats/auction/economy.ts) back to every row whose rank/payout changed. Also adjust each affected team's teams.purse and teams.totalIncome by the payout delta so the admin finance summary (buildAllTeamsSummary reads teams.purse directly) stays consistent with the leaderboard. Entire recompute is in the same db.transaction as the score update and the auditLogs insert, so a failure rolls everything back.",
+      "resolution": "In src/app/api/superadmin/score-adjustments/route.ts:130-186, after updating the patched auctionScores row inside the existing transaction, reload all auction_scores rows for (leagueId, gameweekId), sort them by totalPoints desc with teamId asc as the deterministic tiebreaker, and write the resulting rank + getPayoutForRank(rank) (imported from src/lib/sports/fpl/formats/auction/economy.ts) back to every row whose rank/payout changed. Also adjust each affected team's teams.purse and teams.totalIncome by the payout delta so the admin finance summary (buildAllTeamsSummary reads teams.purse directly) stays consistent with the leaderboard. Entire recompute is in the same db.transaction as the score update and the auditLogs insert, so a failure rolls everything back.",
       "resolutionDate": "2026-05-25"
     },
     {

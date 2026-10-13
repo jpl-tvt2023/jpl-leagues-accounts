@@ -18,11 +18,11 @@
 import { db } from "@/lib/db";
 import { teams, gameweekCaptains, gameweekChips, gameweeks } from "@/lib/db/schema";
 import { and, asc, eq } from "drizzle-orm";
-import { chipCode, chipName } from "@/lib/formats/tvt/chip-labels";
-import { buildChallengeMatches } from "@/lib/formats/tvt/challenge-match-query";
-import { isChipDisclosable, isChipWasted } from "@/lib/formats/tvt/chip-waste";
-import type { ChallengeMatch } from "@/lib/formats/tvt/challenge-match";
-import { getCurrentGameweekNumber } from "@/lib/gameweeks/current-gw";
+import { chipCode, chipName } from "@/lib/sports/fpl/formats/tvt/chip-labels";
+import { buildChallengeMatches } from "@/lib/sports/fpl/formats/tvt/challenge-match-query";
+import { isChipDisclosable, isChipWasted } from "@/lib/sports/fpl/formats/tvt/chip-waste";
+import type { ChallengeMatch } from "@/lib/sports/fpl/formats/tvt/challenge-match";
+import { getCurrentGameweekNumber } from "@/lib/sports/fpl/gameweeks/current-gw";
 
 export interface LeagueCaptainRow {
   teamId: string;

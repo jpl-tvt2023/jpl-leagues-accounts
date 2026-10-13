@@ -16,7 +16,7 @@ import {
   computeGameweekAwards,
   type AwardChipInput,
   type AwardFixtureInput,
-} from "../../src/lib/formats/tvt/gameweek-awards";
+} from "../../src/lib/sports/fpl/formats/tvt/gameweek-awards";
 
 function fixture(over: Partial<AwardFixtureInput> & { fixtureId: string }): AwardFixtureInput {
   return {

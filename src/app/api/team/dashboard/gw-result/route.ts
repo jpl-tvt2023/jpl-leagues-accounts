@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { leagueFromRequest, resolveTeamActor, teamActorDenied } from "@/lib/team-actor";
 import { db, teams, fixtures, results, gameweeks, gameweekCaptains, leagues } from "@/lib/db";
 import { eq, and, asc, desc } from "drizzle-orm";
-import { fplEntryUrl } from "@/lib/fpl-links";
+import { fplEntryUrl } from "@/lib/sports/fpl/links";
 
 function inferScores(total: number, players: { name: string }[]) {
   const captainBase = Math.floor((total - 1) / 3);

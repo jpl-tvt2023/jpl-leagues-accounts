@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { leagues } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import { buildFplLeagueStandings } from "@/lib/fpl-league/standings";
-import { buildFplLeagueTeamStats, EMPTY_TEAM_STATS } from "@/lib/fpl-league/team-stats";
+import { buildFplLeagueStandings } from "@/lib/sports/fpl/fpl-league/standings";
+import { buildFplLeagueTeamStats, EMPTY_TEAM_STATS } from "@/lib/sports/fpl/fpl-league/team-stats";
 
 /**
  * GET /api/fpl-league?leagueSlug=slug[&gw=N]

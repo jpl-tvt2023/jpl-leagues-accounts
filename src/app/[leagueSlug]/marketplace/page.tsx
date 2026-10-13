@@ -8,8 +8,8 @@ import { Sheet } from "@/components/ui/Sheet";
 import { Tabs } from "@/components/ui/Tabs";
 import { LoadingScreen } from "@/components/LoadingScreen";
 import { useEnforceFormat, useLeague } from "@/lib/league-context";
-import { isPrimary } from "@/lib/formats/auction/tier";
-import { formatReleaseCycleGws } from "@/lib/formats/auction/cycle";
+import { isPrimary } from "@/lib/sports/fpl/formats/auction/tier";
+import { formatReleaseCycleGws } from "@/lib/sports/fpl/formats/auction/cycle";
 
 interface TradeProposal {
   id: string;

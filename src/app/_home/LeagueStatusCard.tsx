@@ -1,8 +1,8 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { getFormatPalette } from "@/lib/format-palette";
-import { formatCurrency } from "@/lib/format/currency";
-import { cardHref, type AuctionStatus, type ClassicStatus, type H2hStatus, type MyLeagueCard } from "@/lib/dashboard/overview";
+import { formatCurrency, formatLakhs } from "@/lib/format/currency";
+import { cardHref, type AuctionStatus, type ClassicStatus, type CricketStatus, type H2hStatus, type MyLeagueCard } from "@/lib/dashboard/overview";
 import { formatCountdown, ordinal } from "./format";
 
 /**
@@ -58,6 +58,8 @@ export function LeagueStatusCard({ card, now }: { card: MyLeagueCard; now: numbe
           <AuctionBody status={card.status} now={now} />
         ) : card.status?.kind === "classic" ? (
           <ClassicBody status={card.status} />
+        ) : card.status?.kind === "cricket" ? (
+          <CricketBody status={card.status} now={now} />
         ) : (
           <p className="text-gray-400">No numbers yet.</p>
         )}
@@ -204,6 +206,39 @@ function AuctionBody({ status: s, now }: { status: AuctionStatus; now: number })
         <p className="text-gray-300">
           <span className="text-gray-500">Next auction: </span>
           {new Date(s.auction.at).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+          <span className="text-gray-500"> · in {formatCountdown(Date.parse(s.auction.at) - now)}</span>
+        </p>
+      )}
+    </>
+  );
+}
+
+function CricketBody({ status: s, now }: { status: CricketStatus; now: number }) {
+  const what = s.auction?.type === "franchise" ? "Franchise auction" : "Auction";
+  return (
+    <>
+      {s.squadSize > 0 && s.rank > 0 ? (
+        <Headline>
+          {ordinal(s.rank)}
+          <span className="ml-1.5 text-sm font-normal text-gray-400">of {s.of} · {Math.round(s.totalPoints * 100) / 100} pts</span>
+        </Headline>
+      ) : (
+        <p className="text-gray-400">Squads are built in the auction.</p>
+      )}
+      <p className="text-gray-300">
+        Purse {formatLakhs(s.purse)} · Squad {s.squadSize}
+        {s.franchiseCode && ` · ${s.franchiseCode}`}
+      </p>
+      {s.auction?.state === "live" && (
+        <p className="inline-flex items-center gap-1.5 font-semibold text-green-300">
+          <span className="h-2 w-2 animate-pulse rounded-full bg-green-400" aria-hidden="true" />
+          {what} live now
+        </p>
+      )}
+      {s.auction?.state === "scheduled" && s.auction.at && Date.parse(s.auction.at) > now && (
+        <p className="text-gray-300">
+          <span className="text-gray-500">{what}: </span>
+          {new Date(s.auction.at).toLocaleString("en-IN", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
           <span className="text-gray-500"> · in {formatCountdown(Date.parse(s.auction.at) - now)}</span>
         </p>
       )}

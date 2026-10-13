@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifySession, SESSION_COOKIE_NAME } from "@/lib/auth";
 import { isSuperAdmin } from "@/lib/privilege";
-import { fetchAllPLClubsWithTiers } from "@/lib/formats/auction/club-auction";
+import { fetchAllPLClubsWithTiers } from "@/lib/sports/fpl/formats/auction/club-auction";
 
 /**
  * GET /api/auction/club-tiers?leagueId=xxx

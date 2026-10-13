@@ -1,5 +1,5 @@
 /**
- * Saved FPL teams (src/lib/fpl-teams.ts) against a real SQLite database built from schema.ts, with
+ * Saved FPL teams (src/lib/sports/fpl/user-teams.ts) against a real SQLite database built from schema.ts, with
  * a tiny local server standing in for FPL: entry 404 doesn't exist, every other id is a team.
  *
  * Run with: npm run test:unit   (builds ./fpl-teams-unit.db, gitignored)
@@ -16,7 +16,7 @@ const DB_FILE = "fpl-teams-unit.db";
 process.env.DATABASE_URL = `file:./${DB_FILE}`;
 process.env.SESSION_SECRET ??= "unit-test-secret-that-is-at-least-32-characters";
 
-let f: typeof import("../../src/lib/fpl-teams");
+let f: typeof import("../../src/lib/sports/fpl/user-teams");
 let d: typeof import("../../src/lib/db");
 let eq: typeof import("drizzle-orm").eq;
 let fakeFpl: Server;
@@ -38,7 +38,7 @@ before(async () => {
   for (const s of ["", "-shm", "-wal", "-journal"]) rmSync(DB_FILE + s, { force: true });
   const push = spawnSync("npx", ["drizzle-kit", "push", "--force"], { env: process.env, shell: true, encoding: "utf8" });
   assert.equal(push.status, 0, `drizzle-kit push failed:\n${push.stdout}\n${push.stderr}`);
-  f = await import("../../src/lib/fpl-teams");
+  f = await import("../../src/lib/sports/fpl/user-teams");
   d = await import("../../src/lib/db");
   ({ eq } = await import("drizzle-orm"));
   await d.fkReady;

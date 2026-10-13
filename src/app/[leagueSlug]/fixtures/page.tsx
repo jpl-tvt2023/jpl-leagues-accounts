@@ -9,7 +9,7 @@ import { useParams } from "next/navigation";
 import { LoadingScreen } from "@/components/LoadingScreen";
 import { LeagueNav } from "@/components/LeagueNav";
 import { useLeague, useEnforceFormat } from "@/lib/league-context";
-import { pickDefaultGameweek } from "@/lib/gameweeks/default-gw";
+import { pickDefaultGameweek } from "@/lib/sports/fpl/gameweeks/default-gw";
 import {
   type Fixture,
   type GameweekFixtures,
@@ -25,11 +25,11 @@ import { ChallengeTip, type ChipDisplay } from "../_components/fixtures/Challeng
 import {
   buildLiveChallengeMatch,
   indexLiveSides,
-} from "@/lib/formats/tvt/challenge-match-live";
-import type { ChallengeMatch } from "@/lib/formats/tvt/challenge-match";
-import { tvtChipWasteReasonFor } from "@/lib/formats/tvt/fpl-chip-clash";
-import { tvtChipGain, type TvtChipGain } from "@/lib/formats/tvt/chip-gain";
-import type { FplChipStatus } from "@/lib/fpl-league/chips";
+} from "@/lib/sports/fpl/formats/tvt/challenge-match-live";
+import type { ChallengeMatch } from "@/lib/sports/fpl/formats/tvt/challenge-match";
+import { tvtChipWasteReasonFor } from "@/lib/sports/fpl/formats/tvt/fpl-chip-clash";
+import { tvtChipGain, type TvtChipGain } from "@/lib/sports/fpl/formats/tvt/chip-gain";
+import type { FplChipStatus } from "@/lib/sports/fpl/fpl-league/chips";
 
 /** Chips played in a gameweek, keyed by gameweek number then team id. */
 type ChipsByGameweek = Record<number, Record<string, ChipDisplay>>;
@@ -292,7 +292,7 @@ function FixtureCard({
 
 /**
  * Live-score poll interval. Must stay BELOW the server's LIVE_CACHE_TTL (10 min,
- * src/lib/fpl-cache.ts) — see the comment at the interval's call site.
+ * src/lib/sports/fpl/cache.ts) — see the comment at the interval's call site.
  */
 const LIVE_POLL_MS = 3 * 60 * 1000;
 

@@ -25,7 +25,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { compareTiebreaker, type TeamStanding } from "../../src/lib/formats/tvt/tiebreaker";
+import { compareTiebreaker, type TeamStanding } from "../../src/lib/sports/fpl/formats/tvt/tiebreaker";
 
 /** Build a standings row; every tiebreaker key defaults to "level with everyone". */
 function team(teamId: string, over: Partial<TeamStanding> = {}): TeamStanding {

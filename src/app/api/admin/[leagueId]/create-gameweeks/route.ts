@@ -3,7 +3,8 @@ import { db, gameweeks, leagues } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
 import { generateId } from "@/lib/id";
 import { getAuthorizedLeagueId } from "@/lib/league-auth";
-import { fetchBootstrapData } from "@/lib/fpl";
+import { refuseIfNoGameweeks } from "@/lib/sports/route-guards";
+import { fetchBootstrapData } from "@/lib/sports/fpl/api";
 
 /**
  * POST /api/admin/[leagueId]/create-gameweeks
@@ -20,6 +21,8 @@ export async function POST(request: NextRequest) {
   try {
     const leagueId = await getAuthorizedLeagueId(request);
     if (!leagueId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const noGameweeks = await refuseIfNoGameweeks(leagueId);
+    if (noGameweeks) return noGameweeks;
 
     const leagueRow = await db
       .select({ startGameweek: leagues.startGameweek })

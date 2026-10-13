@@ -3,18 +3,20 @@
 import { createContext, useContext, type ReactNode } from "react";
 import { notFound } from "next/navigation";
 import { getFormatPalette, type FormatPalette } from "@/lib/format-palette";
+import type { LeagueFormat } from "@/lib/sports/registry";
 
-// Widening this union only loosens useEnforceFormat's ARGUMENT type below — every existing call
-// site passes a literal array that still excludes "fpl-classic", so they keep 404ing it exactly
-// as before. Adding the format here does not, by itself, grant it access to anything.
-export type LeagueFormat = "tvt" | "continental-championship" | "auction" | "fpl-classic";
+// The union lives in the format registry. Widening it only loosens useEnforceFormat's ARGUMENT type
+// below — every existing call site passes a literal array that still excludes the newer formats,
+// so they keep 404ing them exactly as before. Adding a format does not, by itself, grant it access
+// to anything.
+export type { LeagueFormat };
 
 export interface LeagueInfo {
   id: string;
   slug: string;
   name: string;
   sport: string;
-  format: string; // "tvt" | "auction" | "continental-championship" | "fpl-classic"
+  format: string; // one of LeagueFormat (src/lib/sports/registry.ts)
   season: string;
   teamSize: number;
   groupCount: number;

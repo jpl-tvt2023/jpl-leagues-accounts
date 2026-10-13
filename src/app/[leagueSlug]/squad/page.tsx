@@ -8,8 +8,8 @@ import { LeagueNav } from "@/components/LeagueNav";
 import { SlotStatus, type SlotStatusData } from "@/components/SlotStatus";
 import { HelpTip } from "@/components/HelpTip";
 import { useEnforceFormat, useLeague } from "@/lib/league-context";
-import { formatReleaseCycleGws } from "@/lib/formats/auction/cycle";
-import { MAX_SQUAD_SIZE, type SquadCounts } from "@/lib/formats/auction/squad-rules";
+import { formatReleaseCycleGws } from "@/lib/sports/fpl/formats/auction/cycle";
+import { MAX_SQUAD_SIZE, type SquadCounts } from "@/lib/sports/fpl/formats/auction/squad-rules";
 import { useWishlist } from "@/hooks/useWishlist";
 import { WishlistList } from "@/components/WishlistList";
 

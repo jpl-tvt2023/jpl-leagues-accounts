@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, tradeProposals, auctionOwnership, teams, leagues, leagueAdmins } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
-import { executeTrade } from "@/lib/formats/auction/trade";
-import { validateTradeProposal, buildPositionMap, type TradePlayer } from "@/lib/formats/auction/marketplace";
+import { executeTrade } from "@/lib/sports/fpl/formats/auction/trade";
+import { validateTradeProposal, buildPositionMap, type TradePlayer } from "@/lib/sports/fpl/formats/auction/marketplace";
 import { createNotification, type NotificationType } from "@/lib/notifications";
-import { invalidateLeaguePageCache } from "@/lib/fpl-cache";
+import { invalidateLeaguePageCache } from "@/lib/sports/fpl/cache";
 
 async function notifyBothParties(
   proposal: { leagueId: string; proposerTeamId: string; targetTeamId: string },

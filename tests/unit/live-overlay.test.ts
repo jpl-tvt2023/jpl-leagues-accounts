@@ -11,9 +11,9 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { applyLiveFixtures, type LiveFixtureLike } from "../../src/lib/standings/live-overlay";
-import type { LeagueStageRow } from "../../src/lib/standings/league-stage";
-import type { TeamAward } from "../../src/lib/formats/tvt/gameweek-awards";
+import { applyLiveFixtures, type LiveFixtureLike } from "../../src/lib/sports/fpl/standings/live-overlay";
+import type { LeagueStageRow } from "../../src/lib/sports/fpl/standings/league-stage";
+import type { TeamAward } from "../../src/lib/sports/fpl/formats/tvt/gameweek-awards";
 
 function row(teamId: string, over: Partial<LeagueStageRow> = {}): LeagueStageRow {
   return {

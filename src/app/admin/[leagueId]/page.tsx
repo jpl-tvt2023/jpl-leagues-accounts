@@ -10,7 +10,8 @@ import { AppNav } from "@/components/AppNav";
 import { formatCurrency } from "@/lib/format/currency";
 import { FeedbackTab } from "./FeedbackTab";
 import { MembersTab } from "./MembersTab";
-import { DEFAULT_RELEASE_CYCLE_GWS, formatReleaseCycleGws, parseReleaseCycleGws } from "@/lib/formats/auction/cycle";
+import { DEFAULT_RELEASE_CYCLE_GWS, formatReleaseCycleGws, parseReleaseCycleGws } from "@/lib/sports/fpl/formats/auction/cycle";
+import { isCricketFormat } from "@/lib/sports/registry";
 
 interface Team {
   id: string;
@@ -409,6 +410,11 @@ export default function AdminDashboard() {
       .then(r => r.json())
       .then(data => {
         const league = (data.leagues || []).find((l: { slug: string }) => l.slug === leagueId);
+        // Cricket leagues have their own console; nothing on this FPL one applies to them.
+        if (league && isCricketFormat(league.format)) {
+          window.location.replace(`/admin/${leagueId}/cricket`);
+          return;
+        }
         if (league) {
           let enabledChips: string[] = ["D", "W", "C"];
           try { enabledChips = JSON.parse(league.enabledChips ?? '["D","W","C"]'); } catch { /* keep default */ }

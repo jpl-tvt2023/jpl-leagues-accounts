@@ -55,7 +55,7 @@
         "soThat": "I am the final gatekeeper before economy state changes",
         "sourceRefs": [
           "src/app/api/auction/trade/admin/route.ts:62-136",
-          "src/lib/formats/auction/trade.ts:31-116"
+          "src/lib/sports/fpl/formats/auction/trade.ts:31-116"
         ]
       },
       {
@@ -118,7 +118,7 @@
         "iWant": "to purge every pending/accepted trade the moment a live auction session starts",
         "soThat": "stale proposals cannot execute against squads that are about to change",
         "sourceRefs": [
-          "src/lib/formats/auction/live-session.ts:22-45"
+          "src/lib/sports/fpl/formats/auction/live-session.ts:22-45"
         ]
       }
     ],
@@ -166,7 +166,7 @@
         "sourceRefs": [
           "src/app/api/auction/trade/route.ts:139-144",
           "src/app/api/auction/trade/route.ts:313-318",
-          "src/lib/formats/auction/live-session.ts:1-20"
+          "src/lib/sports/fpl/formats/auction/live-session.ts:1-20"
         ]
       },
       {
@@ -187,36 +187,36 @@
         "id": "BR-TRADE-009",
         "rule": "Trade validity is enforced by `validateTradeProposal`: post-trade squad size must stay between 11 and `effectiveMaxSquadSize(penaltySlots, bonusSlots)` on both sides.",
         "sourceRefs": [
-          "src/lib/formats/auction/marketplace.ts:58-77"
+          "src/lib/sports/fpl/formats/auction/marketplace.ts:58-77"
         ]
       },
       {
         "id": "BR-TRADE-010",
         "rule": "Post-trade position quotas must be respected on both sides: at least 1 GK, 3 DEF, 3 MID, 1 FWD remaining. When position data is available, violations return per-side per-position error messages.",
         "sourceRefs": [
-          "src/lib/formats/auction/marketplace.ts:17-18",
-          "src/lib/formats/auction/marketplace.ts:122-154"
+          "src/lib/sports/fpl/formats/auction/marketplace.ts:17-18",
+          "src/lib/sports/fpl/formats/auction/marketplace.ts:122-154"
         ]
       },
       {
         "id": "BR-TRADE-011",
         "rule": "Cash check: if `cashOffered > 0` the proposer must have enough purse; if `cashOffered < 0` the target must have enough purse. Insufficient purse on either side fails validation.",
         "sourceRefs": [
-          "src/lib/formats/auction/marketplace.ts:79-85"
+          "src/lib/sports/fpl/formats/auction/marketplace.ts:79-85"
         ]
       },
       {
         "id": "BR-TRADE-012",
         "rule": "FMV floor: each side must give at least 80% of the total FMV it receives (FMV math defined in module 11). Floors are computed as `Math.floor(otherSideGivesValue * 0.8)` and undervaluation produces a 'Trade undervalues what X gives' error.",
         "sourceRefs": [
-          "src/lib/formats/auction/marketplace.ts:87-115"
+          "src/lib/sports/fpl/formats/auction/marketplace.ts:87-115"
         ]
       },
       {
         "id": "BR-TRADE-013",
         "rule": "A proposal must involve at least one player on at least one side — cash-only trades (offered=[] and requested=[]) are rejected with 'Trade must involve at least one player'.",
         "sourceRefs": [
-          "src/lib/formats/auction/marketplace.ts:117-120"
+          "src/lib/sports/fpl/formats/auction/marketplace.ts:117-120"
         ]
       },
       {
@@ -327,15 +327,15 @@
         "id": "BR-TRADE-028",
         "rule": "`executeTrade` runs as a single DB transaction: all offered ownerships are reassigned to the target, all requested ownerships to the proposer, cash + 5% transfer fee is applied, and the proposal is marked `status='completed'`. Partial failures roll the whole thing back.",
         "sourceRefs": [
-          "src/lib/formats/auction/trade.ts:31-116"
+          "src/lib/sports/fpl/formats/auction/trade.ts:31-116"
         ]
       },
       {
         "id": "BR-TRADE-029",
         "rule": "Cash transfer applies a 5% transfer fee to the recipient: when `cashOffered > 0` the proposer's purse drops by the gross amount and totalSpent rises by the gross; the target's purse rises by `gross - round(gross * 0.05)` and totalIncome rises by the same net. When `cashOffered < 0` the roles flip. (The 5% rate definition lives in module 11; module 12 covers WHEN it is applied — at admin approval.)",
         "sourceRefs": [
-          "src/lib/formats/auction/trade.ts:8-9",
-          "src/lib/formats/auction/trade.ts:53-104"
+          "src/lib/sports/fpl/formats/auction/trade.ts:8-9",
+          "src/lib/sports/fpl/formats/auction/trade.ts:53-104"
         ]
       },
       {
@@ -404,7 +404,7 @@
         "sourceRefs": [
           "src/app/api/auction/release/route.ts:63-70",
           "src/app/api/auction/release/route.ts:141-148",
-          "src/lib/formats/auction/live-session.ts:8-20"
+          "src/lib/sports/fpl/formats/auction/live-session.ts:8-20"
         ]
       },
       {
@@ -412,7 +412,7 @@
         "rule": "POST /api/auction/release does NOT check `isAuctionLive(leagueId)` before flipping the ownership status. // CODE-CONFIRMED: may be a defect — the trade endpoint blocks during a live auction (BR-TRADE-006) but release does not, so a team can mark a player for release mid-auction, which `purgePendingTrades` does not handle. Confirm with product owner.",
         "sourceRefs": [
           "src/app/api/auction/release/route.ts:14-72",
-          "src/lib/formats/auction/live-session.ts:1-20"
+          "src/lib/sports/fpl/formats/auction/live-session.ts:1-20"
         ]
       },
       {
@@ -477,7 +477,7 @@
         "id": "BR-TRADE-048",
         "rule": "When a league's auction session transitions to active, `purgePendingTrades(leagueId)` flips every `pending` or `accepted` proposal in that league to `status='cancelled'` in one bulk update and returns the count purged. (Detailed handling lives in module 10; module 12 records this as the trigger that clears the marketplace.)",
         "sourceRefs": [
-          "src/lib/formats/auction/live-session.ts:22-45"
+          "src/lib/sports/fpl/formats/auction/live-session.ts:22-45"
         ]
       },
       {
@@ -517,7 +517,7 @@
           "src/app/api/auction/trade/admin/route.ts:117-125",
           "src/app/api/auction/trade/admin/route.ts:146-149",
           "src/app/api/auction/trade/admin/route.ts:167-170",
-          "src/lib/formats/auction/live-session.ts:39-43"
+          "src/lib/sports/fpl/formats/auction/live-session.ts:39-43"
         ]
       }
     ],
@@ -1070,7 +1070,7 @@
       "actualBehaviour": "Release proceeds during a live auction; the player remains scoring for the team until the next GW boundary, but the marketplace was supposed to be closed.",
       "sourceRefs": [
         "src/app/api/auction/release/route.ts:14-72",
-        "src/lib/formats/auction/live-session.ts:1-20"
+        "src/lib/sports/fpl/formats/auction/live-session.ts:1-20"
       ],
       "linkedBusinessRules": [
         "BR-TRADE-039"
@@ -1084,7 +1084,7 @@
         "TC-TRADE-072"
       ],
       "notes": "Inconsistency with the trade path. Fix: add `if (await isAuctionLive(leagueId)) return 409 ...` to both POST and DELETE on the release route. [DEV 2026-05-25] Self-verified: tsc passes for touched files (pre-existing errors in tests/league-types/*.spec.ts are unrelated), manual diff review clean. Awaiting QA re-run of pinningTestCases. [QA] Re-run TC-TRADE-054 against the fix — expect 409 with body { error: 'Marketplace is closed during a live auction' } on POST /api/auction/release while an auctionSessions row for the league has status='active' or 'paused'; same gate now also covers DELETE /api/auction/release (release cancellation). Behaviour now matches expectedBehaviour. [BA] BR-TRADE-039 / AC-TRADE-051 already describe the post-fix behaviour — no update required; however the pinningTestCases note referencing CODE-CONFIRMED 'release succeeds during live auction' (TC-TRADE-054 given/when/then around line 872) should be retargeted to the now-correct 409 outcome. [QA-VERIFIED]: 2026-05-25 — TC-TRADE-054 inverted; POST + DELETE both gated; DELETE coverage added. [CLIENT-CONFIRM 2026-05-28] Behaviour confirmed correct after DEF-TRADE-002 revision; isAuctionLive guard is now the sole restriction on /api/auction/release and applies uniformly across tiers. [BA-UPDATED]: 2026-05-28 — no BR/AC change; behaviour reaffirmed via DEF-TRADE-002's revised BR-TRADE-038.\n[DEV 2026-05-28] No code change. After DEF-TRADE-002 revision removed the tier gate, the isAuctionLive guard at release/route.ts:67-72 + 150-155 is the SOLE restriction and applies uniformly to Primary and Complete tiers.",
-      "resolution": "Added `isAuctionLive(leagueId)` gate to both POST and DELETE handlers in src/app/api/auction/release/route.ts. Imported the existing helper from @/lib/formats/auction/live-session and inserted a 409 short-circuit ({ error: 'Marketplace is closed during a live auction' }) after auth/ownership/league validation but before any state-changing update — mirroring the pattern already used by src/app/api/auction/trade/route.ts (POST line 139, PATCH line 313). POST now gates after the auction-league check (route.ts:62-67); DELETE gates after the ownership-of-player check (route.ts:135-140).",
+      "resolution": "Added `isAuctionLive(leagueId)` gate to both POST and DELETE handlers in src/app/api/auction/release/route.ts. Imported the existing helper from @/lib/sports/fpl/formats/auction/live-session and inserted a 409 short-circuit ({ error: 'Marketplace is closed during a live auction' }) after auth/ownership/league validation but before any state-changing update — mirroring the pattern already used by src/app/api/auction/trade/route.ts (POST line 139, PATCH line 313). POST now gates after the auction-league check (route.ts:62-67); DELETE gates after the ownership-of-player check (route.ts:135-140).",
       "resolutionDate": "2026-05-25"
     },
     {
@@ -1114,7 +1114,7 @@
         "TC-TRADE-061"
       ],
       "notes": "Direct economy / money bug — affects what a team can spend in the next session. Fix: add purse updates to every branch in the corrections transaction. Cross-reference module 11 to confirm purse/totalSpent invariants. [DEV 2026-05-25] Self-verified: tsc passes for touched files (pre-existing errors in tests/league-types/*.spec.ts are unrelated), manual diff review clean. Awaiting QA re-run of pinningTestCases. [QA] Re-run TC-TRADE-059 (undo-sale) and TC-TRADE-061 (manual-transfer 'unowned' + cross-team) — expect buyer.purse to be CREDITED by purchasePrice on undo-sale and unowned-transfer; expect new owner.purse to be DEBITED by transferPrice on cross-team transfer. Behaviour now matches BR-TRADE-043 expectedBehaviour. [BA] BR-TRADE-043 already documents the desired post-fix invariant (no rule wording change required), but AC-TRADE-056 + AC-TRADE-058 still encode the pre-fix CODE-CONFIRMED behaviour ('purse stays at 100' / 'purse remains stale — see DEF-TRADE-004'); please update both ACs to assert the corrected purse delta (buyer.purse rises by purchasePrice on undo-sale; original owner.purse rises by purchasePrice on unowned-transfer). [QA-VERIFIED]: 2026-05-25 — TC-TRADE-059 + TC-TRADE-061 inverted; purse math confirmed. [BA-UPDATED]: 2026-05-25 — AC-TRADE-056 + AC-TRADE-058 updated to reflect fixed behaviour. [BA-FOLLOWUP]: 2026-05-25 — BR-TRADE-043 rewritten directly (senior-dev had incorrectly stated BR text matched post-fix); now describes the purse/totalSpent invariant.",
-      "resolution": "Added `purse` updates alongside the existing `totalSpent` adjustments in src/app/api/admin/[leagueId]/auction-corrections/route.ts for all three branches: undo-sale (lines 56-63 credit buyer.purse += purchasePrice), manual-transfer to 'unowned' (lines 103-109 credit original owner.purse += purchasePrice), and manual-transfer to another team (lines 115-128 credit original owner.purse += purchasePrice and debit new owner.purse -= transferPrice). Mirrors the canonical sale pattern in src/lib/formats/auction/resolve-bid.ts:166-170 (`purse -= price, totalSpent += price`) inverted for refunds. All changes remain inside the existing db.transaction so partial failures still roll back.",
+      "resolution": "Added `purse` updates alongside the existing `totalSpent` adjustments in src/app/api/admin/[leagueId]/auction-corrections/route.ts for all three branches: undo-sale (lines 56-63 credit buyer.purse += purchasePrice), manual-transfer to 'unowned' (lines 103-109 credit original owner.purse += purchasePrice), and manual-transfer to another team (lines 115-128 credit original owner.purse += purchasePrice and debit new owner.purse -= transferPrice). Mirrors the canonical sale pattern in src/lib/sports/fpl/formats/auction/resolve-bid.ts:166-170 (`purse -= price, totalSpent += price`) inverted for refunds. All changes remain inside the existing db.transaction so partial failures still roll back.",
       "resolutionDate": "2026-05-25"
     },
     {
@@ -1150,7 +1150,7 @@
         "TC-TRADE-070"
       ],
       "notes": "No active data risk, but adds documentation/test maintenance cost and confuses API consumers. Fix: schema migration to drop columns + status-enum comment update + remove veto fields from the GET projection. [DEV] Self-verified: cleanup-only fix; no behaviour change. [QA-VERIFIED] Inverted pinning TC(s). [BA-UPDATED] BR/AC text refreshed. [BA-UPDATED]: 2026-05-28 — BR-TRADE-023 rewritten to reflect physical column drop in migration 0014; AC-TRADE-065 strengthened to assert column absence via PRAGMA table_info.\n[DEV 2026-05-28] Client revision: columns physically dropped via migration 0014, not just hidden from API. Schema declarations + 7 incidental references purged.",
-      "resolution": "veto_deadline and veto_votes columns physically dropped from trade_proposals via drizzle/0014_drop_veto_columns.sql (recreate-table pattern: BEGIN TX → CREATE __new → INSERT...SELECT → DROP old → RENAME → COMMIT). Schema declarations removed from src/lib/db/schema.ts. Seven incidental references purged: src/lib/backup/generate.ts (CSV row schema + emit), src/app/api/admin/[leagueId]/restore-auction/route.ts (TradeRow type + insert), src/app/[leagueSlug]/marketplace/page.tsx (client type), src/app/admin/[leagueId]/page.tsx (client type + JSX block), src/app/api/auction/trade/route.ts (comment). Previous fix (2026-05-26) kept the columns dormant; client clarified 2026-05-28 that they should be fully dropped.",
+      "resolution": "veto_deadline and veto_votes columns physically dropped from trade_proposals via drizzle/0014_drop_veto_columns.sql (recreate-table pattern: BEGIN TX → CREATE __new → INSERT...SELECT → DROP old → RENAME → COMMIT). Schema declarations removed from src/lib/db/schema.ts. Seven incidental references purged: src/lib/sports/fpl/backup/generate.ts (CSV row schema + emit), src/app/api/admin/[leagueId]/restore-auction/route.ts (TradeRow type + insert), src/app/[leagueSlug]/marketplace/page.tsx (client type), src/app/admin/[leagueId]/page.tsx (client type + JSX block), src/app/api/auction/trade/route.ts (comment). Previous fix (2026-05-26) kept the columns dormant; client clarified 2026-05-28 that they should be fully dropped.",
       "resolutionDate": "2026-05-28"
     },
     {

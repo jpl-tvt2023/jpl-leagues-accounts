@@ -1,6 +1,6 @@
 "use client";
 
-import { fplEntryUrl } from "@/lib/fpl-links";
+import { fplEntryUrl } from "@/lib/sports/fpl/links";
 
 /**
  * Link to a manager's page on the official FPL site.

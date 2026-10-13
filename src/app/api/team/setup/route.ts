@@ -2,14 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, teams, leagues, teamMembers, users } from "@/lib/db";
 import { eq, and, sql } from "drizzle-orm";
 import { leagueFromRequest, resolveTeamActor, teamActorDenied } from "@/lib/team-actor";
-import { invalidateLeaguePageCache } from "@/lib/fpl-cache";
+import { invalidateLeaguePageCache } from "@/lib/sports/fpl/cache";
 import { MembershipError, leagueFplLock, maxMembersFor, needsSetup, readPlayerDetails, saveOwnPlayer, teamSlots } from "@/lib/membership";
-import { fplIdsTakenInLeague, hasFplTeam, listFplTeams } from "@/lib/fpl-teams";
+import { fplIdsTakenInLeague, hasFplTeam, listFplTeams } from "@/lib/sports/fpl/user-teams";
+import { formatCaps } from "@/lib/sports/registry";
 
-/** Check if a league uses the auction format (no FPL player IDs needed at setup) */
-async function isAuctionLeague(leagueId: string): Promise<boolean> {
+/** The league's format. Auction-style formats (FPL auction, cricket) need only a team name at setup. */
+async function leagueFormatOf(leagueId: string): Promise<string | null> {
   const row = await db.select({ format: leagues.format }).from(leagues).where(eq(leagues.id, leagueId)).limit(1);
-  return row.length > 0 && row[0].format === "auction";
+  return row[0]?.format ?? null;
 }
 
 /**
@@ -74,6 +75,7 @@ export async function GET(request: NextRequest) {
       role: actor.memberRole,
       leagueSlug: league?.slug ?? null,
       leagueFormat: format,
+      setupMode: formatCaps(format).setupMode,
       clubAuctionEnabled: league?.clubAuctionEnabled ?? false,
       maxMembers,
       memberCount: members.length,
@@ -125,7 +127,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Team not found" }, { status: 404 });
     }
     const leagueId = team.leagueId;
-    const isAuction = await isAuctionLeague(leagueId);
+    const format = await leagueFormatOf(leagueId);
+    const isNameOnly = format !== null && formatCaps(format).setupMode === "name-only";
 
     // ============= Team name (owner only) =============
     // The team keeps its internal team key; setup only names it.
@@ -145,20 +148,21 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Auction format: only needs team name (players acquired via auction)
-    if (isAuction) {
+    // Auction formats (FPL auction, cricket): only a team name — players come from the auction.
+    if (isNameOnly) {
       if (!trimmedTeamName) {
         return NextResponse.json({ error: "Only the team owner can set up this team." }, { status: 403 });
       }
       // Update team: name, isProfileComplete = true
-      // Also initialize purse from league's initial budget on first-time setup only
+      // FPL auction also initialises the purse from the league's initial budget on first-time setup
+      // only. Cricket keeps its purse in cricket_team_state, set when the league is created.
       const updateSet: Partial<typeof teams.$inferInsert> = {
         name: trimmedTeamName,
         isProfileComplete: true,
         updatedAt: new Date(),
       };
 
-      if (!team.isProfileComplete) {
+      if (!team.isProfileComplete && format === "auction") {
         const leagueRow = await db.select().from(leagues).where(eq(leagues.id, leagueId)).limit(1);
         const initialBudget = leagueRow[0]?.initialBudget ?? 100_000_000;
         updateSet.purse = initialBudget;
@@ -173,7 +177,7 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({
         success: true,
-        message: "Profile setup completed (auction format — players acquired via auction)",
+        message: "Profile setup completed (players are acquired via the auction)",
       });
     }
 

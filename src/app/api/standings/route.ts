@@ -1,18 +1,19 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { db, gameweeks, leagues, settings } from "@/lib/db";
-import { dailyTick } from "@/lib/cron/daily-tick";
+import { dailyTick } from "@/lib/sports/fpl/cron/daily-tick";
 import { eq, and } from "drizzle-orm";
-import { getCachedStandings, setCachedStandings } from "@/lib/fpl-cache";
-import { loadAuctionStandings } from "@/lib/formats/auction/standings-load";
-import { getClubOwnershipsByTeam, computeClubResultBonus } from "@/lib/formats/auction/club-auction";
-import { backfillClubSummaries } from "@/lib/formats/auction/club-summary-backfill";
-import { computeLeagueStageStandings, rankAndZone, type LeagueStageRow } from "@/lib/standings/league-stage";
-import { isChipDisclosable } from "@/lib/formats/tvt/chip-waste";
-import { disclosedGwCount } from "@/lib/gameweeks/disclosure";
-import { getActiveFplGameweek } from "@/lib/fpl/event-status";
-import { applyLiveFixtures } from "@/lib/standings/live-overlay";
-import { resolveLiveStandingsContext } from "@/lib/standings/live-context";
-import { getInFlightGameweekNumber } from "@/lib/gameweeks/in-flight";
+import { getCachedStandings, setCachedStandings } from "@/lib/sports/fpl/cache";
+import { loadAuctionStandings } from "@/lib/sports/fpl/formats/auction/standings-load";
+import { getClubOwnershipsByTeam, computeClubResultBonus } from "@/lib/sports/fpl/formats/auction/club-auction";
+import { backfillClubSummaries } from "@/lib/sports/fpl/formats/auction/club-summary-backfill";
+import { computeLeagueStageStandings, rankAndZone, type LeagueStageRow } from "@/lib/sports/fpl/standings/league-stage";
+import { isChipDisclosable } from "@/lib/sports/fpl/formats/tvt/chip-waste";
+import { disclosedGwCount } from "@/lib/sports/fpl/gameweeks/disclosure";
+import { getActiveFplGameweek } from "@/lib/sports/fpl/event-status";
+import { applyLiveFixtures } from "@/lib/sports/fpl/standings/live-overlay";
+import { resolveLiveStandingsContext } from "@/lib/sports/fpl/standings/live-context";
+import { getInFlightGameweekNumber } from "@/lib/sports/fpl/gameweeks/in-flight";
+import { isCricketFormat } from "@/lib/sports/registry";
 
 interface ChipTooltipEntry {
   label: string;      // "WW1", "DP1", "CC1", "WW2", "DP2", "CC2"
@@ -57,7 +58,7 @@ interface TeamStanding {
   fplNetScore: number;
   cbpTooltip: CbpTooltip;
   // Match points (W=2, D=1, L=0) earned vs each opponent — tier 4 of the canonical
-  // tiebreaker in src/lib/formats/tvt/tiebreaker.ts (scoring.ts only re-exports it).
+  // tiebreaker in src/lib/sports/fpl/formats/tvt/tiebreaker.ts (scoring.ts only re-exports it).
   // Internal-only; stripped before responding to the client (see toResponseRow).
   headToHeadRecord: Record<string, number>;
   players: { name: string; fplId: string; captaincyChipsUsed: number }[];
@@ -99,6 +100,11 @@ export async function GET(request: NextRequest) {
     const playoffStartGw = league[0].playoffStartGw ?? 31;
     const leagueTeamSize = league[0].teamSize ?? 32;
     const leagueFormat = league[0].format ?? "tvt";
+    // Cricket standings come from /api/cricket/standings. Refuse here, before the cache read
+    // below, so a cricket league can never be computed (or cached) as TVT.
+    if (isCricketFormat(leagueFormat)) {
+      return NextResponse.json({ error: "Cricket leagues use /api/cricket/standings" }, { status: 400 });
+    }
     let leagueEnabledChips: string[] = ["D", "W", "C"];
     try { leagueEnabledChips = JSON.parse(league[0].enabledChips ?? '["D","W","C"]'); } catch { /* keep default */ }
     // Continental Championship runs PL all 38 GWs; TVT league stage ends at playoffStartGw - 1

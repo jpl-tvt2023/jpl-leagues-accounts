@@ -14,8 +14,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, teams, fixtures, gameweeks, groups, playoffTies, leagues } from "@/lib/db";
 import { eq, and, inArray } from "drizzle-orm";
 import { getAuthorizedLeagueId } from "@/lib/league-auth";
+import { refuseIfNoGameweeks } from "@/lib/sports/route-guards";
 import { generateId } from "@/lib/id";
-import { invalidateLeaguePageCache } from "@/lib/fpl-cache";
+import { invalidateLeaguePageCache } from "@/lib/sports/fpl/cache";
 
 interface CupGroupStanding {
   teamId: string;
@@ -27,6 +28,8 @@ export async function POST(request: NextRequest) {
   try {
     const leagueId = await getAuthorizedLeagueId(request);
     if (!leagueId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const noGameweeks = await refuseIfNoGameweeks(leagueId);
+    if (noGameweeks) return noGameweeks;
 
     // Fetch league config
     const leagueRow = await db.select({
@@ -386,6 +389,8 @@ export async function DELETE(request: NextRequest) {
   try {
     const leagueId = await getAuthorizedLeagueId(request);
     if (!leagueId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const noGameweeks = await refuseIfNoGameweeks(leagueId);
+    if (noGameweeks) return noGameweeks;
 
     const ties = await db.select({ tieId: playoffTies.tieId }).from(playoffTies).where(
       and(
@@ -449,6 +454,8 @@ export async function GET(request: NextRequest) {
   try {
     const leagueId = await getAuthorizedLeagueId(request);
     if (!leagueId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const noGameweeks = await refuseIfNoGameweeks(leagueId);
+    if (noGameweeks) return noGameweeks;
 
     const jclTies = await db.select().from(playoffTies).where(
       and(eq(playoffTies.leagueId, leagueId), eq(playoffTies.roundType, "jcl-knockout"))

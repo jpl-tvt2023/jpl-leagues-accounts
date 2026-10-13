@@ -3,7 +3,7 @@ import { db, teams, players, groups } from "@/lib/db";
 import { eq, and, sql } from "drizzle-orm";
 import { generateId } from "@/lib/id";
 import { getAuthorizedLeagueId } from "@/lib/league-auth";
-import { fetchClubOwnershipMap } from "@/lib/teams/rename-rows";
+import { fetchClubOwnershipMap } from "@/lib/sports/fpl/teams/rename-rows";
 
 /**
  * POST /api/admin/[leagueId]/create-team

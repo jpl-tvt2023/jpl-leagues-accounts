@@ -4,7 +4,7 @@ import { auctionScores, gameweeks, leagues, teams, auditLogs } from "@/lib/db/sc
 import { eq, and, desc, asc } from "drizzle-orm";
 import { isSuperAdmin } from "@/lib/privilege";
 import { generateId } from "@/lib/id";
-import { assignRanksAndPayouts } from "@/lib/formats/auction/economy";
+import { assignRanksAndPayouts } from "@/lib/sports/fpl/formats/auction/economy";
 
 /**
  * GET /api/superadmin/score-adjustments?leagueId=...&gameweek=...

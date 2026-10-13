@@ -3,7 +3,7 @@
  *
  * The two rules that matter most:
  *  - no award of ANY kind fires before its required gameweeks are settled (the freeze gate this
- *    module exists to compute for lib/fpl-classic/sync.ts);
+ *    module exists to compute for lib/sports/fpl/formats/fpl-classic/sync.ts);
  *  - a late joiner is excluded from a gameweek/month award for any period before they joined,
  *    even though their full history counts toward the season total elsewhere.
  *
@@ -20,7 +20,7 @@ import {
   type AwardContext,
   type AwardEntrantRow,
   type AwardGwRow,
-} from "../../src/lib/fpl-classic/awards";
+} from "../../src/lib/sports/fpl/formats/fpl-classic/awards";
 
 function entrant(id: string, firstSeenGw = 1): AwardEntrantRow {
   return { id, playerName: `Player ${id}`, entryName: `Entry ${id}`, firstSeenGw };

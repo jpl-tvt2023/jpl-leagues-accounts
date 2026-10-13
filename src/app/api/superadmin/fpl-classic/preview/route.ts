@@ -8,8 +8,8 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { isSuperAdmin } from "@/lib/privilege";
-import { fetchClassicLeagueStandings, FplClassicLeagueNotFoundError } from "@/lib/fpl/classic-league";
-import { withFplBudget, FplUnavailableError } from "@/lib/fpl/gateway";
+import { fetchClassicLeagueStandings, FplClassicLeagueNotFoundError } from "@/lib/sports/fpl/classic-league";
+import { withFplBudget, FplUnavailableError } from "@/lib/sports/fpl/gateway";
 
 export async function GET(request: NextRequest) {
   if (!(await isSuperAdmin(request))) {

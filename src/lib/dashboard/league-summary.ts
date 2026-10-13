@@ -17,19 +17,22 @@ import {
   type User,
 } from "@/lib/db";
 import { CONTINENTAL_FORMAT } from "@/lib/format-palette";
+import { isCricketFormat } from "@/lib/sports/registry";
+import { getLeagueView } from "@/lib/sports/cricket/league";
 import { needsSetup, hasPlayerSlots } from "@/lib/membership";
-import { computeLeagueStageStandings } from "@/lib/standings/league-stage";
-import { resolveSubmissionWindow } from "@/lib/gameweek-window";
-import { getFinishedGwNumbers } from "@/lib/gameweeks/finished-set";
-import { cupGroupPosition } from "@/lib/formats/continental-championship/cup-progress";
-import { loadAuctionStandings } from "@/lib/formats/auction/standings-load";
-import { buildTeamLedger } from "@/lib/formats/auction/finance";
-import { rankRows } from "@/lib/fpl-classic/leaderboard";
-import { myClassicEntries, type MyClassicEntry } from "@/lib/fpl-classic/my-entries";
+import { computeLeagueStageStandings } from "@/lib/sports/fpl/standings/league-stage";
+import { resolveSubmissionWindow } from "@/lib/sports/fpl/gameweeks/window";
+import { getFinishedGwNumbers } from "@/lib/sports/fpl/gameweeks/finished-set";
+import { cupGroupPosition } from "@/lib/sports/fpl/formats/continental-championship/cup-progress";
+import { loadAuctionStandings } from "@/lib/sports/fpl/formats/auction/standings-load";
+import { buildTeamLedger } from "@/lib/sports/fpl/formats/auction/finance";
+import { rankRows } from "@/lib/sports/fpl/formats/fpl-classic/leaderboard";
+import { myClassicEntries, type MyClassicEntry } from "@/lib/sports/fpl/formats/fpl-classic/my-entries";
 import {
   buildOverview,
   type AuctionStatus,
   type ClassicStatus,
+  type CricketStatus,
   type FixtureBrief,
   type H2hStatus,
   type MyLeagueCard,
@@ -225,6 +228,30 @@ async function auctionStatus(
   };
 }
 
+/** Classic Cricket Auction: from the league view the cricket pages use (cached per data version). */
+async function cricketStatus(card: MyLeagueCard, teamId: string): Promise<CricketStatus | null> {
+  const view = await getLeagueView(card.leagueId);
+  if (!view) return null;
+  const row = view.standings.rows.find((r) => r.teamId === teamId);
+  const team = view.teams.find((t) => t.id === teamId);
+  const live = view.auctionSessions.find((s) => s.status === "active" || s.status === "paused");
+  const next = view.auctionSessions.find((s) => s.status === "pending");
+  return {
+    kind: "cricket",
+    rank: row?.rank ?? 0,
+    of: view.teams.length,
+    totalPoints: row?.total ?? 0,
+    purse: team?.purse ?? view.config.purse,
+    squadSize: team?.squadSize ?? 0,
+    franchiseCode: team?.franchise?.code ?? null,
+    auction: live
+      ? { state: "live", type: live.type, at: null }
+      : next
+        ? { state: "scheduled", type: next.type, at: next.scheduledAt }
+        : null,
+  };
+}
+
 /**
  * FPL Classic: rank among the league's active entrants by season points, from the stored totals
  * the Classic sync keeps (so it can trail the live table by a sync).
@@ -395,6 +422,8 @@ export async function loadOverview(user: Pick<User, "id" | "role" | "name" | "us
             Object.assign(card, await h2hStatus(card, team, now, finished));
           } else if (card.format === "auction") {
             Object.assign(card, await auctionStatus(card, team.teamId, now));
+          } else if (isCricketFormat(card.format)) {
+            card.status = await cricketStatus(card, team.teamId);
           }
         } else if (card.relation === "classic") {
           card.status = await classicStatus(classicById.get(card.leagueId)!);

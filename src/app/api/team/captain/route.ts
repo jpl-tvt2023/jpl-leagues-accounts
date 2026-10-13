@@ -3,9 +3,10 @@ import { leagueFromRequest, resolveTeamActor, teamActorDenied } from "@/lib/team
 import { db, gameweeks, gameweekCaptains, teams, settings, leagues, auditLogs } from "@/lib/db";
 import { eq, and, asc } from "drizzle-orm";
 import { generateId } from "@/lib/id";
-import { computeCaptainCap, computeCaptainCheckLimit } from "@/lib/captains";
-import { resolveSubmissionWindow, formatLateness } from "@/lib/gameweek-window";
-import { getFinishedGwNumbers } from "@/lib/gameweeks/finished-set";
+import { computeCaptainCap, computeCaptainCheckLimit } from "@/lib/sports/fpl/captains";
+import { resolveSubmissionWindow, formatLateness } from "@/lib/sports/fpl/gameweeks/window";
+import { getFinishedGwNumbers } from "@/lib/sports/fpl/gameweeks/finished-set";
+import { refuseIfNoGameweeks } from "@/lib/sports/route-guards";
 
 /**
  * POST /api/team/captain
@@ -19,6 +20,8 @@ export async function POST(request: NextRequest) {
   try {
     const { actor, denial } = await resolveTeamActor(request, { league: leagueFromRequest(request) });
     if (!actor) return teamActorDenied(denial, { unauthenticated: "Not authenticated" });
+    const noGameweeks = await refuseIfNoGameweeks(actor.leagueId);
+    if (noGameweeks) return noGameweeks;
     const teamId = actor.teamId;
 
     const body = await request.json();

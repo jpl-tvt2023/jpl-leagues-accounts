@@ -11,14 +11,14 @@ import { AuctionTimerRing } from "@/components/AuctionTimerRing";
 import { HelpTip } from "@/components/HelpTip";
 import type { ClubTier } from "@/lib/db/schema";
 import { useEnforceFormat, useLeague } from "@/lib/league-context";
-import { MAX_SQUAD_SIZE, effectiveMaxSquadSize } from "@/lib/formats/auction/squad-rules";
+import { MAX_SQUAD_SIZE, effectiveMaxSquadSize } from "@/lib/sports/fpl/formats/auction/squad-rules";
 import { useWishlist } from "@/hooks/useWishlist";
 import { WishlistList } from "@/components/WishlistList";
-import { getPlTeamFullName } from "@/lib/data/pl-team-full-names";
+import { getPlTeamFullName } from "@/lib/sports/fpl/data/pl-team-full-names";
 
 const CLUB_AUCTION_TYPE = "club-auction";
 
-// Display-only mirror of CLUB_TIER_BONUS (jpl-leagues/src/lib/formats/auction/club-auction.ts:56-60).
+// Display-only mirror of CLUB_TIER_BONUS (jpl-leagues/src/lib/sports/fpl/formats/auction/club-auction.ts:56-60).
 // Duplicated here (not imported) because that module is server-only (pulls in `db`, FPL fetchers).
 const CLUB_TIER_DISPLAY: Record<ClubTier, { label: string; win: number; draw: number }> = {
   top8: { label: "Top 8", win: 4, draw: 2 },

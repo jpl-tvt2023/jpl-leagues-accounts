@@ -4,15 +4,15 @@ import { db, teams, leagues, auctionSessions, teamSlotUnlocks } from "@/lib/db";
 import { eq, and, sql } from "drizzle-orm";
 import { verifySession, SESSION_COOKIE_NAME } from "@/lib/auth";
 import { isSuperAdmin } from "@/lib/privilege";
-import { calculatePurse } from "@/lib/formats/auction/economy";
+import { calculatePurse } from "@/lib/sports/fpl/formats/auction/economy";
 import {
   MAX_SQUAD_SIZE,
   MAX_BONUS_SLOTS,
   nextBonusSlotCost,
-} from "@/lib/formats/auction/squad-rules";
+} from "@/lib/sports/fpl/formats/auction/squad-rules";
 import { createNotification } from "@/lib/notifications";
 import { generateId } from "@/lib/id";
-import { invalidateLeaguePageCache } from "@/lib/fpl-cache";
+import { invalidateLeaguePageCache } from "@/lib/sports/fpl/cache";
 
 /**
  * POST /api/auction/unlock-slot

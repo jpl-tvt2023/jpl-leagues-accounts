@@ -1,6 +1,6 @@
 "use client";
 
-import type { StatManagerRef } from "@/lib/fixtures-stats/aggregate";
+import type { StatManagerRef } from "@/lib/sports/fpl/fixtures-stats/aggregate";
 
 /** One ranked line in a stats card. `managers` is what tapping it reveals. */
 export interface StatLine {

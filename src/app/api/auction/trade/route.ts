@@ -4,11 +4,11 @@ import { eq, and, or, lt } from "drizzle-orm";
 import { isSuperAdmin } from "@/lib/privilege";
 import { getRequestSession, resolveTeamActorForSession, sessionActsAsTeam, sessionTeamIdInLeague } from "@/lib/team-actor";
 import { generateId } from "@/lib/id";
-import { validateTradeProposal, buildPositionMap, type TradePlayer } from "@/lib/formats/auction/marketplace";
-import { calculateFMV } from "@/lib/formats/auction/economy";
-import { isAuctionLive } from "@/lib/formats/auction/live-session";
+import { validateTradeProposal, buildPositionMap, type TradePlayer } from "@/lib/sports/fpl/formats/auction/marketplace";
+import { calculateFMV } from "@/lib/sports/fpl/formats/auction/economy";
+import { isAuctionLive } from "@/lib/sports/fpl/formats/auction/live-session";
 import { createNotification } from "@/lib/notifications";
-import { fetchClubOwnershipMap } from "@/lib/teams/rename-rows";
+import { fetchClubOwnershipMap } from "@/lib/sports/fpl/teams/rename-rows";
 
 const TRADE_EXPIRY_MS = 24 * 60 * 60 * 1000;
 
