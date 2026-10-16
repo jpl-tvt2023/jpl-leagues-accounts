@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useState } from "react";
+import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { AppNav } from "@/components/AppNav";
 import { LoadingScreen } from "@/components/LoadingScreen";
@@ -54,8 +54,18 @@ type Message = { type: "success" | "error"; text: string };
 const CRICKET_BG = getFormatPalette(CRICKET_AUCTION_FORMAT, null).pageBg;
 
 export default function CricketAdminPage() {
+  // useSearchParams (the ?tab= the host room links back with) needs a Suspense boundary.
+  return (
+    <Suspense fallback={<LoadingScreen variant="cricket" bgClass={CRICKET_BG} label="Loading the league console" />}>
+      <CricketAdminConsole />
+    </Suspense>
+  );
+}
+
+function CricketAdminConsole() {
   const { leagueId } = useParams<{ leagueId: string }>();
-  const [tab, setTab] = useState<Tab>("managers");
+  const requestedTab = useSearchParams().get("tab");
+  const [tab, setTab] = useState<Tab>(() => TABS.find((t) => t.id === requestedTab)?.id ?? "managers");
   const [config, setConfig] = useState<ConfigPayload | null>(null);
   const [draft, setDraft] = useState<CricketLeagueSettings | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);

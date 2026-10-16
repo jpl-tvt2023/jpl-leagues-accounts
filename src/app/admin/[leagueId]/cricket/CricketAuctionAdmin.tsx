@@ -7,7 +7,6 @@ import { formatIst } from "@/lib/sports/cricket/sheets/ist";
 import type { AuctionSnapshot } from "@/lib/sports/cricket/auction/snapshot";
 
 type AdminState = AuctionSnapshot & {
-  events: Array<{ id: string; event: string; teamId: string | null; actor: string; detail: string | null; createdAt: string }>;
   short: Array<{ teamId: string; name: string; needed: number }>;
 };
 
@@ -15,7 +14,11 @@ const TYPE = { franchise: "Franchise auction", player: "Player auction" } as con
 const btn = "rounded-lg border border-white/15 px-3 py-1.5 text-sm text-gray-200 hover:bg-white/10 disabled:opacity-40";
 const primary = "rounded-lg bg-green-500 px-3 py-1.5 text-sm font-semibold text-slate-900 hover:bg-green-400 disabled:opacity-40";
 
-/** Running a cricket league's auction: sessions, the live lot, turns and corrections. */
+/**
+ * The console's Auction tab: set up and start sessions, a summary of what's live, and starting
+ * over. Running the auction — the live lot, turn corrections, nominating for a team, undoing or
+ * moving sales — happens in the host room (/admin/[leagueId]/cricket/auction).
+ */
 export function CricketAuctionAdmin({
   leagueId,
   leagueSlug,
@@ -34,7 +37,6 @@ export function CricketAuctionAdmin({
   const [busy, setBusy] = useState(false);
   const [version, setVersion] = useState(0);
   const [scheduleAt, setScheduleAt] = useState("");
-  const [moving, setMoving] = useState<{ lotId: string; toTeamId: string; price: string } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -78,8 +80,9 @@ export function CricketAuctionAdmin({
   };
 
   if (!state) return <p className="text-sm text-gray-400">{error ?? "Loading…"}</p>;
-  const name = (id: string | null | undefined) => state.teams.find((t) => t.id === id)?.name ?? "—";
+  const name = (id: string | null | undefined) => state.teams.find((t) => t.id === id)?.displayName ?? "—";
   const cur = state.current;
+  const hostRoom = `/admin/${leagueId}/cricket/auction`;
   const hasFranchise = state.sessions.some((s) => s.type === "franchise");
   const hasPlayer = state.sessions.some((s) => s.type === "player");
   const started = state.sessions.some((s) => s.status !== "pending");
@@ -91,9 +94,14 @@ export function CricketAuctionAdmin({
       <section className="rounded-2xl border border-white/10 bg-white/5 p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-semibold text-white">Sessions</h2>
-          <Link href={`/${leagueSlug}/cricket/auction`} className="text-sm text-green-300 hover:underline">
-            Open the auction room →
-          </Link>
+          <span className="flex flex-wrap gap-4">
+            <Link href={`/${leagueSlug}/cricket/auction`} className="text-sm text-gray-400 hover:text-white">
+              Managers&apos; room →
+            </Link>
+            <Link href={hostRoom} className="text-sm font-semibold text-green-300 hover:underline">
+              Open host room →
+            </Link>
+          </span>
         </div>
         {state.sessions.length === 0 && <p className="mt-2 text-sm text-gray-400">No sessions yet.</p>}
         <ul className="mt-3 space-y-3">
@@ -133,6 +141,11 @@ export function CricketAuctionAdmin({
                       Complete
                     </button>
                   )}
+                  {s.status !== "pending" && (
+                    <Link href={hostRoom} className={btn}>
+                      Host room →
+                    </Link>
+                  )}
                 </span>
               </div>
             </li>
@@ -158,140 +171,29 @@ export function CricketAuctionAdmin({
 
       {cur && (cur.status === "active" || cur.status === "paused") && (
         <section className="rounded-2xl border border-green-400/30 bg-white/5 p-5">
-          <h2 className="font-semibold text-white">Live: {TYPE[cur.type]}</h2>
-          {cur.lot ? (
-            <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-sm text-gray-200">
-              <span>
-                Lot {cur.lot.lotNumber}: <span className="font-semibold text-white">{cur.lot.name}</span> · {formatLakhs(cur.lot.currentHighBid)} by {name(cur.lot.currentHighBidderId)}
-              </span>
-              <button type="button" disabled={busy} className={btn} onClick={() => act({ action: "cancel-lot", sessionId: cur.sessionId }, "Withdraw this lot without a sale? The same team nominates again.")}>
-                Cancel lot
-              </button>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="font-semibold text-white">
+                Live: {TYPE[cur.type]} · {cur.status}
+              </h2>
+              <p className="mt-1 text-sm text-gray-300">
+                {cur.lot
+                  ? `Lot ${cur.lot.lotNumber}: ${cur.lot.name} — ${formatLakhs(cur.lot.currentHighBid)} by ${name(cur.lot.currentHighBidderId)}`
+                  : cur.intermissionUntil
+                    ? "Between lots."
+                    : `${name(cur.nominatorTeamId)} to nominate.`}{" "}
+                {cur.soldCount} sold so far.
+              </p>
+              {cur.type === "player" && state.short.length > 0 && (
+                <p className="mt-1 text-xs text-amber-200">Still short of a full squad: {state.short.map((x) => `${x.name} (${x.needed})`).join(", ")}</p>
+              )}
             </div>
-          ) : (
-            <p className="mt-2 text-sm text-gray-300">
-              {cur.intermissionUntil ? "Between lots." : `${name(cur.nominatorTeamId)} to nominate${cur.nominationDeadline ? ` (until ${formatIst(new Date(cur.nominationDeadline)).slice(11)})` : ""}.`}
-            </p>
-          )}
-          <ul className="mt-3 divide-y divide-white/5 text-sm">
-            {cur.ring.map((teamId, i) => {
-              const t = state.teams.find((x) => x.id === teamId);
-              return (
-                <li key={teamId} className={`flex items-center justify-between gap-2 py-1.5 ${i === cur.currentNominatorIndex ? "text-green-200" : "text-gray-300"}`}>
-                  <span>
-                    {i + 1}. {name(teamId)}
-                    {cur.makeupQueue.includes(teamId) && <span className="ml-1 text-xs text-amber-300">(make-up turn owed)</span>}
-                  </span>
-                  <span className="flex items-center gap-3 text-xs text-gray-400">
-                    {t && `${formatLakhs(t.purse)} · ${t.squadSize}/${t.cap}${t.penaltySlots ? ` · ${t.penaltySlots} penalty` : ""}`}
-                    <button type="button" disabled={busy} className="text-green-300 hover:underline disabled:opacity-40" onClick={() => act({ action: "grant-turn", sessionId: cur.sessionId, teamId })}>
-                      Give a turn
-                    </button>
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-          {cur.type === "player" && state.short.length > 0 && (
-            <p className="mt-3 text-xs text-amber-200">Still short of a full squad: {state.short.map((s) => `${s.name} (${s.needed})`).join(", ")}</p>
-          )}
+            <Link href={hostRoom} className={primary}>
+              Open host room →
+            </Link>
+          </div>
+          <p className="mt-2 text-xs text-gray-400">Turn corrections, nominating for a team, and undoing or moving sales are in the host room.</p>
         </section>
-      )}
-
-      <section className="rounded-2xl border border-white/10 bg-white/5 p-5">
-        <h2 className="font-semibold text-white">Sales</h2>
-        {state.sales.length === 0 ? (
-          <p className="mt-2 text-sm text-gray-400">Nothing sold yet.</p>
-        ) : (
-          <>
-            <p className="mt-1 text-xs text-gray-400">Undo makes it unsold again. Move gives it to another team, refunding the first. Both stop once the player auction is complete.</p>
-            <ul className="mt-2 divide-y divide-white/5 text-sm">
-              {state.sales.map((s) => (
-                <li key={s.lotId} className="py-1.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-gray-200">
-                      {s.name} → {name(s.teamId)} · {formatLakhs(s.price)}
-                    </span>
-                    <span className="flex gap-3">
-                      <button
-                        type="button"
-                        disabled={busy}
-                        className="text-xs text-green-300 hover:underline disabled:opacity-40"
-                        onClick={() => setMoving(moving?.lotId === s.lotId ? null : { lotId: s.lotId, toTeamId: "", price: String(s.price) })}
-                      >
-                        Move
-                      </button>
-                      <button type="button" disabled={busy} className="text-xs text-red-300 hover:underline disabled:opacity-40" onClick={() => act({ action: "undo-sale", lotId: s.lotId }, `Undo the sale of ${s.name}? The money goes back and it's unsold again.`)}>
-                        Undo
-                      </button>
-                    </span>
-                  </div>
-                  {moving?.lotId === s.lotId && (
-                    <div className="mt-2 flex flex-wrap items-end gap-2">
-                      <label className="text-xs text-gray-400">
-                        To
-                        <select
-                          value={moving.toTeamId}
-                          onChange={(e) => setMoving({ ...moving, toTeamId: e.target.value })}
-                          className="mt-1 block rounded-lg border border-white/10 bg-black/30 px-3 py-1.5 text-sm text-white"
-                        >
-                          <option value="">Choose a team</option>
-                          {state.teams
-                            .filter((t) => t.id !== s.teamId)
-                            .map((t) => (
-                              <option key={t.id} value={t.id}>
-                                {t.name}
-                              </option>
-                            ))}
-                        </select>
-                      </label>
-                      <label className="text-xs text-gray-400">
-                        Price (lakhs)
-                        <input
-                          type="number"
-                          min={0}
-                          step={5}
-                          value={moving.price}
-                          onChange={(e) => setMoving({ ...moving, price: e.target.value })}
-                          className="mt-1 block w-28 rounded-lg border border-white/10 bg-black/30 px-3 py-1.5 text-sm text-white"
-                        />
-                      </label>
-                      <button
-                        type="button"
-                        disabled={busy || !moving.toTeamId || moving.price === ""}
-                        className={primary}
-                        onClick={async () => {
-                          const price = Number(moving.price);
-                          const ok = await act(
-                            { action: "transfer-sale", lotId: s.lotId, toTeamId: moving.toTeamId, price },
-                            `Move ${s.name} to ${name(moving.toTeamId)} for ${formatLakhs(price)}? ${name(s.teamId)} gets ${formatLakhs(s.price)} back.`,
-                          );
-                          if (ok) setMoving(null);
-                        }}
-                      >
-                        Move
-                      </button>
-                    </div>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
-      </section>
-
-      {state.events.length > 0 && (
-        <details className="rounded-2xl border border-white/10 bg-white/5 p-5 text-sm">
-          <summary className="cursor-pointer font-semibold text-white">Turn log</summary>
-          <ul className="mt-2 space-y-1 text-xs text-gray-400">
-            {state.events.map((e) => (
-              <li key={e.id}>
-                {new Date(e.createdAt).toLocaleTimeString("en-IN")} · {e.event}
-                {e.teamId && ` · ${name(e.teamId)}`} · {e.actor}
-              </li>
-            ))}
-          </ul>
-        </details>
       )}
 
       <section className="rounded-2xl border border-red-500/20 bg-red-500/5 p-5">

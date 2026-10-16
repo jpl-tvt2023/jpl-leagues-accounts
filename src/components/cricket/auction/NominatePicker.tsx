@@ -95,13 +95,14 @@ export function NominatePicker({
         <div className="grid max-h-72 gap-2 overflow-y-auto sm:grid-cols-2">
           {open.map((f) => {
             const tooDear = f.openingPrice > maxBid;
+            const blocked = cur.lot?.cricketTeamId === f.id;
             const selected = picked?.kind === "franchise" && picked.id === f.id;
             return (
               <button
                 key={f.id}
                 type="button"
-                disabled={tooDear}
-                title={tooDear ? "More than you can bid" : undefined}
+                disabled={tooDear || blocked}
+                title={blocked ? "On the block now" : tooDear ? "More than you can bid" : undefined}
                 onClick={() => onPick(selected ? null : { kind: "franchise", id: f.id, name: f.name })}
                 aria-pressed={selected}
                 className={`flex items-center justify-between rounded-lg border px-3 py-2 text-left text-sm transition disabled:opacity-40 ${
@@ -110,6 +111,7 @@ export function NominatePicker({
               >
                 <span className="text-white">
                   {f.name} <span className="text-xs text-gray-500">{f.code}</span>
+                  {blocked && <span className={`ml-1 text-[10px] font-semibold ${theme.accentText}`}>On block</span>}
                 </span>
                 <span className="whitespace-nowrap pl-2 font-mono text-xs text-gray-300">{formatLakhs(f.openingPrice)}</span>
               </button>

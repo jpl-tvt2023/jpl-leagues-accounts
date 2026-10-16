@@ -18,6 +18,7 @@ import {
   pointsGrid,
   seedMiniTournament,
   testDb,
+  uiSignInSuperadmin,
   uiSignInTeam,
   uniqueSlug,
   uploadCricketSheet,
@@ -468,5 +469,31 @@ test.describe.serial("cricket: auction room", () => {
     await expect(results).toContainText("left");
     await expect(page.getByRole("heading", { name: "Auction log" })).toBeVisible();
     await expect(page.getByText(/^SOLD: /).first()).toBeVisible({ timeout: 10_000 });
+  });
+
+  test("admin: the host room runs it — start, pause, hand the turn on, resume", async ({ page, request }) => {
+    test.setTimeout(180_000);
+    const { league } = await freshLeague(request);
+    expect((await admin(request, league.slug, { action: "create", type: "franchise", bidTimerSeconds: 60, nominationTimeoutSeconds: 120 })).status).toBe(200);
+    await uiSignInSuperadmin(page);
+    await page.goto(`/admin/${league.slug}/cricket?tab=auction`);
+    await page.getByRole("link", { name: "Open host room →" }).first().click();
+    await expect(page).toHaveURL(new RegExp(`/admin/${league.slug}/cricket/auction$`));
+    page.on("dialog", (d) => void d.accept());
+
+    await page.getByRole("button", { name: "Start", exact: true }).click();
+    const before = await waitFor(request, league.slug, (x) => !!x.current?.nominationDeadline);
+    await expect(page.getByText("active", { exact: true })).toBeVisible({ timeout: 20_000 });
+    await page.getByRole("button", { name: "Pause", exact: true }).click();
+    await expect(page.getByText("paused", { exact: true })).toBeVisible({ timeout: 15_000 });
+
+    // Hand the turn on one, as an admin would after a no-show.
+    await page.getByRole("button", { name: "Forward one →" }).click();
+    const ring = before.current!.ring;
+    const next = ring[(ring.indexOf(before.current!.nominatorTeamId!) + 1) % ring.length];
+    const s = await waitFor(request, league.slug, (x) => x.current?.nominatorTeamId === next, 15_000);
+    expect(s.current!.status).toBe("paused");
+    await page.getByRole("button", { name: "Resume" }).click();
+    await waitFor(request, league.slug, (x) => x.current?.status === "active" && x.current.nominatorTeamId === next, 20_000);
   });
 });
