@@ -13,6 +13,7 @@ import {
   seedMiniTournament,
   testDb,
   uiSignInSuperadmin,
+  uiSignInTeam,
   uniqueSlug,
   type CricketLeagueRef,
 } from "../harness";
@@ -70,6 +71,21 @@ test.describe.serial("cricket: league", () => {
       await expect(page.locator("main h1")).toBeVisible();
       await expect(page.getByText(/gameweek|GKP/i)).toHaveCount(0);
     }
+  });
+
+  test("theme: cricket pages stay green — no FPL purple backgrounds or loaders", async ({ page }) => {
+    const purple = page.locator('[class*="via-purple-900"], [class*="#38003c"]');
+    await uiSignInTeam(page, league.slug, 1);
+    for (const path of ["cricket/standings", "cricket/auction", "cricket/squad", "feedback", "team"]) {
+      await page.goto(`/${league.slug}/${path}`);
+      // Checked once the page has loaded (the auction room's live stream never lets the network idle).
+      await expect(page.getByText(/^Loading\b/), path).toHaveCount(0, { timeout: 30_000 });
+      await expect(purple, path).toHaveCount(0);
+    }
+    await uiSignInSuperadmin(page);
+    await page.goto(`/admin/${league.slug}/cricket`);
+    await expect(page.getByRole("group", { name: "Section" })).toBeVisible();
+    await expect(purple, "admin console").toHaveCount(0);
   });
 
   test("user: FPL pages of a cricket league send you to the cricket ones", async ({ page }) => {

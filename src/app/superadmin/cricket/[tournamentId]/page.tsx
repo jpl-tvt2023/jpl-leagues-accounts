@@ -76,7 +76,7 @@ export default function CricketTournamentPage() {
     window.location.href = "/signin";
   };
 
-  if (!tournament && !error) return <LoadingScreen variant="standings" fullScreen />;
+  if (!tournament && !error) return <LoadingScreen variant="cricket" bgClass="bg-gradient-to-b from-slate-900 via-green-900/40 to-slate-900" />;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-900 via-green-900/40 to-slate-900">

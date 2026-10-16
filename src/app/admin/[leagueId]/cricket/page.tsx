@@ -7,6 +7,7 @@ import { AppNav } from "@/components/AppNav";
 import { LoadingScreen } from "@/components/LoadingScreen";
 import { CricketSettingsForm } from "@/components/cricket/CricketSettingsForm";
 import { CRICKET_AUCTION_FORMAT } from "@/lib/sports/registry";
+import { getFormatPalette } from "@/lib/format-palette";
 import type { CricketLeagueSettings } from "@/lib/sports/cricket/league-settings";
 import { MembersTab } from "../MembersTab";
 import { FeedbackTab } from "../FeedbackTab";
@@ -49,6 +50,9 @@ interface ConfigPayload {
 type Message = { type: "success" | "error"; text: string };
 
 /** League admin console for a Classic Cricket Auction league, laid out like the FPL console. */
+/** The cricket palette's page background (the console matches the league's own pages). */
+const CRICKET_BG = getFormatPalette(CRICKET_AUCTION_FORMAT, null).pageBg;
+
 export default function CricketAdminPage() {
   const { leagueId } = useParams<{ leagueId: string }>();
   const [tab, setTab] = useState<Tab>("managers");
@@ -125,11 +129,11 @@ export default function CricketAdminPage() {
     window.location.href = "/signin";
   };
 
-  if (!config && !loadError) return <LoadingScreen variant="standings" fullScreen />;
+  if (!config && !loadError) return <LoadingScreen variant="cricket" bgClass={CRICKET_BG} label="Loading the league console" />;
 
   const t = config?.tournament;
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-900 via-purple-900 to-slate-900">
+    <div className={`min-h-screen ${CRICKET_BG}`}>
       <AppNav
         context={{ surface: "admin-league", leagueId, format: CRICKET_AUCTION_FORMAT, isSuperadminViewer: isSuperadmin, variant: "full" }}
         activeKey="admin-dashboard"
@@ -160,7 +164,7 @@ export default function CricketAdminPage() {
                       setMessage(null);
                     }}
                     className={`whitespace-nowrap rounded-lg px-3 py-2 text-sm font-semibold transition sm:px-4 sm:text-base ${
-                      tab === x.id ? "bg-yellow-500 text-slate-900" : "bg-white/5 text-gray-300 hover:bg-white/10"
+                      tab === x.id ? "bg-green-500 text-slate-900" : "bg-white/5 text-gray-300 hover:bg-white/10"
                     }`}
                   >
                     {x.label}

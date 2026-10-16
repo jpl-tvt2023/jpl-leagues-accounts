@@ -9,6 +9,7 @@ type LoadingVariant =
   | "rules"
   | "help"
   | "admin"
+  | "cricket"
   | "default";
 
 interface LoadingScreenProps {
@@ -17,7 +18,14 @@ interface LoadingScreenProps {
   fullScreen?: boolean;
   /** Optional override of the variant's default label. Variant still drives the icon and colour. */
   label?: string;
+  /**
+   * Full-screen background classes; defaults to the FPL purple gradient. Pages inside a league
+   * layout that already paints its format's background pass "bg-transparent".
+   */
+  bgClass?: string;
 }
+
+const DEFAULT_FULLSCREEN_BG = "bg-gradient-to-b from-slate-900 via-purple-900 to-slate-900";
 
 // ── SVG icons ─────────────────────────────────────────────────────────────────
 
@@ -116,6 +124,18 @@ function IconAdmin() {
   );
 }
 
+function IconCricket() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="w-8 h-8">
+      {/* ball */}
+      <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="1.5" fill="none" />
+      {/* seam */}
+      <path d="M8.5 5.2 C11 8.5 11 15.5 8.5 18.8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+      <path d="M15.5 5.2 C13 8.5 13 15.5 15.5 18.8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none" opacity="0.6" />
+    </svg>
+  );
+}
+
 function IconDefault() {
   return (
     <svg viewBox="0 0 24 24" fill="none" className="w-8 h-8">
@@ -192,6 +212,13 @@ const VARIANTS: Record<
     textColor: "text-gray-400",
     Icon: IconAdmin,
   },
+  cricket: {
+    label: "Loading",
+    ringColor: "#4ade80",        // green-400, the cricket palette
+    dotColor: "bg-green-400",
+    textColor: "text-green-300",
+    Icon: IconCricket,
+  },
   default: {
     label: "Loading",
     ringColor: "#facc15",        // yellow-400
@@ -203,7 +230,7 @@ const VARIANTS: Record<
 
 // ── Component ──────────────────────────────────────────────────────────────────
 
-export function LoadingScreen({ variant = "default", fullScreen = true, label }: LoadingScreenProps) {
+export function LoadingScreen({ variant = "default", fullScreen = true, label, bgClass }: LoadingScreenProps) {
   const cfg = VARIANTS[variant];
   const { Icon } = cfg;
   const displayLabel = label ?? cfg.label;
@@ -255,7 +282,7 @@ export function LoadingScreen({ variant = "default", fullScreen = true, label }:
 
   if (fullScreen) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
+      <div className={`min-h-screen ${bgClass ?? DEFAULT_FULLSCREEN_BG} flex items-center justify-center`}>
         {spinner}
       </div>
     );
