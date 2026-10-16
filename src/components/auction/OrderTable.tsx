@@ -97,7 +97,7 @@ export function OrderTable({
                         ))}
                       </div>
                     </td>
-                    <td className="hidden sm:table-cell py-1.5 px-2 text-right font-mono text-green-300">{row.purse}</td>
+                    <td className="hidden sm:table-cell whitespace-nowrap py-1.5 px-2 text-right font-mono text-green-300">{row.purse}</td>
                     {row.categories.map((c, i) => (
                       <td key={categoryLabels[i]} className={`hidden sm:table-cell py-1.5 px-1 text-center font-mono ${categoryClass(c)}`}>
                         {c.count}

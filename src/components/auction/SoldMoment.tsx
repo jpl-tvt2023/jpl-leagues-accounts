@@ -13,7 +13,7 @@ export type SoldMomentView =
  * down to the next nomination. With nothing to show it is the plain "next up" ring card.
  */
 export function SoldMoment({ theme, outcome, secondsLeft, maxSeconds }: { theme: RoomTheme; outcome: SoldMomentView | null; secondsLeft: number; maxSeconds: number }) {
-  const ring = <AuctionTimerRing seconds={secondsLeft} max={maxSeconds} size={outcome ? 64 : 104} stroke={outcome ? 6 : 9} label="next nom" />;
+  const ring = <AuctionTimerRing seconds={secondsLeft} max={maxSeconds} size={outcome ? 84 : 104} stroke={outcome ? 7 : 9} label="next nom" />;
 
   if (!outcome) {
     return (

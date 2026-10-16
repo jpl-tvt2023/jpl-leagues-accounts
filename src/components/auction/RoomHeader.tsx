@@ -30,7 +30,8 @@ export function RoomHeader({
   subtitle?: ReactNode;
   /** Connection state while a session runs; null hides the dot. */
   live: boolean | null;
-  nominator: { name: string; isMe: boolean } | null;
+  /** Whose turn it is; left out (undefined) when no session is running. */
+  nominator?: { name: string; isMe: boolean } | null;
   purse?: { label: string; value: string } | null;
   right?: ReactNode;
 }) {
@@ -50,13 +51,15 @@ export function RoomHeader({
           ))}
       </div>
       <div className="flex items-center gap-4 text-sm">
-        <div>
-          <div className="text-xs text-gray-400 uppercase">Nominator</div>
-          <div className={`font-semibold ${nominator?.isMe ? theme.accentText : "text-white"}`}>
-            {nominator?.name ?? "—"}
-            {nominator?.isMe && " (YOU)"}
+        {nominator !== undefined && (
+          <div>
+            <div className="text-xs text-gray-400 uppercase">Nominator</div>
+            <div className={`font-semibold ${nominator?.isMe ? theme.accentText : "text-white"}`}>
+              {nominator?.name ?? "—"}
+              {nominator?.isMe && " (YOU)"}
+            </div>
           </div>
-        </div>
+        )}
         {purse && (
           <div>
             <div className="text-xs text-gray-400 uppercase">{purse.label}</div>
