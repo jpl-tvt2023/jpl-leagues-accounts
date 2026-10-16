@@ -418,6 +418,7 @@ export function UploadCard({
           (result ? `${result.errorCount} problem${result.errorCount === 1 ? "" : "s"} to fix in the file, then upload it again. Nothing has been saved.` : undefined)
         }
         size="2xl"
+        hideClose
         footer={
           <button type="button" onClick={() => setDialog(null)} className="min-h-11 w-full rounded-lg border border-white/15 px-4 py-2 text-sm text-gray-200 hover:bg-white/10">
             Close
@@ -437,6 +438,7 @@ export function UploadCard({
             : undefined
         }
         size="2xl"
+        hideClose
         footer={
           <div className="flex gap-2">
             <button
