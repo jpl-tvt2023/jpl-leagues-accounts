@@ -50,6 +50,8 @@ export interface UploadInput {
   override?: boolean;
   /** Fixtures only: which stage the sheet replaces (default "group"). Playoffs need a league tournament. */
   stage?: CricketFixtureStage;
+  /** Points only: the series the sheet's match columns belong to (needed with several series). */
+  series?: string | null;
 }
 
 export interface UploadCounts {
@@ -100,7 +102,7 @@ function chunks<T>(items: T[], size = CHUNK): T[][] {
   return out;
 }
 
-async function planUpload(t: CricketTournament, kind: SheetKind, rows: RawRow[], stage: CricketFixtureStage): Promise<Planned> {
+async function planUpload(t: CricketTournament, kind: SheetKind, rows: RawRow[], stage: CricketFixtureStage, series: string | null): Promise<Planned> {
   const teams = await db.select().from(cricketTeams).where(eq(cricketTeams.tournamentId, t.id));
   const teamIdByCode = new Map(teams.map((x) => [x.code, x.id]));
   const teamCodeById = new Map(teams.map((x) => [x.id, x.code]));
@@ -249,7 +251,7 @@ async function planUpload(t: CricketTournament, kind: SheetKind, rows: RawRow[],
       .where(eq(cricketPlayers.tournamentId, t.id)),
     loadTournamentUsage(t.id),
   ]);
-  const parsed = parsePointsSheet(rows, { fixtures, players, teams: teamLookup, teamIdByCode, now: new Date() });
+  const parsed = parsePointsSheet(rows, { fixtures, players, teams: teamLookup, teamIdByCode, now: new Date(), series });
   const issues = [...parsed.issues];
   if (fixtures.length === 0) issues.push({ row: 0, message: "Upload the Fixtures sheet first", level: "error" });
   if (usage.completedLeagueNames.length && parsed.rows.length) {
@@ -311,7 +313,8 @@ export async function runUpload(tournamentId: string, input: UploadInput, userId
   if (input.rows.length > MAX_UPLOAD_ROWS) throw new UploadError(`At most ${MAX_UPLOAD_ROWS} rows per upload`, 400);
 
   const stage: CricketFixtureStage = input.kind === "fixtures" && input.stage === "playoff" ? "playoff" : "group";
-  const planned = await planUpload(t, input.kind, input.rows, stage);
+  const series = input.kind === "points" && input.series ? input.series : null;
+  const planned = await planUpload(t, input.kind, input.rows, stage, series);
   const override = !!input.override;
   const errorCount = planned.issues.filter((i) => i.level === "error").length;
   const overridableCount = planned.issues.filter((i) => i.level === "error" && i.overridable).length;

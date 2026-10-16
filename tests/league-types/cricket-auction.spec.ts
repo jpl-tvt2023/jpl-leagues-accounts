@@ -15,6 +15,7 @@ import {
   createCricketAuctionLeague,
   ensureTeamPerson,
   miniPoints,
+  pointsGrid,
   seedMiniTournament,
   testDb,
   uiSignInTeam,
@@ -273,7 +274,7 @@ test.describe.serial("cricket: simulated auction and scoring", () => {
 
   test("user: standings match a hand calculation with the franchise boost", async ({ request }) => {
     await apiSignInSuperadmin(request);
-    await uploadCricketSheet(request, tournamentId, "points", [...miniPoints(1), ...miniPoints(2), ...miniPoints(3)]);
+    await uploadCricketSheet(request, tournamentId, "points", pointsGrid([...miniPoints(1), ...miniPoints(2), ...miniPoints(3)]));
     const db = testDb();
     const [squads, franchises, players, points] = await Promise.all([
       db.select().from(cricketSquadPlayers).where(eq(cricketSquadPlayers.leagueId, league.id)),

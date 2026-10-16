@@ -70,8 +70,8 @@ export function parsePlayersSheet(raws: RawRow[], ctx: { teams: TeamLookup }): {
     if (t20 === null) fail("T20 must be a whole number", "T20");
     if (code && seenCode.has(code)) fail(`player_id ${code} is already on row ${seenCode.get(code)}`, "player_id");
     if (code && !seenCode.has(code)) seenCode.set(code, row);
-    // Points sheets find players by name within their team, so two teammates with one name need
-    // player_ids to tell them apart.
+    // Points sheets find players by name (within the team when the sheet has a team column), so two
+    // teammates with one name need player_ids, and namesakes in different teams need that team column.
     const nameKey = normalizeName(name);
     const teamNameKey = `${teamCode}:${nameKey}`;
     const twin = name && teamCode ? seenTeamName.get(teamNameKey) : undefined;
@@ -80,7 +80,9 @@ export function parsePlayersSheet(raws: RawRow[], ctx: { teams: TeamLookup }): {
     } else if (twin) {
       issues.push(warning(row, `Row ${twin.row} has a ${teamCode} player with the same name; points sheets will need their player_id`, "name"));
     } else if (name && seenName.has(nameKey)) {
-      issues.push(warning(row, `Another player on row ${seenName.get(nameKey)} has the same name — check they're different people`, "name"));
+      issues.push(
+        warning(row, `Another player on row ${seenName.get(nameKey)} has the same name — check they're different people; the points sheet will need a team column for them`, "name"),
+      );
     }
     if (name && !seenName.has(nameKey)) seenName.set(nameKey, row);
     if (name && teamCode && !twin) seenTeamName.set(teamNameKey, { row, hasCode: !!code });

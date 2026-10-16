@@ -13,6 +13,7 @@ import {
   commitCricketSheet,
   createCricketTournament,
   miniPoints,
+  pointsGrid,
   uniqueSlug,
   uploadCricketSheet,
   validateCricketSheet,
@@ -65,8 +66,8 @@ test.describe.serial("cricket: tournament uploads", () => {
 
   test("admin: points re-upload replaces that fixture's points only", async ({ request }) => {
     await apiSignInSuperadmin(request);
-    await uploadCricketSheet(request, tournamentId, "points", [...miniPoints(1), ...miniPoints(2)]);
-    const second = await uploadCricketSheet(request, tournamentId, "points", miniPoints(1, 10));
+    await uploadCricketSheet(request, tournamentId, "points", pointsGrid([...miniPoints(1), ...miniPoints(2)]));
+    const second = await uploadCricketSheet(request, tournamentId, "points", pointsGrid(miniPoints(1, 10)));
     expect(second.counts).toMatchObject({ fixtures: 1, replacedRows: 12, inserts: 12 });
 
     const fixtures = await request.get(`/api/superadmin/cricket/tournaments/${tournamentId}/data?kind=fixtures`).then((r) => r.json());
@@ -81,9 +82,9 @@ test.describe.serial("cricket: tournament uploads", () => {
 
   test("admin: a preview made before another upload can't be committed", async ({ request }) => {
     await apiSignInSuperadmin(request);
-    const stale = await validateCricketSheet(request, tournamentId, "points", miniPoints(3));
-    await uploadCricketSheet(request, tournamentId, "points", miniPoints(4));
-    const c = await commitCricketSheet(request, tournamentId, "points", miniPoints(3), stale.body.validationHash);
+    const stale = await validateCricketSheet(request, tournamentId, "points", pointsGrid(miniPoints(3)));
+    await uploadCricketSheet(request, tournamentId, "points", pointsGrid(miniPoints(4)));
+    const c = await commitCricketSheet(request, tournamentId, "points", pointsGrid(miniPoints(3)), stale.body.validationHash);
     expect(c.status).toBe(409);
   });
 
@@ -146,16 +147,16 @@ test.describe.serial("cricket: group stage, playoffs and uploads by name", () =>
     expect(players.rows.find((p: { code: string }) => p.code === "mi-player-1").playoffMatches).toBe(1);
   });
 
-  test("admin: points by team and player name; a typo gets a suggestion", async ({ request }) => {
+  test("admin: points as a grid by player name; a typo gets a suggestion; extra columns are ignored", async ({ request }) => {
     await apiSignInSuperadmin(request);
     const typo = await validateCricketSheet(request, tournamentId, "points", [
-      { fixture_id: 7, team: "MI", player: "MI Player 1", points: 10 },
-      { fixture_id: 7, team: "CSK", player: "CSK Playr 2", points: 5 },
+      { "Match no / Players": "MI Player 1", "7": 10 },
+      { "Match no / Players": "CSK Playr 2", "7": 5 },
     ]);
-    expect(typo.body.issues?.map((i) => i.message)).toContain('No CSK player called "CSK Playr 2" — did you mean CSK Player 2?');
+    expect(typo.body.issues?.map((i) => i.message)).toContain('No player called "CSK Playr 2" in the Players sheet — did you mean CSK Player 2?');
     const ok = await uploadCricketSheet(request, tournamentId, "points", [
-      { fixture_id: 7, team: "Mumbai Indians", player: "mi player 1", points: 10 },
-      { fixture_id: 7, team: "CSK", player: "CSK Player 2", points: 5 },
+      { "Match no / Players": "mi player 1", team: "Mumbai Indians", "7": 10, Adjustment: 99 },
+      { "Match no / Players": "CSK Player 2", team: "", "7": 5, Adjustment: "" },
     ]);
     expect(ok.counts).toMatchObject({ inserts: 2, fixtures: 1 });
   });

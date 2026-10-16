@@ -22,6 +22,7 @@ interface Tournament {
   fixturesScored: number;
   playoffFixtures: number;
   nextPlayoffIds: Record<string, number>;
+  series: string[];
   leagues: Array<{ id: string; slug: string; name: string }>;
 }
 
@@ -142,6 +143,7 @@ export default function CricketTournamentPage() {
                   kind={kind}
                   tournamentKind={tournament.kind}
                   nextPlayoffIds={tournament.nextPlayoffIds}
+                  series={tournament.series}
                   onCommitted={changed}
                 />
               ))}

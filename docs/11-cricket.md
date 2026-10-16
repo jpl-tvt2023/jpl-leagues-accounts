@@ -19,7 +19,7 @@ the Cricket dashboard's **Tournaments** tab (`/superadmin/cricket?tab=tournament
 | Teams | `team_code`, `name`, `base_price` (franchise opening price, lakhs) | the whole list |
 | Players | `player_id` (optional), `name`, `team`, `role` (WK/BAT/AR/BOWL), `base_price` (lakhs), `overseas` (Y/N), `Test`, `ODI`, `T20` (expected **group-stage** matches) | the whole list |
 | Fixtures | `series`, `fixture_id` (restarts at 1 per series), `format` (Test/ODI/T20), `team_a`, `team_b`, `start_time_ist`, `time`, `venue` | the whole list **of one stage** (group stage or playoffs) |
-| Points | `series` (optional with one series), `fixture_id`, `team`, `player` (name), `player_id` (optional), `points` | each fixture in the file |
+| Points | a **grid**: `Match no / Players` (player names, first column), then one column per **fixture id** (`1`, `2`, `3` …); optional `team` and `player_id` | each fixture with points in the file |
 
 - **Names, not ids.** Scores are typed in by hand, so every sheet names teams by **code or full name**
   and players by **name within their team** (`sheets/names.ts`: case, spaces, dots, apostrophes and
@@ -28,6 +28,14 @@ the Cricket dashboard's **Tournaments** tab (`/superadmin/cricket?tab=tournament
   player with the same name (same team, or the only one anywhere — a move) keeps theirs, a new one
   gets a slug of the name (`virat-kohli`, or `rahul-sharma-csk` when the plain slug is taken). Two
   teammates with one name need `player_id`s, and points rows then use them.
+- **Points grid.** The points sheet is laid out the way scorers keep it: one row per player, one column
+  per match headed by its fixture id, a cell = that player's points (blank = didn't play). Players are
+  named without their team (`PlayerLookup.resolveAnyTeam`); a name two players share needs a `team` or
+  `player_id` column. A player under a match their team didn't play is an error. Columns whose header
+  isn't a fixture id (`Adjustment`, `Total`, notes) are ignored with one warning; there is no total
+  column. A column with no points is left alone, so the same sheet is re-uploaded as the season goes
+  on and only the matches with points are replaced. With several series, the Points card asks which
+  series the columns are (`series` in the upload body). See `sheets/points.ts`.
 - **Group stage and playoffs.** A league tournament (the IPL) uploads its fixtures in two modes, picked
   on the Fixtures card (`stage: "group" | "playoff"` → `cricket_fixtures.stage`, migration 0028). Each
   replaces only its own stage. Playoff ids **continue** from the series' last group-stage fixture with

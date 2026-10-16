@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { SHEET_COLUMNS } from "@/lib/sports/cricket/sheets/columns";
+import { POINTS_MATCH_COLUMNS, SHEET_COLUMNS } from "@/lib/sports/cricket/sheets/columns";
 import { SHEET_TITLES } from "@/lib/sports/cricket/sheets/templates";
 import { downloadTemplate, readSheetFile } from "@/lib/sports/cricket/sheets/client";
 import type { RawRow, SheetIssue, SheetKind } from "@/lib/sports/cricket/sheets/types";
@@ -27,7 +27,8 @@ const INTRO: Record<SheetKind, string> = {
   teams: "The full list of teams (IPL franchises, or countries). Replaces the current list.",
   players: "The full player list. Replaces the current list. Name and team are enough; a player keeps their place in squads as long as their name (or player_id) stays the same.",
   fixtures: "The full fixture list. Fixture ids restart at 1 in each series. Replaces the current list.",
-  points: "Fantasy points for one or more fixtures, by team and player name. Each fixture in the file has all its points replaced; other fixtures are untouched.",
+  points:
+    "Fantasy points as a grid: one row per player, one column per match (headed by its fixture id). Each match with points in the file has all its points replaced; empty columns and other fixtures are untouched.",
 };
 
 function countsLine(kind: SheetKind, c: UploadResult["counts"]): string {
@@ -39,23 +40,28 @@ function countsLine(kind: SheetKind, c: UploadResult["counts"]): string {
 
 /**
  * One sheet: template download, file pick, server validation preview, then commit. For a league
- * tournament the Fixtures card has two modes: the group stage, and the playoffs (ids follow on).
+ * tournament the Fixtures card has two modes: the group stage, and the playoffs (ids follow on). With
+ * several series, the Points card asks which series the sheet's match columns are.
  */
 export function UploadCard({
   tournamentId,
   kind,
   tournamentKind,
   nextPlayoffIds,
+  series,
   onCommitted,
 }: {
   tournamentId: string;
   kind: SheetKind;
   tournamentKind: "league" | "window";
   nextPlayoffIds: Record<string, number>;
+  series: string[];
   onCommitted: () => void;
 }) {
   const hasStages = kind === "fixtures" && tournamentKind === "league";
   const [stage, setStage] = useState<"group" | "playoff">("group");
+  const hasSeries = kind === "points" && series.length > 1;
+  const [pickedSeries, setPickedSeries] = useState(series[0] ?? "");
   const fileInput = useRef<HTMLInputElement>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [rows, setRows] = useState<RawRow[] | null>(null);
@@ -68,7 +74,16 @@ export function UploadCard({
     const res = await fetch(`/api/superadmin/cricket/tournaments/${tournamentId}/upload`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ kind, mode, rows: sheetRows, fileName, validationHash: hash, override, ...(hasStages ? { stage } : {}) }),
+      body: JSON.stringify({
+        kind,
+        mode,
+        rows: sheetRows,
+        fileName,
+        validationHash: hash,
+        override,
+        ...(hasStages ? { stage } : {}),
+        ...(hasSeries ? { series: pickedSeries } : {}),
+      }),
     });
     const data = await res.json();
     return { ok: res.ok, status: res.status, data };
@@ -177,6 +192,30 @@ export function UploadCard({
         </div>
       )}
 
+      {hasSeries && (
+        <label className="mt-3 flex items-center gap-2 text-sm text-gray-300">
+          Series
+          <select
+            value={pickedSeries}
+            disabled={busy !== null}
+            onChange={(e) => {
+              // A preview was checked against the other series; start again.
+              setPickedSeries(e.target.value);
+              setResult(null);
+              setRows(null);
+              setMessage(null);
+            }}
+            className="rounded-lg border border-white/10 bg-black/30 px-3 py-1.5 text-sm text-white"
+          >
+            {series.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+
       <details className="mt-3 text-xs text-gray-400">
         <summary className="cursor-pointer select-none text-gray-300">Columns</summary>
         <ul className="mt-2 space-y-1">
@@ -186,6 +225,11 @@ export function UploadCard({
               {c.required ? "" : " (optional)"} — {c.help}
             </li>
           ))}
+          {kind === "points" && (
+            <li>
+              <code className="rounded bg-white/10 px-1 text-gray-200">{POINTS_MATCH_COLUMNS.header}</code> — {POINTS_MATCH_COLUMNS.help}
+            </li>
+          )}
         </ul>
       </details>
 
