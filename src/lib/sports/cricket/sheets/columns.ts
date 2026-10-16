@@ -2,8 +2,8 @@
  * Column headers for the four upload sheets, and the other spellings each one accepts.
  *
  * Headers are matched after lower-casing and dropping everything but letters and digits, so
- * "Player ID", "player_id" and "PlayerId" are the same column. When a sheet's layout changes (the
- * points sheet's final layout is still to come), this is the only file to edit.
+ * "Player ID", "player_id" and "PlayerId" are the same column. When a sheet's layout changes, this
+ * is the file to edit (the points sheet's match columns are read in sheets/points.ts).
  */
 
 import type { RawRow, SheetKind } from "./types";
@@ -47,14 +47,24 @@ export const SHEET_COLUMNS: Record<SheetKind, ColumnSpec[]> = {
     { field: "time", header: "time", aliases: ["timeist", "starttimeonly"], required: false, help: "Optional: time on its own, if the date column has none" },
     { field: "venue", header: "venue", aliases: ["ground", "stadium", "location"], required: false, help: "Optional" },
   ],
+  // The points sheet is a grid: one row per player, one column per match (see POINTS_MATCH_COLUMNS).
   points: [
-    { field: "series", header: "series", aliases: ["seriesname", "tournament", "competition"], required: false, help: "Needed only when the tournament has more than one series" },
-    { field: "fixtureNo", header: "fixture_id", aliases: ["fixture", "fixtureno", "fixturenumber", "matchno", "matchnumber", "match"], required: true, help: "Fixture id within its series" },
-    { field: "team", header: "team", aliases: ["teamcode", "teamname", "franchise", "country", "side"], required: true, help: "The player's team: code or full name (one of the fixture's two teams)" },
-    { field: "player", header: "player", aliases: ["playername", "name"], required: false, help: "Player name as in the Players sheet (needed unless player_id is given)" },
-    { field: "playerCode", header: "player_id", aliases: ["playercode", "id", "code"], required: false, help: "Optional: player_id, only needed when two teammates share a name" },
-    { field: "points", header: "points", aliases: ["fantasypoints", "pts", "total", "totalpoints", "score"], required: true, help: "Fantasy points for this match (can be negative or decimal)" },
+    {
+      field: "player",
+      header: "Match no / Players",
+      aliases: ["player", "players", "playername", "name", "matchnoplayers", "matchnumberplayers", "matchplayers"],
+      required: true,
+      help: "Player name as in the Players sheet, one row per player",
+    },
+    { field: "team", header: "team", aliases: ["teamcode", "teamname", "franchise", "country", "side"], required: false, help: "Optional: the player's team, only needed when two players share a name" },
+    { field: "playerCode", header: "player_id", aliases: ["playercode", "id", "code"], required: false, help: "Optional: player_id, when two players share a name (the name cell can then be blank)" },
   ],
+};
+
+/** The points sheet's match columns, which SHEET_COLUMNS can't list: one per fixture. */
+export const POINTS_MATCH_COLUMNS = {
+  header: "1, 2, 3 …",
+  help: "One column per match, headed by its fixture id. A cell is that player's fantasy points (negative and decimal are fine); blank means they didn't play. Other columns (Adjustment, Total, notes) are ignored",
 };
 
 export function normalizeHeader(header: string): string {

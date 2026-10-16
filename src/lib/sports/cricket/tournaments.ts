@@ -40,6 +40,8 @@ export interface TournamentSummary extends CricketTournament {
   playoffFixtures: number;
   /** Per series, the id the playoffs start at: one after the group stage's last fixture. */
   nextPlayoffIds: Record<string, number>;
+  /** The series in the fixture list, by name. */
+  series: string[];
   leagues: Array<{ id: string; slug: string; name: string }>;
 }
 
@@ -73,7 +75,8 @@ async function summarise(t: CricketTournament): Promise<TournamentSummary> {
       .groupBy(cricketFixtures.series),
   ]);
   const nextPlayoffIds = Object.fromEntries(groupEnds.map((g) => [g.series, Number(g.last) + 1]));
-  return { ...t, teams: teams.n, players: players.n, fixtures: fixtures.n, fixturesScored: scored.n, playoffFixtures: playoffs.n, nextPlayoffIds, leagues: linked };
+  const series = groupEnds.map((g) => g.series).sort((a, b) => a.localeCompare(b));
+  return { ...t, teams: teams.n, players: players.n, fixtures: fixtures.n, fixturesScored: scored.n, playoffFixtures: playoffs.n, nextPlayoffIds, series, leagues: linked };
 }
 
 export async function linkedLeagues(tournamentId: string): Promise<Array<{ id: string; slug: string; name: string }>> {

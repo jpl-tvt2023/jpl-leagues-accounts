@@ -230,68 +230,99 @@ const pointsCtx = {
   teamIdByCode: new Map([["MI", 1], ["CSK", 2], ["KKR", 3]]),
   now: new Date("2026-10-12T00:00:00Z"),
 };
+// A grid row as SheetJS reads it: keyed by header, the players column headed the way scorers write it.
+const P = "Match no\nPlayers";
+const grid = (rows: Array<Record<string, unknown>>) => rows.map((r, i) => ({ __row: i + 2, ...r }));
 
-test("points: by team and player name; series optional with one series; negatives and decimals are fine", () => {
+test("points: a grid of players down and fixture ids across; blank cells and blank rows are skipped", () => {
   const { rows, issues, fixtureIds } = parsePointsSheet(
-    [
-      { fixture_id: 1, team: "MI", player: "Rohit", points: 54.5 },
-      { fixture_id: 1, team: "Chennai Super Kings", player: "  dhoni. ", points: -3 },
-    ],
+    grid([
+      { [P]: "Rohit", 1: 54.5, 2: "" },
+      { [P]: "  dhoni. ", 1: -3, 2: "" },
+      { [P]: "", 1: "", 2: "" },
+    ]),
     pointsCtx,
   );
   assert.deepEqual(errors(issues), []);
-  assert.deepEqual(rows.map((r) => [r.fixtureId, r.playerId, r.points]), [[1, 100, 54.5], [1, 101, -3]]);
+  assert.deepEqual(rows.map((r) => [r.row, r.fixtureId, r.playerId, r.points]), [[2, 1, 100, 54.5], [3, 1, 101, -3]]);
   assert.deepEqual(fixtureIds, [1]);
 });
 
-test("points: wrong team, unknown names and ids, duplicates and non-numbers are errors", () => {
+test("points: columns that aren't fixture ids (Adjustment, Total, notes) are ignored with one warning", () => {
   const { rows, issues } = parsePointsSheet(
-    [
-      { fixture_id: 1, team: "KKR", player: "Russell", points: 10, __row: 2 },
-      { fixture_id: 9, team: "MI", player: "Rohit", points: 10, __row: 3 },
-      { fixture_id: 1, team: "MI", player_id: "P9", points: 10, __row: 4 },
-      { fixture_id: 1, team: "MI", player: "Rohit", points: "ten", __row: 5 },
-      { fixture_id: 1, team: "MI", player: "Rohit", points: 10, __row: 6 },
-      { fixture_id: 1, team: "MI", player: "Rohit", points: 12, __row: 7 },
-      { fixture_id: 1, team: "MI", player: "Rohitt", points: 1, __row: 8 },
-      { fixture_id: 1, team: "MI", player: "Dhoni", points: 1, __row: 9 },
-      { fixture_id: 1, team: "XYZ", player: "Rohit", points: 1, __row: 10 },
-      { fixture_id: 1, team: "MI", player_id: "P2", points: 1, __row: 11 },
-      { fixture_id: 1, team: "CSK", points: 1, __row: 12 },
-    ],
+    grid([{ [P]: "Rohit", 1: 10, Adjustment: 99, Total: 109, __EMPTY: "kane - 4", __EMPTY_1: "" }]),
     pointsCtx,
   );
-  assert.deepEqual(rows.map((r) => r.row), [6]);
-  assert.deepEqual(errors(issues), [
-    "KKR isn't playing in IPL 2026 fixture 1 (MI v CSK)",
-    "No fixture 9 in IPL 2026",
-    "No player with player_id P9",
-    `points "ten" isn't a number`,
-    "Rohit already has points for this fixture on row 6",
-    `No MI player called "Rohitt" — did you mean Rohit?`,
-    "Dhoni plays for CSK, not MI",
-    `Team "XYZ" isn't in the Teams sheet`,
-    "Dhoni (P2) plays for CSK, not MI",
-    "player is blank",
-  ]);
+  assert.deepEqual(errors(issues), []);
+  assert.deepEqual(rows.map((r) => r.points), [10]);
+  assert.deepEqual(
+    issues.filter((i) => i.level === "warning").map((i) => i.message),
+    ['Ignored, not match numbers: "Adjustment", "Total", 1 column(s) with no header'],
+  );
 });
 
-test("points: the team column is required, and so is a player name or player_id column", () => {
-  assert.deepEqual(errors(parsePointsSheet([{ fixture_id: 1, player: "Rohit", points: 1 }], pointsCtx).issues), [`Missing column "team"`]);
-  assert.deepEqual(errors(parsePointsSheet([{ fixture_id: 1, team: "MI", points: 1 }], pointsCtx).issues), [`Missing column "player"`]);
+test("points: wrong match for the team, missing fixtures, non-numbers, repeats and unknown names are errors", () => {
+  const { rows, issues } = parsePointsSheet(
+    grid([
+      { [P]: "Rohit", 1: 10, 9: "", 75: "" },
+      { [P]: "Russell", 1: 5, 9: "", 75: "" },
+      { [P]: "Dhoni", 1: "kane - 4", 9: 3, 75: "" },
+      { [P]: "Rohit", 1: 12, 9: "", 75: "" },
+      { [P]: "Rohitt", 1: 1, 9: "", 75: "" },
+      { [P]: "Nobody", 1: "", 9: "", 75: "" },
+      { [P]: "", 1: 4, 9: "", 75: "" },
+    ]),
+    pointsCtx,
+  );
+  assert.deepEqual(rows.map((r) => r.row), [2]);
+  assert.deepEqual(errors(issues), [
+    "No fixture 9 in IPL 2026", // column 75 has no fixture either, but it's empty
+    "Russell (KKR) didn't play IPL 2026 fixture 1 (MI v CSK)",
+    `"kane - 4" isn't a number`,
+    "Rohit is already on row 2",
+    `No player called "Rohitt" in the Players sheet — did you mean Rohit?`,
+    "player is blank",
+  ]);
+  // A name we don't know, with no points yet, only warns.
+  assert.ok(issues.some((i) => i.level === "warning" && /No player called "Nobody".*skipped \(no points\)/.test(i.message)));
+});
+
+test("points: two players sharing a name need a team (or player_id) column", () => {
+  const twins = [...players, { id: 103, code: "S1", name: "Sharma", teamId: 1 }, { id: 104, code: "S2", name: "Sharma", teamId: 2 }];
+  const ctx = { ...pointsCtx, players: twins };
+  assert.deepEqual(errors(parsePointsSheet(grid([{ [P]: "Sharma", 1: 7 }]), ctx).issues), [
+    `2 players are called "Sharma" (MI, CSK) — add a team column to say which`,
+  ]);
+  assert.deepEqual(parsePointsSheet(grid([{ [P]: "Sharma", team: "Chennai Super Kings", 1: 7 }]), ctx).rows.map((r) => r.playerId), [104]);
+  assert.deepEqual(parsePointsSheet(grid([{ [P]: "", player_id: "S1", 1: 7 }]), ctx).rows.map((r) => r.playerId), [103]);
+});
+
+test("points: the players column, at least one match column and some points are required", () => {
+  assert.deepEqual(errors(parsePointsSheet(grid([{ Who: "Rohit", 1: 3 }]), pointsCtx).issues), [
+    `Missing column "Match no / Players" — the first column lists the players`,
+  ]);
+  assert.deepEqual(errors(parsePointsSheet(grid([{ Players: "Rohit", Adjustment: 3 }]), pointsCtx).issues), [
+    "No match columns — after the players column, the header row should hold fixture ids (1, 2, 3 …)",
+  ]);
+  assert.deepEqual(errors(parsePointsSheet(grid([{ player: "Rohit", 1: "" }]), pointsCtx).issues), [
+    "No points in the sheet — fill in at least one match column",
+  ]);
+  assert.deepEqual(errors(parsePointsSheet(grid([{ [P]: "Rohit", 1: 3, "1_1": 4 }]), pointsCtx).issues), ["Match 1 has more than one column"]);
 });
 
 test("points: future, abandoned and implausible values warn but don't block", () => {
-  const { rows, issues } = parsePointsSheet([{ fixture_id: 2, team: "KKR", player: "Russell", points: 900 }], pointsCtx);
+  const { rows, issues } = parsePointsSheet(grid([{ [P]: "Russell", 2: 900 }]), pointsCtx);
   assert.equal(rows.length, 1);
   assert.equal(errors(issues).length, 0);
   assert.equal(issues.filter((i) => i.level === "warning").length, 3);
 });
 
-test("points: with several series, the series column is required", () => {
+test("points: with several series, the upload names the series the match columns belong to", () => {
   const two = [...fixtures, { ...fixtures[0], id: 3, series: "Other Cup" }];
-  const { issues } = parsePointsSheet([{ fixture_id: 1, team: "MI", player: "Rohit", points: 1 }], { ...pointsCtx, fixtures: two });
-  assert.deepEqual(errors(issues), ["series is blank, and the tournament has more than one series"]);
+  const ctx = { ...pointsCtx, fixtures: two };
+  assert.deepEqual(errors(parsePointsSheet(grid([{ [P]: "Rohit", 1: 1 }]), ctx).issues), ["This tournament has 2 series — pick the one these points are for"]);
+  assert.deepEqual(parsePointsSheet(grid([{ [P]: "Rohit", 1: 1 }]), { ...ctx, series: "other  cup" }).fixtureIds, [3]);
+  assert.deepEqual(errors(parsePointsSheet(grid([{ [P]: "Rohit", 1: 1 }]), { ...ctx, series: "Nope" }).issues), [`No series "Nope" in this tournament`]);
 });
 
 // ─── names ───────────────────────────────────────────────────────────────────

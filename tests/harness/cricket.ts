@@ -46,15 +46,28 @@ export const MINI_CRICKET = {
   })) as Row[],
 };
 
-/**
- * Deterministic points for every player in a fixture (both teams), by team and player name — the way
- * a scorer fills in the sheet.
- */
+/** Deterministic points for every player in a fixture (both teams): one entry per player. */
 export function miniPoints(fixtureNo: number, bump = 0): Row[] {
   const fixture = MINI_CRICKET.fixtures[fixtureNo - 1];
   return MINI_CRICKET.players
     .filter((p) => p.team === fixture.team_a || p.team === fixture.team_b)
     .map((p, i) => ({ fixture_id: fixtureNo, team: p.team, player: p.name, points: ((i * 7 + fixtureNo * 3) % 40) - 4 + bump }));
+}
+
+/**
+ * Points entries laid out as the points sheet is: one row per player (by name), one column per
+ * fixture id, blank where the player didn't play — the way a scorer fills it in.
+ */
+export function pointsGrid(entries: Row[]): Row[] {
+  const fixtureIds = [...new Set(entries.map((e) => Number(e.fixture_id)))].sort((a, b) => a - b);
+  const byPlayer = new Map<string, Row>();
+  for (const e of entries) {
+    const name = String(e.player);
+    const row = byPlayer.get(name) ?? { "Match no / Players": name, ...Object.fromEntries(fixtureIds.map((f) => [String(f), ""])) };
+    row[String(e.fixture_id)] = e.points;
+    byPlayer.set(name, row);
+  }
+  return [...byPlayer.values()];
 }
 
 export async function createCricketTournament(request: APIRequestContext, name: string, kind: "league" | "window" = "league"): Promise<{ id: string; slug: string }> {
