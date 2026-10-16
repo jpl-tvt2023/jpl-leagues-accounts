@@ -1,7 +1,7 @@
 /** Teams sheet: real teams (IPL franchises, or countries). Pure. */
 
 import { cellText, mapSheet, normalizeTeamCode } from "./columns";
-import { error, rowNumber, warning, type RawRow, type SheetIssue } from "./types";
+import { error, fieldChanges, REMOVED, rowNumber, warning, type RawRow, type SheetChange, type SheetIssue } from "./types";
 import { parseWhole } from "./values";
 
 export interface TeamRow {
@@ -51,6 +51,8 @@ export interface TeamsPlan {
   updates: Array<{ id: number; row: TeamRow }>;
   deletes: number[];
   unchanged: number;
+  /** Saved teams this upload changes or removes, for the superadmin to confirm. */
+  changes: SheetChange[];
   issues: SheetIssue[];
 }
 
@@ -63,7 +65,7 @@ export function planTeams(
   incoming: TeamRow[],
   ctx: { referencedTeamIds: Set<number>; franchiseAuctionStarted: boolean },
 ): TeamsPlan {
-  const plan: TeamsPlan = { inserts: [], updates: [], deletes: [], unchanged: 0, issues: [] };
+  const plan: TeamsPlan = { inserts: [], updates: [], deletes: [], unchanged: 0, changes: [], issues: [] };
   const byCode = new Map(existing.map((t) => [t.code, t]));
   const incomingCodes = new Set(incoming.map((t) => t.code));
 
@@ -78,6 +80,7 @@ export function planTeams(
       continue;
     }
     plan.updates.push({ id: current.id, row });
+    plan.changes.push({ row: row.row, item: row.code, change: fieldChanges([["name", current.name, row.name], ["base price", current.basePrice, row.basePrice]]) });
     if (current.basePrice !== row.basePrice && ctx.franchiseAuctionStarted) {
       plan.issues.push(
         warning(row.row, `${row.code}'s base price changes after a franchise auction started; only franchises not yet sold open at the new price`, "base_price"),
@@ -90,6 +93,7 @@ export function planTeams(
       plan.issues.push(error(0, `Team ${team.code} is missing from the file, but players, fixtures or a franchise owner still use it`));
     } else {
       plan.deletes.push(team.id);
+      plan.changes.push({ row: 0, item: `${team.code} (${team.name})`, change: REMOVED });
     }
   }
   return plan;

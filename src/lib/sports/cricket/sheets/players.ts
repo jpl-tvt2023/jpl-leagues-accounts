@@ -3,7 +3,7 @@
 import type { CricketRole } from "@/lib/db/schema-cricket";
 import { cellText, mapSheet } from "./columns";
 import { normalizeName, slugifyName, type TeamLookup } from "./names";
-import { error, rowNumber, warning, type RawRow, type SheetIssue } from "./types";
+import { error, fieldChanges, REMOVED, rowNumber, warning, type RawRow, type SheetChange, type SheetIssue } from "./types";
 import { parseWhole, parseYesNo } from "./values";
 
 export interface PlayerRow {
@@ -70,8 +70,8 @@ export function parsePlayersSheet(raws: RawRow[], ctx: { teams: TeamLookup }): {
     if (t20 === null) fail("T20 must be a whole number", "T20");
     if (code && seenCode.has(code)) fail(`player_id ${code} is already on row ${seenCode.get(code)}`, "player_id");
     if (code && !seenCode.has(code)) seenCode.set(code, row);
-    // Points sheets find players by name (within the team when the sheet has a team column), so two
-    // teammates with one name need player_ids, and namesakes in different teams need that team column.
+    // Points sheets find players by name within their team, so two teammates with one name need
+    // player_ids to tell them apart.
     const nameKey = normalizeName(name);
     const teamNameKey = `${teamCode}:${nameKey}`;
     const twin = name && teamCode ? seenTeamName.get(teamNameKey) : undefined;
@@ -80,9 +80,7 @@ export function parsePlayersSheet(raws: RawRow[], ctx: { teams: TeamLookup }): {
     } else if (twin) {
       issues.push(warning(row, `Row ${twin.row} has a ${teamCode} player with the same name; points sheets will need their player_id`, "name"));
     } else if (name && seenName.has(nameKey)) {
-      issues.push(
-        warning(row, `Another player on row ${seenName.get(nameKey)} has the same name — check they're different people; the points sheet will need a team column for them`, "name"),
-      );
+      issues.push(warning(row, `Another player on row ${seenName.get(nameKey)} has the same name — check they're different people`, "name"));
     }
     if (name && !seenName.has(nameKey)) seenName.set(nameKey, row);
     if (name && teamCode && !twin) seenTeamName.set(teamNameKey, { row, hasCode: !!code });
@@ -159,6 +157,8 @@ export interface PlayersPlan {
   updates: Array<{ id: number; row: PlayerRow & { teamId: number } }>;
   deletes: number[];
   unchanged: number;
+  /** Saved players this upload changes or removes, for the superadmin to confirm. */
+  changes: SheetChange[];
   issues: SheetIssue[];
 }
 
@@ -176,7 +176,10 @@ export function planPlayers(
     auctionStarted: boolean;
   },
 ): PlayersPlan {
-  const plan: PlayersPlan = { inserts: [], updates: [], deletes: [], unchanged: 0, issues: [] };
+  const plan: PlayersPlan = { inserts: [], updates: [], deletes: [], unchanged: 0, changes: [], issues: [] };
+  const codeByTeamId = new Map([...ctx.teamIdByCode].map(([code, id]) => [id, code]));
+  const teamCode = (id: number) => codeByTeamId.get(id) ?? "?";
+  const yn = (v: boolean) => (v ? "Y" : "N");
   const byCode = new Map(existing.map((p) => [p.code, p]));
   const incomingCodes = new Set(incoming.map((p) => p.code));
 
@@ -203,6 +206,20 @@ export function planPlayers(
       continue;
     }
     plan.updates.push({ id: current.id, row: next });
+    plan.changes.push({
+      row: row.row,
+      item: `${current.name} (${teamCode(current.teamId)})`,
+      change: fieldChanges([
+        ["name", current.name, row.name],
+        ["team", teamCode(current.teamId), row.teamCode],
+        ["role", current.role, row.role],
+        ["base price", current.basePrice, row.basePrice],
+        ["overseas", yn(current.overseas), yn(row.overseas)],
+        ["Test", current.matchesTest, row.matchesTest],
+        ["ODI", current.matchesOdi, row.matchesOdi],
+        ["T20", current.matchesT20, row.matchesT20],
+      ]),
+    });
     const owned = ctx.ownedPlayerIds.has(current.id);
     if (owned && current.teamId !== teamId) {
       plan.issues.push({
@@ -225,6 +242,7 @@ export function planPlayers(
       plan.issues.push(error(0, `${player.name} (${player.code}) is missing from the file but has points; clear those fixtures' points first`));
     } else {
       plan.deletes.push(player.id);
+      plan.changes.push({ row: 0, item: `${player.name} (${teamCode(player.teamId)})`, change: REMOVED });
     }
   }
   return plan;

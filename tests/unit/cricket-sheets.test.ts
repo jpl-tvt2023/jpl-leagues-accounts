@@ -13,8 +13,9 @@ import { parseTeamsSheet, planTeams } from "../../src/lib/sports/cricket/sheets/
 import { assignPlayerCodes, parsePlayersSheet, parseRole, planPlayers, type ExistingPlayer, type PlayerRow } from "../../src/lib/sports/cricket/sheets/players";
 import { TeamLookup, editDistance, normalizeName, slugifyName } from "../../src/lib/sports/cricket/sheets/names";
 import { parseFixturesSheet, parseMatchFormat, planFixtures, type ExistingFixture } from "../../src/lib/sports/cricket/sheets/fixtures";
-import { parsePointsSheet, type PointsFixture } from "../../src/lib/sports/cricket/sheets/points";
-import { blockingIssues } from "../../src/lib/sports/cricket/sheets/types";
+import { parsePointsSheet, planPoints, type PointsFixture } from "../../src/lib/sports/cricket/sheets/points";
+import { templateRows } from "../../src/lib/sports/cricket/sheets/templates";
+import { blockingIssues, fieldChanges } from "../../src/lib/sports/cricket/sheets/types";
 
 const errors = (issues: { level: string; message: string }[]) => issues.filter((i) => i.level === "error").map((i) => i.message);
 const lookup = (teams: Array<[string, string?]>) => new TeamLookup(teams.map(([code, name]) => ({ code, name })));
@@ -104,6 +105,11 @@ test("teams plan: insert, update, keep, and refuse to delete a team still in use
   assert.deepEqual(plan.deletes, [4]);
   assert.match(errors(plan.issues)[0], /Team GT is missing/);
   assert.equal(plan.issues.filter((i) => i.level === "warning").length, 1); // CSK price after franchise auction
+  // Changes to saved teams are listed for the superadmin to confirm; new ones (KKR) aren't.
+  assert.deepEqual(plan.changes, [
+    { row: 3, item: "CSK", change: "name: Chennai → Chennai Super Kings · base price: 1500 → 1600" },
+    { row: 0, item: "XX (Gone)", change: "removed" },
+  ]);
 });
 
 // ─── players ─────────────────────────────────────────────────────────────────
@@ -165,6 +171,10 @@ test("players plan: moving an owned player is an overridable error; deleting one
   assert.equal(moved?.overridable, true);
   assert.equal(blockingIssues(plan.issues, false).length, 2);
   assert.equal(blockingIssues(plan.issues, true).length, 1); // the scored player still blocks
+  assert.deepEqual(plan.changes, [
+    { row: 2, item: "Owned (MI)", change: "team: MI → CSK" },
+    { row: 0, item: "Free (MI)", change: "removed" },
+  ]);
 });
 
 // ─── fixtures ────────────────────────────────────────────────────────────────
@@ -210,6 +220,25 @@ test("fixtures plan: a scored fixture can't change teams or disappear", () => {
   assert.deepEqual(plan.deletes, [3]);
   assert.equal(plan.updates.length, 0);
   assert.equal(errors(plan.issues).length, 2); // fixture 1 changes teams, fixture 2 disappears
+  assert.deepEqual(plan.changes, [{ row: 0, item: "IPL 2026 fixture 3 (MI v CSK)", change: "removed" }]);
+});
+
+test("fixtures plan: a changed start time or venue is listed as old → new", () => {
+  const existing: ExistingFixture[] = [
+    { id: 1, series: "IPL 2026", fixtureNo: 1, stage: "group", matchFormat: "T20", teamAId: 1, teamBId: 2, startsAt: new Date("2026-03-28T14:00:00Z"), venue: null, hasPoints: false },
+  ];
+  const plan = planFixtures(
+    existing,
+    [{ row: 2, series: "IPL 2026", fixtureNo: 1, matchFormat: "T20", teamACode: "MI", teamBCode: "CSK", startsAt: new Date("2026-03-28T10:00:00Z"), venue: "Wankhede" }],
+    { teamIdByCode: new Map([["MI", 1], ["CSK", 2]]) },
+  );
+  assert.deepEqual(plan.changes, [{ row: 2, item: "IPL 2026 fixture 1", change: "start: 2026-03-28 19:30 → 2026-03-28 15:30 · venue: (blank) → Wankhede" }]);
+});
+
+test("fieldChanges lists only the fields that differ, and shows blanks", () => {
+  assert.equal(fieldChanges([["name", "A", "A"], ["base price", 20, 25], ["venue", null, ""]]), "base price: 20 → 25");
+  assert.equal(fieldChanges([["venue", "", "Eden"]]), "venue: (blank) → Eden");
+  assert.equal(fieldChanges([["name", "A", "A"]]), "");
 });
 
 // ─── points ──────────────────────────────────────────────────────────────────
@@ -230,27 +259,29 @@ const pointsCtx = {
   teamIdByCode: new Map([["MI", 1], ["CSK", 2], ["KKR", 3]]),
   now: new Date("2026-10-12T00:00:00Z"),
 };
-// A grid row as SheetJS reads it: keyed by header, the players column headed the way scorers write it.
-const P = "Match no\nPlayers";
+// A grid row as SheetJS reads it: keyed by header, with the sheet row number the client adds.
 const grid = (rows: Array<Record<string, unknown>>) => rows.map((r, i) => ({ __row: i + 2, ...r }));
 
-test("points: a grid of players down and fixture ids across; blank cells and blank rows are skipped", () => {
+test("points: team_code and player_name identify each row, in any order; blank cells and rows are skipped", () => {
   const { rows, issues, fixtureIds } = parsePointsSheet(
     grid([
-      { [P]: "Rohit", 1: 54.5, 2: "" },
-      { [P]: "  dhoni. ", 1: -3, 2: "" },
-      { [P]: "", 1: "", 2: "" },
+      { team_code: "Chennai Super Kings", player_name: "  dhoni. ", 1: -3, 2: "" },
+      { team_code: "", player_name: "", 1: "", 2: "" },
+      { team_code: "MI", player_name: "Rohit", 1: 54.5, 2: "" },
     ]),
     pointsCtx,
   );
   assert.deepEqual(errors(issues), []);
-  assert.deepEqual(rows.map((r) => [r.row, r.fixtureId, r.playerId, r.points]), [[2, 1, 100, 54.5], [3, 1, 101, -3]]);
+  assert.deepEqual(rows.map((r) => [r.row, r.fixtureId, r.playerId, r.points]), [[2, 1, 101, -3], [4, 1, 100, 54.5]]);
   assert.deepEqual(fixtureIds, [1]);
+  // Other spellings of the two key columns work too, e.g. a scorer's "Team" and "Match no / Players".
+  const alt = parsePointsSheet(grid([{ Team: "MI", "Match no\nPlayers": "Rohit", 1: 5 }]), pointsCtx);
+  assert.deepEqual(alt.rows.map((r) => r.playerId), [100]);
 });
 
 test("points: columns that aren't fixture ids (Adjustment, Total, notes) are ignored with one warning", () => {
   const { rows, issues } = parsePointsSheet(
-    grid([{ [P]: "Rohit", 1: 10, Adjustment: 99, Total: 109, __EMPTY: "kane - 4", __EMPTY_1: "" }]),
+    grid([{ team_code: "MI", player_name: "Rohit", 1: 10, Adjustment: 99, Total: 109, __EMPTY: "kane - 4", __EMPTY_1: "" }]),
     pointsCtx,
   );
   assert.deepEqual(errors(issues), []);
@@ -261,16 +292,19 @@ test("points: columns that aren't fixture ids (Adjustment, Total, notes) are ign
   );
 });
 
-test("points: wrong match for the team, missing fixtures, non-numbers, repeats and unknown names are errors", () => {
+test("points: wrong match or team, missing fixtures, non-numbers, repeats and unknown names are errors", () => {
   const { rows, issues } = parsePointsSheet(
     grid([
-      { [P]: "Rohit", 1: 10, 9: "", 75: "" },
-      { [P]: "Russell", 1: 5, 9: "", 75: "" },
-      { [P]: "Dhoni", 1: "kane - 4", 9: 3, 75: "" },
-      { [P]: "Rohit", 1: 12, 9: "", 75: "" },
-      { [P]: "Rohitt", 1: 1, 9: "", 75: "" },
-      { [P]: "Nobody", 1: "", 9: "", 75: "" },
-      { [P]: "", 1: 4, 9: "", 75: "" },
+      { team_code: "MI", player_name: "Rohit", 1: 10, 9: "", 75: "" },
+      { team_code: "KKR", player_name: "Russell", 1: 5, 9: "", 75: "" },
+      { team_code: "CSK", player_name: "Dhoni", 1: "kane - 4", 9: 3, 75: "" },
+      { team_code: "MI", player_name: "Rohit", 1: 12, 9: "", 75: "" },
+      { team_code: "MI", player_name: "Rohitt", 1: 1, 9: "", 75: "" },
+      { team_code: "MI", player_name: "Dhoni", 1: 1, 9: "", 75: "" },
+      { team_code: "XYZ", player_name: "Rohit", 1: 1, 9: "", 75: "" },
+      { team_code: "", player_name: "Rohit", 1: 1, 9: "", 75: "" },
+      { team_code: "MI", player_name: "", 1: 4, 9: "", 75: "" },
+      { team_code: "MI", player_name: "Nobody", 1: "", 9: "", 75: "" },
     ]),
     pointsCtx,
   );
@@ -279,39 +313,49 @@ test("points: wrong match for the team, missing fixtures, non-numbers, repeats a
     "No fixture 9 in IPL 2026", // column 75 has no fixture either, but it's empty
     "Russell (KKR) didn't play IPL 2026 fixture 1 (MI v CSK)",
     `"kane - 4" isn't a number`,
-    "Rohit is already on row 2",
-    `No player called "Rohitt" in the Players sheet — did you mean Rohit?`,
-    "player is blank",
+    "Rohit (MI) is already on row 2",
+    `No MI player called "Rohitt" — did you mean Rohit?`,
+    "Dhoni plays for CSK, not MI",
+    `Team "XYZ" isn't in the Teams sheet`,
+    "team_code is blank",
+    "player_name is blank",
   ]);
-  // A name we don't know, with no points yet, only warns.
-  assert.ok(issues.some((i) => i.level === "warning" && /No player called "Nobody".*skipped \(no points\)/.test(i.message)));
+  // A row that can't be matched but has no points yet only warns.
+  assert.ok(issues.some((i) => i.level === "warning" && /No MI player called "Nobody".*skipped \(no points\)/.test(i.message)));
 });
 
-test("points: two players sharing a name need a team (or player_id) column", () => {
-  const twins = [...players, { id: 103, code: "S1", name: "Sharma", teamId: 1 }, { id: 104, code: "S2", name: "Sharma", teamId: 2 }];
-  const ctx = { ...pointsCtx, players: twins };
-  assert.deepEqual(errors(parsePointsSheet(grid([{ [P]: "Sharma", 1: 7 }]), ctx).issues), [
-    `2 players are called "Sharma" (MI, CSK) — add a team column to say which`,
+test("points: namesakes in different teams are told apart by team; teammates need a player_id", () => {
+  const ctx = {
+    ...pointsCtx,
+    players: [...players, { id: 103, code: "S1", name: "Sharma", teamId: 1 }, { id: 104, code: "S2", name: "Sharma", teamId: 2 }, { id: 105, code: "S3", name: "Sharma", teamId: 2 }],
+  };
+  assert.deepEqual(parsePointsSheet(grid([{ team_code: "MI", player_name: "Sharma", 1: 7 }]), ctx).rows.map((r) => r.playerId), [103]);
+  assert.deepEqual(errors(parsePointsSheet(grid([{ team_code: "CSK", player_name: "Sharma", 1: 7 }]), ctx).issues), [
+    `2 CSK players are called "Sharma" — give the player_id (S2 or S3)`,
   ]);
-  assert.deepEqual(parsePointsSheet(grid([{ [P]: "Sharma", team: "Chennai Super Kings", 1: 7 }]), ctx).rows.map((r) => r.playerId), [104]);
-  assert.deepEqual(parsePointsSheet(grid([{ [P]: "", player_id: "S1", 1: 7 }]), ctx).rows.map((r) => r.playerId), [103]);
+  assert.deepEqual(parsePointsSheet(grid([{ team_code: "CSK", player_name: "Sharma", player_id: "S3", 1: 7 }]), ctx).rows.map((r) => r.playerId), [105]);
 });
 
-test("points: the players column, at least one match column and some points are required", () => {
-  assert.deepEqual(errors(parsePointsSheet(grid([{ Who: "Rohit", 1: 3 }]), pointsCtx).issues), [
-    `Missing column "Match no / Players" — the first column lists the players`,
+test("points: team_code, player_name, at least one match column and some points are required", () => {
+  assert.deepEqual(errors(parsePointsSheet(grid([{ player_name: "Rohit", 1: 3 }]), pointsCtx).issues), [
+    `Missing column "team_code" — the first two columns are team_code and player_name`,
   ]);
-  assert.deepEqual(errors(parsePointsSheet(grid([{ Players: "Rohit", Adjustment: 3 }]), pointsCtx).issues), [
+  assert.deepEqual(errors(parsePointsSheet(grid([{ team_code: "MI", 1: 3 }]), pointsCtx).issues), [
+    `Missing column "player_name" — the first two columns are team_code and player_name`,
+  ]);
+  assert.deepEqual(errors(parsePointsSheet(grid([{ team_code: "MI", player_name: "Rohit", Adjustment: 3 }]), pointsCtx).issues), [
     "No match columns — after the players column, the header row should hold fixture ids (1, 2, 3 …)",
   ]);
-  assert.deepEqual(errors(parsePointsSheet(grid([{ player: "Rohit", 1: "" }]), pointsCtx).issues), [
+  assert.deepEqual(errors(parsePointsSheet(grid([{ team_code: "MI", player_name: "Rohit", 1: "" }]), pointsCtx).issues), [
     "No points in the sheet — fill in at least one match column",
   ]);
-  assert.deepEqual(errors(parsePointsSheet(grid([{ [P]: "Rohit", 1: 3, "1_1": 4 }]), pointsCtx).issues), ["Match 1 has more than one column"]);
+  assert.deepEqual(errors(parsePointsSheet(grid([{ team_code: "MI", player_name: "Rohit", 1: 3, "1_1": 4 }]), pointsCtx).issues), [
+    "Match 1 has more than one column",
+  ]);
 });
 
 test("points: future, abandoned and implausible values warn but don't block", () => {
-  const { rows, issues } = parsePointsSheet(grid([{ [P]: "Russell", 2: 900 }]), pointsCtx);
+  const { rows, issues } = parsePointsSheet(grid([{ team_code: "KKR", player_name: "Russell", 2: 900 }]), pointsCtx);
   assert.equal(rows.length, 1);
   assert.equal(errors(issues).length, 0);
   assert.equal(issues.filter((i) => i.level === "warning").length, 3);
@@ -320,9 +364,70 @@ test("points: future, abandoned and implausible values warn but don't block", ()
 test("points: with several series, the upload names the series the match columns belong to", () => {
   const two = [...fixtures, { ...fixtures[0], id: 3, series: "Other Cup" }];
   const ctx = { ...pointsCtx, fixtures: two };
-  assert.deepEqual(errors(parsePointsSheet(grid([{ [P]: "Rohit", 1: 1 }]), ctx).issues), ["This tournament has 2 series — pick the one these points are for"]);
-  assert.deepEqual(parsePointsSheet(grid([{ [P]: "Rohit", 1: 1 }]), { ...ctx, series: "other  cup" }).fixtureIds, [3]);
-  assert.deepEqual(errors(parsePointsSheet(grid([{ [P]: "Rohit", 1: 1 }]), { ...ctx, series: "Nope" }).issues), [`No series "Nope" in this tournament`]);
+  const row = grid([{ team_code: "MI", player_name: "Rohit", 1: 1 }]);
+  assert.deepEqual(errors(parsePointsSheet(row, ctx).issues), ["This tournament has 2 series — pick the one these points are for"]);
+  assert.deepEqual(parsePointsSheet(row, { ...ctx, series: "other  cup" }).fixtureIds, [3]);
+  assert.deepEqual(errors(parsePointsSheet(row, { ...ctx, series: "Nope" }).issues), [`No series "Nope" in this tournament`]);
+});
+
+const pointsLabel = {
+  fixture: (id: number) => `IPL 2026 fixture ${id}`,
+  fixtureNo: (id: number) => String(id),
+  player: (id: number) => ({ 100: "Rohit (MI)", 101: "Dhoni (CSK)", 102: "Russell (KKR)", 103: "Bumrah (MI)" })[id] ?? "?",
+};
+
+test("points upsert: new cells are added, changed ones listed, unchanged skipped — nothing is deleted", () => {
+  const sheet = {
+    rows: [
+      { row: 2, fixtureId: 1, playerId: 100, points: 44 }, // was 40
+      { row: 3, fixtureId: 1, playerId: 101, points: 10 }, // same
+      { row: 4, fixtureId: 2, playerId: 102, points: 7 }, // new
+    ],
+    columnFixtureIds: [1, 2],
+    playerRows: new Map([[100, 2], [101, 3], [102, 4]]),
+    filledCells: new Set(["1:100", "1:101", "2:102", "2:101"]), // 2:101 is filled but invalid
+  };
+  const stored = [
+    { fixtureId: 1, playerId: 100, points: 40 },
+    { fixtureId: 1, playerId: 101, points: 10 },
+    { fixtureId: 2, playerId: 100, points: 5 }, // Rohit's cell for fixture 2 is blank now
+    { fixtureId: 2, playerId: 101, points: 3 }, // filled (badly) — reported by the parser, not here
+    { fixtureId: 1, playerId: 103, points: 12 }, // Bumrah has no row
+    { fixtureId: 9, playerId: 100, points: 50 }, // fixture 9 isn't a column of this sheet
+  ];
+  const plan = planPoints(sheet, stored, pointsLabel);
+  assert.deepEqual(plan.inserts.map((r) => [r.fixtureId, r.playerId, r.points]), [[2, 102, 7]]);
+  assert.deepEqual(plan.updates.map((r) => [r.fixtureId, r.playerId, r.was, r.points]), [[1, 100, 40, 44]]);
+  assert.equal(plan.unchanged, 1);
+  assert.deepEqual(plan.changes, [{ row: 2, item: "Rohit (MI)", change: "IPL 2026 fixture 1: 40 → 44" }]);
+  assert.deepEqual(plan.changedFixtureIds.sort(), [1, 2]);
+  assert.deepEqual(errors(plan.issues), []);
+  assert.deepEqual(
+    plan.issues.map((i) => i.message),
+    [
+      "Rohit (MI): IPL 2026 fixture 2 has 5 saved but the cell is blank — kept (Clear points on the fixture removes it)",
+      "Bumrah (MI) has saved points (fixture 1) but no matching row in the sheet — kept",
+    ],
+  );
+});
+
+test("points upsert: re-uploading the same sheet changes nothing", () => {
+  const sheet = { rows: [{ row: 2, fixtureId: 1, playerId: 100, points: 40 }], columnFixtureIds: [1], playerRows: new Map([[100, 2]]), filledCells: new Set(["1:100"]) };
+  const plan = planPoints(sheet, [{ fixtureId: 1, playerId: 100, points: 40 }], pointsLabel);
+  assert.equal(plan.inserts.length + plan.updates.length, 0);
+  assert.equal(plan.unchanged, 1);
+  assert.deepEqual(plan.changes, []);
+  assert.deepEqual(plan.issues.map((i) => i.message), ["Nothing new — every score in the sheet is already uploaded"]);
+});
+
+test("points template: team_code, player_name, then the tournament's fixture ids, one row per player", () => {
+  const rows = templateRows("points", undefined, { fixtureIds: [1, 2, 3], players: [{ team: "CSK", name: "MS Dhoni" }, { team: "MI", name: "Rohit Sharma" }] });
+  assert.deepEqual(rows, [
+    ["team_code", "player_name", 1, 2, 3],
+    ["CSK", "MS Dhoni", "", "", ""],
+    ["MI", "Rohit Sharma", "", "", ""],
+  ]);
+  assert.deepEqual(templateRows("points")[0], ["team_code", "player_name", 1, 2]);
 });
 
 // ─── names ───────────────────────────────────────────────────────────────────

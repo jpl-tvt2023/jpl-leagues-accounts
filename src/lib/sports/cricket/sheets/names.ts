@@ -120,17 +120,4 @@ export class PlayerLookup<P extends NamedPlayer> {
     const near = closest(n, this.players.filter((p) => p.teamId === teamId), (p) => normalizeName(p.name));
     return { error: `No ${teamLabel(teamId)} player called "${name}"${near ? ` — did you mean ${near.name}?` : ""}` };
   }
-
-  /**
-   * The one player called `name` in any team, for sheets that name players without their team. Two
-   * players sharing the name is an error that asks for a team column; unknown names get a suggestion.
-   */
-  resolveAnyTeam(name: string, teamLabel: (teamId: number) => string): { player: P } | { error: string; unknown?: true } {
-    const n = normalizeName(name);
-    const hits = this.byName.get(n) ?? [];
-    if (hits.length === 1) return { player: hits[0] };
-    if (hits.length > 1) return { error: `${hits.length} players are called "${name}" (${hits.map((h) => teamLabel(h.teamId)).join(", ")}) — add a team column to say which` };
-    const near = closest(n, this.players, (p) => normalizeName(p.name));
-    return { error: `No player called "${name}" in the Players sheet${near ? ` — did you mean ${near.name}?` : ""}`, unknown: true };
-  }
 }

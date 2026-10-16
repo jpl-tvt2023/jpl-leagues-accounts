@@ -1,7 +1,7 @@
 /**
  * Cricket tournament uploads, through the real superadmin API: validate is a dry run that writes
- * nothing; commit re-validates, refuses on errors (422) or a stale preview (409), and applies
- * atomically; points re-uploads replace a fixture's points.
+ * nothing; commit re-validates, refuses on errors (422), a stale preview (409) or unconfirmed changes to
+ * saved data (428), and applies atomically; points re-uploads upsert.
  *
  * Run with: npm run test:e2e -- tests/league-types/cricket-uploads.spec.ts
  */
@@ -62,13 +62,40 @@ test.describe.serial("cricket: tournament uploads", () => {
     await apiSignInSuperadmin(request);
     const v = await validateCricketSheet(request, tournamentId, "players", MINI_CRICKET.players);
     expect(v.body.counts).toMatchObject({ inserts: 0, updates: 0, deletes: 0, unchanged: 24 });
+    expect(v.body.changeCount).toBe(0);
   });
 
-  test("admin: points re-upload replaces that fixture's points only", async ({ request }) => {
+  test("admin: a change to a saved player is listed and needs confirming", async ({ request }) => {
+    await apiSignInSuperadmin(request);
+    const changed = MINI_CRICKET.players.map((p, i) => (i === 1 ? { ...p, role: "AR" } : p));
+    const v = await validateCricketSheet(request, tournamentId, "players", changed);
+    expect(v.body.changeCount).toBe(1);
+    expect(v.body.changes?.[0]).toMatchObject({ item: "MI Player 2 (MI)", change: "role: BAT → AR" });
+    const unconfirmed = await commitCricketSheet(request, tournamentId, "players", changed, v.body.validationHash, false, { confirmChanges: false });
+    expect(unconfirmed.status).toBe(428);
+    const saved = await uploadCricketSheet(request, tournamentId, "players", changed);
+    expect(saved.counts).toMatchObject({ updates: 1, unchanged: 23 });
+    await uploadCricketSheet(request, tournamentId, "players", MINI_CRICKET.players); // back as it was
+  });
+
+  test("admin: the points sheet re-uploaded after each game upserts; changed scores need confirming", async ({ request }) => {
     await apiSignInSuperadmin(request);
     await uploadCricketSheet(request, tournamentId, "points", pointsGrid([...miniPoints(1), ...miniPoints(2)]));
-    const second = await uploadCricketSheet(request, tournamentId, "points", pointsGrid(miniPoints(1, 10)));
-    expect(second.counts).toMatchObject({ fixtures: 1, replacedRows: 12, inserts: 12 });
+    // The same sheet after the next game: only fixture 3's scores are new, nothing needs confirming.
+    const next = pointsGrid([...miniPoints(1), ...miniPoints(2), ...miniPoints(3)]);
+    const added = await validateCricketSheet(request, tournamentId, "points", next);
+    expect(added.body.changeCount).toBe(0);
+    expect((await uploadCricketSheet(request, tournamentId, "points", next)).counts).toMatchObject({ inserts: 12, updates: 0, unchanged: 24, fixtures: 1 });
+
+    // Fixture 1 corrected: every changed score is listed, and saving needs confirming.
+    const corrected = pointsGrid([...miniPoints(1, 10), ...miniPoints(2), ...miniPoints(3)]);
+    const v = await validateCricketSheet(request, tournamentId, "points", corrected);
+    expect(v.body.changeCount).toBe(12);
+    expect(v.body.changes?.[0].change).toMatch(/^Mini Cup fixture 1: -?\d+ → -?\d+$/);
+    const unconfirmed = await commitCricketSheet(request, tournamentId, "points", corrected, v.body.validationHash, false, { confirmChanges: false });
+    expect(unconfirmed.status).toBe(428);
+    const second = await uploadCricketSheet(request, tournamentId, "points", corrected);
+    expect(second.counts).toMatchObject({ inserts: 0, updates: 12, unchanged: 24, fixtures: 1 });
 
     const fixtures = await request.get(`/api/superadmin/cricket/tournaments/${tournamentId}/data?kind=fixtures`).then((r) => r.json());
     const f1 = fixtures.rows.find((f: { fixtureNo: number }) => f.fixtureNo === 1);
@@ -147,16 +174,16 @@ test.describe.serial("cricket: group stage, playoffs and uploads by name", () =>
     expect(players.rows.find((p: { code: string }) => p.code === "mi-player-1").playoffMatches).toBe(1);
   });
 
-  test("admin: points as a grid by player name; a typo gets a suggestion; extra columns are ignored", async ({ request }) => {
+  test("admin: points by team_code and player_name in any order; a typo gets a suggestion; extra columns are ignored", async ({ request }) => {
     await apiSignInSuperadmin(request);
     const typo = await validateCricketSheet(request, tournamentId, "points", [
-      { "Match no / Players": "MI Player 1", "7": 10 },
-      { "Match no / Players": "CSK Playr 2", "7": 5 },
+      { team_code: "MI", player_name: "MI Player 1", "7": 10 },
+      { team_code: "CSK", player_name: "CSK Playr 2", "7": 5 },
     ]);
-    expect(typo.body.issues?.map((i) => i.message)).toContain('No player called "CSK Playr 2" in the Players sheet — did you mean CSK Player 2?');
+    expect(typo.body.issues?.map((i) => i.message)).toContain('No CSK player called "CSK Playr 2" — did you mean CSK Player 2?');
     const ok = await uploadCricketSheet(request, tournamentId, "points", [
-      { "Match no / Players": "mi player 1", team: "Mumbai Indians", "7": 10, Adjustment: 99 },
-      { "Match no / Players": "CSK Player 2", team: "", "7": 5, Adjustment: "" },
+      { team_code: "CSK", player_name: "CSK Player 2", "7": 5, Adjustment: "" },
+      { team_code: "Mumbai Indians", player_name: "mi player 1", "7": 10, Adjustment: 99 },
     ]);
     expect(ok.counts).toMatchObject({ inserts: 2, fixtures: 1 });
   });

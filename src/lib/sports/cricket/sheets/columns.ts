@@ -47,24 +47,25 @@ export const SHEET_COLUMNS: Record<SheetKind, ColumnSpec[]> = {
     { field: "time", header: "time", aliases: ["timeist", "starttimeonly"], required: false, help: "Optional: time on its own, if the date column has none" },
     { field: "venue", header: "venue", aliases: ["ground", "stadium", "location"], required: false, help: "Optional" },
   ],
-  // The points sheet is a grid: one row per player, one column per match (see POINTS_MATCH_COLUMNS).
+  // The points sheet is a grid: team and player identify each row, then one column per match (see
+  // POINTS_MATCH_COLUMNS). Rows can come in any order.
   points: [
+    { field: "team", header: "team_code", aliases: ["team", "teamname", "franchise", "country", "side"], required: true, help: "The player's team: code (or full name) from the Teams sheet" },
     {
       field: "player",
-      header: "Match no / Players",
-      aliases: ["player", "players", "playername", "name", "matchnoplayers", "matchnumberplayers", "matchplayers"],
+      header: "player_name",
+      aliases: ["player", "players", "name", "matchnoplayers", "matchnumberplayers", "matchplayers"],
       required: true,
       help: "Player name as in the Players sheet, one row per player",
     },
-    { field: "team", header: "team", aliases: ["teamcode", "teamname", "franchise", "country", "side"], required: false, help: "Optional: the player's team, only needed when two players share a name" },
-    { field: "playerCode", header: "player_id", aliases: ["playercode", "id", "code"], required: false, help: "Optional: player_id, when two players share a name (the name cell can then be blank)" },
+    { field: "playerCode", header: "player_id", aliases: ["playercode", "id", "code"], required: false, help: "Optional: player_id, only when two teammates share a name" },
   ],
 };
 
 /** The points sheet's match columns, which SHEET_COLUMNS can't list: one per fixture. */
 export const POINTS_MATCH_COLUMNS = {
   header: "1, 2, 3 …",
-  help: "One column per match, headed by its fixture id. A cell is that player's fantasy points (negative and decimal are fine); blank means they didn't play. Other columns (Adjustment, Total, notes) are ignored",
+  help: "One column per match (1, 2, 3 … n), headed by its fixture id. A cell is that player's fantasy points (negative and decimal are fine); blank means they didn't play. Other columns (Adjustment, Total, notes) are ignored",
 };
 
 export function normalizeHeader(header: string): string {
