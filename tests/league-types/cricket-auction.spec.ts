@@ -34,7 +34,21 @@ type Snapshot = {
     nominatorTeamId: string | null;
     nominationDeadline: string | null;
     intermissionUntil: string | null;
-    lot: null | { id: string; kind: string; name: string; currentHighBid: number; currentHighBidderId: string; nextMinBid: number; expiresAt: string; playerId: number | null; cricketTeamId: number | null };
+    ring: string[];
+    makeupQueue: string[];
+    lastOutcome: null | { type: "sold" | "penalised" | "skipped"; teamId: string | null; price?: number; kind?: string; name?: string };
+    lot: null | {
+      id: string;
+      kind: string;
+      name: string;
+      currentHighBid: number;
+      currentHighBidderId: string;
+      nextMinBid: number;
+      expiresAt: string;
+      playerId: number | null;
+      cricketTeamId: number | null;
+      history: Array<{ teamId: string; amount: number; type: string }>;
+    };
   };
   teams: Array<{ id: string; purse: number; maxBid: number; penaltySlots: number; squadSize: number; franchiseId: number | null }>;
   franchises: Array<{ id: number; code: string; openingPrice: number; ownerTeamId: string | null }>;
@@ -84,6 +98,8 @@ test.describe.serial("cricket: auction engine", () => {
   });
 
   test("admin: the player auction can't start before the franchise auction finishes", async ({ request }) => {
+    const badPause = await admin(request, league.slug, { action: "create", type: "player", intermissionSeconds: 99 });
+    expect(badPause.status).toBe(400);
     const p = await admin(request, league.slug, { action: "create", type: "player", bidTimerSeconds: 4, nominationTimeoutSeconds: 6 });
     expect(p.status).toBe(200);
     const start = await admin(request, league.slug, { action: "start", sessionId: p.body.sessionId });
@@ -118,10 +134,22 @@ test.describe.serial("cricket: auction engine", () => {
     expect((await request.post("/api/cricket/auction/bid", { data: { league: league.slug, lotId: s.current!.lot!.id, amount: 810 } })).status()).toBe(400);
     const bid = await request.post("/api/cricket/auction/bid", { data: { league: league.slug, lotId: s.current!.lot!.id, amount: 825 } });
     expect(bid.status(), await bid.text()).toBe(200);
+    // The open lot carries its nomination and bids, oldest first.
+    s = await state(request, league.slug);
+    expect(s.current!.lot!.history.map((h) => [h.type, h.teamId, h.amount])).toEqual([
+      ["nomination", nominator, 800],
+      ["bid", other, 825],
+    ]);
 
     s = await waitFor(request, league.slug, (x) => !x.current?.lot && !!x.current?.intermissionUntil);
+    // The pause after the sale says what was sold, to whom, for how much.
+    expect(s.current!.lastOutcome).toMatchObject({ type: "sold", kind: "franchise", teamId: other, price: 825 });
     const owner = s.franchises.find((x) => x.code === "RCB")!;
     expect(owner.ownerTeamId).toBe(other);
+    // The feed lists the closed lot with its whole history.
+    const feed = await (await request.get(`/api/cricket/auction/feed?league=${league.slug}`)).json();
+    expect(feed.lots[0]).toMatchObject({ status: "sold", lotNumber: 1, teamId: other, price: 825 });
+    expect(feed.lots[0].logs.map((l: { type: string }) => l.type)).toEqual(["nomination", "bid", "sold"]);
     expect(s.teams.find((t) => t.id === other)!.purse).toBe(5000 - 825);
     // Every franchise still unsold now opens at least at the average sold price (825).
     for (const fr of s.franchises.filter((x) => !x.ownerTeamId)) expect(fr.openingPrice).toBeGreaterThanOrEqual(825);
@@ -167,7 +195,9 @@ test.describe.serial("cricket: auction engine", () => {
     // Next nominator: empty wishlist, misses the window → penalty slot; then redeems it.
     s = await waitFor(request, league.slug, (x) => !!x.current?.nominationDeadline && !x.current.intermissionUntil);
     const late = s.current!.nominatorTeamId!;
-    s = await waitFor(request, league.slug, (x) => x.teams.find((t) => t.id === late)!.penaltySlots === 1);
+    // The pause after a missed turn says so.
+    s = await waitFor(request, league.slug, (x) => x.teams.find((t) => t.id === late)!.penaltySlots === 1 && x.current?.lastOutcome?.type === "penalised");
+    expect(s.current!.lastOutcome).toMatchObject({ type: "penalised", teamId: late });
     await signInAs(request, late);
     const purseBefore = s.teams.find((t) => t.id === late)!.purse;
     const redeem = await request.post("/api/cricket/auction/redeem", { data: { league: league.slug } });
@@ -189,9 +219,26 @@ test.describe.serial("cricket: auction engine", () => {
     // Hold the auction still so no lot opens mid-move.
     let s = await waitFor(request, league.slug, (x) => !x.current?.lot, 30_000);
     const sessionId = s.current!.sessionId;
+    // Whose turn it is can only be set while paused.
+    const running = await admin(request, league.slug, { action: "set-nominator", sessionId, direction: "forward" });
+    expect(running.status).toBe(409);
     await admin(request, league.slug, { action: "pause", sessionId });
     s = await state(request, league.slug);
     if (s.current?.lot) await admin(request, league.slug, { action: "cancel-lot", sessionId });
+
+    // Turn corrections: one forward, owed turns at the back and the front, and taking them back.
+    s = await state(request, league.slug);
+    const ring = s.current!.ring;
+    const was = ring.indexOf(s.current!.nominatorTeamId!);
+    expect((await admin(request, league.slug, { action: "set-nominator", sessionId, direction: "forward" })).status).toBe(200);
+    s = await state(request, league.slug);
+    expect(s.current!.nominatorTeamId).toBe(ring[(was + 1) % ring.length]);
+    expect((await admin(request, league.slug, { action: "grant-turn", sessionId, teamId: ring[2] })).status).toBe(200);
+    expect((await admin(request, league.slug, { action: "grant-turn", sessionId, teamId: ring[1], position: "front" })).status).toBe(200);
+    expect((await state(request, league.slug)).current!.makeupQueue).toEqual([ring[1], ring[2]]);
+    expect((await admin(request, league.slug, { action: "dequeue-makeup", sessionId, teamId: ring[1] })).status).toBe(200);
+    expect((await admin(request, league.slug, { action: "dequeue-makeup", sessionId, index: 0 })).status).toBe(200);
+    expect((await state(request, league.slug)).current!.makeupQueue).toEqual([]);
 
     const db = testDb();
     const purses = async () => new Map((await db.select().from(cricketTeamState).where(eq(cricketTeamState.leagueId, league.id))).map((r) => [r.teamId, r.purse]));

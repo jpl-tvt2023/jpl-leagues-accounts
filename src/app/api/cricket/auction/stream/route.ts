@@ -34,10 +34,21 @@ export async function GET(request: NextRequest) {
         }
       };
       let last = "";
+      // The session that was running at the last poll: tick it first, then build the snapshot once.
+      // Only when a session has just started running does a poll build twice.
+      let running: string | null = null;
+      const tickSafely = async (sessionId: string) => {
+        try {
+          await tick(sessionId, "stream");
+        } catch (err) {
+          console.warn("[cricket auction stream] tick skipped:", err instanceof Error ? err.message : err);
+        }
+      };
 
       const poll = async () => {
         if (closed) return;
         try {
+          if (running) await tickSafely(running);
           let snap = await buildAuctionSnapshot(league);
           if (!snap) {
             send("error", { message: "Cricket league not found" });
@@ -45,10 +56,12 @@ export async function GET(request: NextRequest) {
             controller.close();
             return;
           }
-          if (snap.current?.status === "active") {
-            await tick(snap.current.sessionId, "stream");
+          const active = snap.current?.status === "active" ? snap.current.sessionId : null;
+          if (active && active !== running) {
+            await tickSafely(active);
             snap = (await buildAuctionSnapshot(league)) ?? snap;
           }
+          running = active;
           const { serverTime, ...rest } = snap;
           const key = JSON.stringify(rest);
           if (key !== last) {
