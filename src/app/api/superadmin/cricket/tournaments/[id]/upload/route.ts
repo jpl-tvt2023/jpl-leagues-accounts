@@ -2,9 +2,11 @@
  * POST /api/superadmin/cricket/tournaments/[id]/upload
  *
  * Body: { kind: "teams" | "players" | "fixtures" | "points", mode: "validate" | "commit",
- *         rows: object[], fileName?, validationHash?, override?, stage?: "group" | "playoff", series? }
+ *         rows: object[], fileName?, validationHash?, override?, stage?: "group" | "playoff", series?,
+ *         confirmChanges? }
  *         (stage: fixtures only — which stage the sheet replaces; default "group")
  *         (series: points only — which series the match columns are; needed with several series)
+ *         (confirmChanges: the superadmin accepted the listed changes to saved data; 428 without it)
  *
  * The page parses the spreadsheet in the browser and sends its rows. "validate" is a dry run that
  * reports every problem and what would change; "commit" re-validates and applies it atomically.
@@ -34,6 +36,7 @@ export async function POST(request: NextRequest, { params }: Params) {
       override?: unknown;
       stage?: unknown;
       series?: unknown;
+      confirmChanges?: unknown;
     } | null;
     if (!body) return NextResponse.json({ error: "Expected a JSON body" }, { status: 400 });
     if (!SHEET_KINDS.includes(body.kind as SheetKind)) {
@@ -62,6 +65,7 @@ export async function POST(request: NextRequest, { params }: Params) {
         override: body.override === true,
         stage: body.stage === "playoff" ? "playoff" : "group",
         series: typeof body.series === "string" ? body.series : null,
+        confirmChanges: body.confirmChanges === true,
       },
       await sessionUserId(request),
     );

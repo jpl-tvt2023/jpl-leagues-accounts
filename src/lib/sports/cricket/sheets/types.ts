@@ -20,6 +20,28 @@ export interface SheetIssue {
   overridable?: boolean;
 }
 
+/**
+ * One saved row an upload would change or remove, shown to the superadmin before they confirm
+ * (e.g. "Rohit Sharma (MI)" · "IPL 2026 fixture 3: 40 → 44", or "PBKS" · "removed").
+ */
+export interface SheetChange {
+  /** Spreadsheet row of the new values, or 0 for a removal. */
+  row: number;
+  item: string;
+  change: string;
+}
+
+export const REMOVED = "removed";
+
+/** "name: A → B · base price: 20 → 25" — only the fields that differ. */
+export function fieldChanges(fields: Array<[label: string, from: unknown, to: unknown]>): string {
+  const shown = (v: unknown) => (v === null || v === undefined || v === "" ? "(blank)" : String(v));
+  return fields
+    .filter(([, from, to]) => shown(from) !== shown(to))
+    .map(([label, from, to]) => `${label}: ${shown(from)} → ${shown(to)}`)
+    .join(" · ");
+}
+
 export function error(row: number, message: string, column?: string): SheetIssue {
   return { row, column, message, level: "error" };
 }

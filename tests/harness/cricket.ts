@@ -55,17 +55,17 @@ export function miniPoints(fixtureNo: number, bump = 0): Row[] {
 }
 
 /**
- * Points entries laid out as the points sheet is: one row per player (by name), one column per
- * fixture id, blank where the player didn't play — the way a scorer fills it in.
+ * Points entries laid out as the points sheet is: team_code, player_name, then one column per fixture
+ * id, blank where the player didn't play — the way a scorer fills it in.
  */
 export function pointsGrid(entries: Row[]): Row[] {
   const fixtureIds = [...new Set(entries.map((e) => Number(e.fixture_id)))].sort((a, b) => a - b);
   const byPlayer = new Map<string, Row>();
   for (const e of entries) {
-    const name = String(e.player);
-    const row = byPlayer.get(name) ?? { "Match no / Players": name, ...Object.fromEntries(fixtureIds.map((f) => [String(f), ""])) };
+    const key = `${e.team}|${e.player}`;
+    const row = byPlayer.get(key) ?? { team_code: e.team, player_name: e.player, ...Object.fromEntries(fixtureIds.map((f) => [String(f), ""])) };
     row[String(e.fixture_id)] = e.points;
-    byPlayer.set(name, row);
+    byPlayer.set(key, row);
   }
   return [...byPlayer.values()];
 }
@@ -88,14 +88,20 @@ export interface UploadResponse {
     counts?: Record<string, number>;
     issues?: Array<{ row: number; message: string; level: string }>;
     validationHash?: string;
+    changeCount?: number;
+    changes?: Array<{ row: number; item: string; change: string }>;
     error?: string;
     result?: { errorCount: number };
   };
 }
 
-/** Fixtures uploads can target the playoffs; everything else ignores it. */
+/**
+ * Fixtures uploads can target the playoffs; everything else ignores it. Commits confirm changes to
+ * saved data (as "Save anyway" does) unless `confirmChanges: false`.
+ */
 export interface UploadOpts {
   stage?: "group" | "playoff";
+  confirmChanges?: boolean;
 }
 
 export async function validateCricketSheet(request: APIRequestContext, tournamentId: string, kind: string, rows: Row[], opts: UploadOpts = {}): Promise<UploadResponse> {
@@ -113,7 +119,7 @@ export async function commitCricketSheet(
   opts: UploadOpts = {},
 ): Promise<UploadResponse> {
   const res = await request.post(`/api/superadmin/cricket/tournaments/${tournamentId}/upload`, {
-    data: { kind, mode: "commit", rows, validationHash, override, fileName: `${kind}.xlsx`, ...opts },
+    data: { kind, mode: "commit", rows, validationHash, override, fileName: `${kind}.xlsx`, confirmChanges: true, ...opts },
   });
   return { status: res.status(), body: await res.json() };
 }

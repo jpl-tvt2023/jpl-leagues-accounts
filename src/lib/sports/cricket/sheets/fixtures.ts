@@ -4,7 +4,7 @@ import type { CricketFixtureStage, CricketMatchFormat } from "@/lib/db/schema-cr
 import { cellText, mapSheet, seriesKey } from "./columns";
 import { formatIst, parseIstDateTime } from "./ist";
 import type { TeamLookup } from "./names";
-import { error, rowNumber, warning, type RawRow, type SheetIssue } from "./types";
+import { error, fieldChanges, REMOVED, rowNumber, warning, type RawRow, type SheetChange, type SheetIssue } from "./types";
 import { parseWhole } from "./values";
 
 export interface ParsedFixtureRow {
@@ -125,6 +125,8 @@ export interface FixturesPlan {
   updates: Array<{ id: number; row: ResolvedFixtureRow }>;
   deletes: number[];
   unchanged: number;
+  /** Saved fixtures this upload changes or removes, for the superadmin to confirm. */
+  changes: SheetChange[];
   issues: SheetIssue[];
 }
 
@@ -142,7 +144,9 @@ export function planFixtures(
   ctx: { teamIdByCode: Map<string, number>; stage?: CricketFixtureStage },
 ): FixturesPlan {
   const stage = ctx.stage ?? "group";
-  const plan: FixturesPlan = { rows: [], inserts: [], updates: [], deletes: [], unchanged: 0, issues: [] };
+  const plan: FixturesPlan = { rows: [], inserts: [], updates: [], deletes: [], unchanged: 0, changes: [], issues: [] };
+  const codeByTeamId = new Map([...ctx.teamIdByCode].map(([code, id]) => [id, code]));
+  const teams = (a: number, b: number) => `${codeByTeamId.get(a) ?? "?"} v ${codeByTeamId.get(b) ?? "?"}`;
   const mine = existing.filter((f) => f.stage === stage);
   const others = new Map(existing.filter((f) => f.stage !== stage).map((f) => [fixtureKey(f.series, f.fixtureNo), f]));
 
@@ -222,6 +226,17 @@ export function planFixtures(
       plan.issues.push(warning(row.row, `${row.series} fixture ${row.fixtureNo} already has points; its start time changes`, "start_time_ist"));
     }
     plan.updates.push({ id: current.id, row: next });
+    plan.changes.push({
+      row: row.row,
+      item: `${current.series} fixture ${current.fixtureNo}`,
+      change: fieldChanges([
+        ["series", current.series, row.series],
+        ["teams", teams(current.teamAId, current.teamBId), teams(teamAId, teamBId)],
+        ["format", current.matchFormat, row.matchFormat],
+        ["start", formatIst(current.startsAt), formatIst(row.startsAt)],
+        ["venue", current.venue, row.venue],
+      ]),
+    });
   }
   for (const fixture of mine) {
     if (incomingKeys.has(fixtureKey(fixture.series, fixture.fixtureNo))) continue;
@@ -229,6 +244,7 @@ export function planFixtures(
       plan.issues.push(error(0, `${fixture.series} fixture ${fixture.fixtureNo} is missing from the file but has points; clear them first`));
     } else {
       plan.deletes.push(fixture.id);
+      plan.changes.push({ row: 0, item: `${fixture.series} fixture ${fixture.fixtureNo} (${teams(fixture.teamAId, fixture.teamBId)})`, change: REMOVED });
     }
   }
 

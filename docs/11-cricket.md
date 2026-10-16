@@ -19,7 +19,7 @@ the Cricket dashboard's **Tournaments** tab (`/superadmin/cricket?tab=tournament
 | Teams | `team_code`, `name`, `base_price` (franchise opening price, lakhs) | the whole list |
 | Players | `player_id` (optional), `name`, `team`, `role` (WK/BAT/AR/BOWL), `base_price` (lakhs), `overseas` (Y/N), `Test`, `ODI`, `T20` (expected **group-stage** matches) | the whole list |
 | Fixtures | `series`, `fixture_id` (restarts at 1 per series), `format` (Test/ODI/T20), `team_a`, `team_b`, `start_time_ist`, `time`, `venue` | the whole list **of one stage** (group stage or playoffs) |
-| Points | a **grid**: `Match no / Players` (player names, first column), then one column per **fixture id** (`1`, `2`, `3` …); optional `team` and `player_id` | each fixture with points in the file |
+| Points | a **grid**: `team_code`, `player_name`, then one column per **fixture id** (`1`, `2`, `3` … n); optional `player_id` | nothing — new scores are added, changed ones updated (**upsert**) |
 
 - **Names, not ids.** Scores are typed in by hand, so every sheet names teams by **code or full name**
   and players by **name within their team** (`sheets/names.ts`: case, spaces, dots, apostrophes and
@@ -28,14 +28,19 @@ the Cricket dashboard's **Tournaments** tab (`/superadmin/cricket?tab=tournament
   player with the same name (same team, or the only one anywhere — a move) keeps theirs, a new one
   gets a slug of the name (`virat-kohli`, or `rahul-sharma-csk` when the plain slug is taken). Two
   teammates with one name need `player_id`s, and points rows then use them.
-- **Points grid.** The points sheet is laid out the way scorers keep it: one row per player, one column
-  per match headed by its fixture id, a cell = that player's points (blank = didn't play). Players are
-  named without their team (`PlayerLookup.resolveAnyTeam`); a name two players share needs a `team` or
-  `player_id` column. A player under a match their team didn't play is an error. Columns whose header
-  isn't a fixture id (`Adjustment`, `Total`, notes) are ignored with one warning; there is no total
-  column. A column with no points is left alone, so the same sheet is re-uploaded as the season goes
-  on and only the matches with points are replaced. With several series, the Points card asks which
-  series the columns are (`series` in the upload body). See `sheets/points.ts`.
+- **Points grid.** The points sheet is laid out the way scorers keep it: `team_code`, `player_name`,
+  then one column per match headed by its fixture id; a cell = that player's points (blank = didn't
+  play). Rows can be in any order — each is identified by its team and name. The Points card's
+  **Template** is the tournament's own grid: every player, and the series' fixture ids 1 … n.
+  - A row that names an unknown team/player, a player of another team, or a repeated player is an
+    error when it holds points, a warning when it doesn't. A player under a match their team didn't
+    play is an error. Columns whose header isn't a fixture id (`Adjustment`, `Total`, notes) are
+    ignored with one warning; there is no total column.
+  - **The same sheet is uploaded after every game**, so a commit is an **upsert** (`planPoints`): new
+    cells are inserted, changed ones updated, unchanged ones skipped. Nothing is deleted — a saved
+    score whose cell is now blank, or whose player has no row, is kept and reported; the fixture's
+    **Clear points** removes scores. With several series, the Points card asks which series the
+    columns are (`series` in the upload body). See `sheets/points.ts`.
 - **Group stage and playoffs.** A league tournament (the IPL) uploads its fixtures in two modes, picked
   on the Fixtures card (`stage: "group" | "playoff"` → `cricket_fixtures.stage`, migration 0028). Each
   replaces only its own stage. Playoff ids **continue** from the series' last group-stage fixture with
@@ -49,10 +54,15 @@ the Cricket dashboard's **Tournaments** tab (`/superadmin/cricket?tab=tournament
 
 - **Flow.** The browser parses the file (SheetJS, `sheets/client.ts`) and posts its rows to
   `POST /api/superadmin/cricket/tournaments/[id]/upload`. `mode: "validate"` is a dry run returning every
-  error/warning with its row, insert/update/delete counts, a preview and a hash. `mode: "commit"`
-  re-validates; it returns **409** if the hash no longer matches (someone uploaded since — the hash
-  includes the tournament's `data_version`) and **422** on errors. A commit is one atomic `db.batch`
-  that also bumps `data_version` and writes a `cricket_uploads` audit row.
+  error/warning with its row, insert/update/delete counts, a preview, a hash and **`changes`** — every
+  saved row the upload would change or remove, as old → new (`SheetChange`, built by each sheet's
+  plan). `mode: "commit"` re-validates; it returns **409** if the hash no longer matches (someone
+  uploaded since — the hash includes the tournament's `data_version`), **422** on errors, and **428**
+  when there are changes without `confirmChanges: true`. A commit is one atomic `db.batch` that also
+  bumps `data_version` and writes a `cricket_uploads` audit row.
+- **What the superadmin sees.** A file that fails validation pops up its problems (row, column, what's
+  wrong). An upload that only adds data saves straight away. One that changes or removes saved rows
+  pops up the list of changes first; **Save anyway** commits with `confirmChanges`, **Cancel** doesn't.
 - **Safety.** A row still in use can't be deleted (a team with players or fixtures, a player with points
   or in a squad, a fixture with points). A scored fixture can't change teams. Moving an owned player to
   another team after an auction started is an *overridable* error: the superadmin may tick "override",

@@ -19,16 +19,16 @@ const EXAMPLES: Record<SheetKind, Array<Array<string | number>>> = {
     ["IPL 2026", 1, "T20", "CSK", "MI", "2026-03-28 19:30", "", "Chennai"],
     ["IPL 2026", 2, "T20", "MI", "CSK", "2026-04-05 15:30", "", "Mumbai"],
   ],
-  // A grid: players down, fixture ids across (see POINTS_TEMPLATE_HEADER); blank = didn't play.
+  // A grid: team and player, then one column per fixture id (the Fixtures example's 1 and 2).
   points: [
-    ["Rohit Sharma", 54, 12],
-    ["Jasprit Bumrah", 33.5, ""],
-    ["MS Dhoni", -2, 8],
+    ["MI", "Rohit Sharma", 54, 12],
+    ["MI", "Jasprit Bumrah", 33.5, ""],
+    ["CSK", "MS Dhoni", -2, 8],
   ],
 };
 
-/** The points template's header: the players column, then the fixture ids of the Fixtures example. */
-const POINTS_TEMPLATE_HEADER: Array<string | number> = [SHEET_COLUMNS.points[0].header, 1, 2];
+/** The points sheet's key columns, as the template writes them: team_code, player_name. */
+const POINTS_KEY_HEADERS = SHEET_COLUMNS.points.filter((c) => c.required).map((c) => c.header);
 
 export const SHEET_TITLES: Record<SheetKind, string> = {
   teams: "Teams",
@@ -42,9 +42,18 @@ export interface PlayoffTemplate {
   nextIds: Record<string, number>;
 }
 
+/** A points template for a tournament: every player, and the series' fixture ids 1 … n. */
+export interface PointsTemplate {
+  fixtureIds: number[];
+  players: Array<{ team: string; name: string }>;
+}
+
 /** Header row + example rows, as an array of arrays for SheetJS's aoa_to_sheet. */
-export function templateRows(kind: SheetKind, playoffs?: PlayoffTemplate): Array<Array<string | number>> {
-  if (kind === "points") return [POINTS_TEMPLATE_HEADER, ...EXAMPLES.points];
+export function templateRows(kind: SheetKind, playoffs?: PlayoffTemplate, points?: PointsTemplate): Array<Array<string | number>> {
+  if (kind === "points" && points) {
+    return [[...POINTS_KEY_HEADERS, ...points.fixtureIds], ...points.players.map((p) => [p.team, p.name, ...points.fixtureIds.map(() => "")])];
+  }
+  if (kind === "points") return [[...POINTS_KEY_HEADERS, 1, 2], ...EXAMPLES.points];
   const header = SHEET_COLUMNS[kind].map((c) => c.header);
   if (kind === "fixtures" && playoffs) {
     const [series, next] = Object.entries(playoffs.nextIds)[0] ?? ["IPL 2026", 71];
