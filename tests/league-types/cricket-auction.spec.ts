@@ -18,12 +18,14 @@ import {
   pointsGrid,
   seedMiniTournament,
   testDb,
+  uiSignInSuperadmin,
   uiSignInTeam,
   uniqueSlug,
   uploadCricketSheet,
   type CricketLeagueRef,
 } from "../harness";
 import { cricketFranchiseOwnership, cricketSquadPlayers, cricketTeamState, cricketPlayers, cricketPlayerPoints } from "../../src/lib/db/schema-cricket";
+import { formatLakhs } from "../../src/lib/format/currency";
 
 type Snapshot = {
   myTeamId: string | null;
@@ -34,7 +36,21 @@ type Snapshot = {
     nominatorTeamId: string | null;
     nominationDeadline: string | null;
     intermissionUntil: string | null;
-    lot: null | { id: string; kind: string; name: string; currentHighBid: number; currentHighBidderId: string; nextMinBid: number; expiresAt: string; playerId: number | null; cricketTeamId: number | null };
+    ring: string[];
+    makeupQueue: string[];
+    lastOutcome: null | { type: "sold" | "penalised" | "skipped"; teamId: string | null; price?: number; kind?: string; name?: string };
+    lot: null | {
+      id: string;
+      kind: string;
+      name: string;
+      currentHighBid: number;
+      currentHighBidderId: string;
+      nextMinBid: number;
+      expiresAt: string;
+      playerId: number | null;
+      cricketTeamId: number | null;
+      history: Array<{ teamId: string; amount: number; type: string }>;
+    };
   };
   teams: Array<{ id: string; purse: number; maxBid: number; penaltySlots: number; squadSize: number; franchiseId: number | null }>;
   franchises: Array<{ id: number; code: string; openingPrice: number; ownerTeamId: string | null }>;
@@ -84,6 +100,8 @@ test.describe.serial("cricket: auction engine", () => {
   });
 
   test("admin: the player auction can't start before the franchise auction finishes", async ({ request }) => {
+    const badPause = await admin(request, league.slug, { action: "create", type: "player", intermissionSeconds: 99 });
+    expect(badPause.status).toBe(400);
     const p = await admin(request, league.slug, { action: "create", type: "player", bidTimerSeconds: 4, nominationTimeoutSeconds: 6 });
     expect(p.status).toBe(200);
     const start = await admin(request, league.slug, { action: "start", sessionId: p.body.sessionId });
@@ -118,10 +136,22 @@ test.describe.serial("cricket: auction engine", () => {
     expect((await request.post("/api/cricket/auction/bid", { data: { league: league.slug, lotId: s.current!.lot!.id, amount: 810 } })).status()).toBe(400);
     const bid = await request.post("/api/cricket/auction/bid", { data: { league: league.slug, lotId: s.current!.lot!.id, amount: 825 } });
     expect(bid.status(), await bid.text()).toBe(200);
+    // The open lot carries its nomination and bids, oldest first.
+    s = await state(request, league.slug);
+    expect(s.current!.lot!.history.map((h) => [h.type, h.teamId, h.amount])).toEqual([
+      ["nomination", nominator, 800],
+      ["bid", other, 825],
+    ]);
 
     s = await waitFor(request, league.slug, (x) => !x.current?.lot && !!x.current?.intermissionUntil);
+    // The pause after the sale says what was sold, to whom, for how much.
+    expect(s.current!.lastOutcome).toMatchObject({ type: "sold", kind: "franchise", teamId: other, price: 825 });
     const owner = s.franchises.find((x) => x.code === "RCB")!;
     expect(owner.ownerTeamId).toBe(other);
+    // The feed lists the closed lot with its whole history.
+    const feed = await (await request.get(`/api/cricket/auction/feed?league=${league.slug}`)).json();
+    expect(feed.lots[0]).toMatchObject({ status: "sold", lotNumber: 1, teamId: other, price: 825 });
+    expect(feed.lots[0].logs.map((l: { type: string }) => l.type)).toEqual(["nomination", "bid", "sold"]);
     expect(s.teams.find((t) => t.id === other)!.purse).toBe(5000 - 825);
     // Every franchise still unsold now opens at least at the average sold price (825).
     for (const fr of s.franchises.filter((x) => !x.ownerTeamId)) expect(fr.openingPrice).toBeGreaterThanOrEqual(825);
@@ -167,7 +197,9 @@ test.describe.serial("cricket: auction engine", () => {
     // Next nominator: empty wishlist, misses the window → penalty slot; then redeems it.
     s = await waitFor(request, league.slug, (x) => !!x.current?.nominationDeadline && !x.current.intermissionUntil);
     const late = s.current!.nominatorTeamId!;
-    s = await waitFor(request, league.slug, (x) => x.teams.find((t) => t.id === late)!.penaltySlots === 1);
+    // The pause after a missed turn says so.
+    s = await waitFor(request, league.slug, (x) => x.teams.find((t) => t.id === late)!.penaltySlots === 1 && x.current?.lastOutcome?.type === "penalised");
+    expect(s.current!.lastOutcome).toMatchObject({ type: "penalised", teamId: late });
     await signInAs(request, late);
     const purseBefore = s.teams.find((t) => t.id === late)!.purse;
     const redeem = await request.post("/api/cricket/auction/redeem", { data: { league: league.slug } });
@@ -189,9 +221,26 @@ test.describe.serial("cricket: auction engine", () => {
     // Hold the auction still so no lot opens mid-move.
     let s = await waitFor(request, league.slug, (x) => !x.current?.lot, 30_000);
     const sessionId = s.current!.sessionId;
+    // Whose turn it is can only be set while paused.
+    const running = await admin(request, league.slug, { action: "set-nominator", sessionId, direction: "forward" });
+    expect(running.status).toBe(409);
     await admin(request, league.slug, { action: "pause", sessionId });
     s = await state(request, league.slug);
     if (s.current?.lot) await admin(request, league.slug, { action: "cancel-lot", sessionId });
+
+    // Turn corrections: one forward, owed turns at the back and the front, and taking them back.
+    s = await state(request, league.slug);
+    const ring = s.current!.ring;
+    const was = ring.indexOf(s.current!.nominatorTeamId!);
+    expect((await admin(request, league.slug, { action: "set-nominator", sessionId, direction: "forward" })).status).toBe(200);
+    s = await state(request, league.slug);
+    expect(s.current!.nominatorTeamId).toBe(ring[(was + 1) % ring.length]);
+    expect((await admin(request, league.slug, { action: "grant-turn", sessionId, teamId: ring[2] })).status).toBe(200);
+    expect((await admin(request, league.slug, { action: "grant-turn", sessionId, teamId: ring[1], position: "front" })).status).toBe(200);
+    expect((await state(request, league.slug)).current!.makeupQueue).toEqual([ring[1], ring[2]]);
+    expect((await admin(request, league.slug, { action: "dequeue-makeup", sessionId, teamId: ring[1] })).status).toBe(200);
+    expect((await admin(request, league.slug, { action: "dequeue-makeup", sessionId, index: 0 })).status).toBe(200);
+    expect((await state(request, league.slug)).current!.makeupQueue).toEqual([]);
 
     const db = testDb();
     const purses = async () => new Map((await db.select().from(cricketTeamState).where(eq(cricketTeamState.leagueId, league.id))).map((r) => [r.teamId, r.purse]));
@@ -321,5 +370,130 @@ test.describe.serial("cricket: auction room", () => {
     await expect(page.getByRole("heading", { name: "Mumbai Indians" })).toBeVisible();
     await page.getByRole("button", { name: /^Bid ₹/ }).first().click();
     await expect(page.getByText("You're the highest bidder")).toBeVisible({ timeout: 15_000 });
+  });
+
+  /** A fresh league on the mini tournament, and each team's sign-in index. */
+  async function freshLeague(request: APIRequestContext) {
+    await apiSignInSuperadmin(request);
+    const t = await seedMiniTournament(request, uniqueSlug("room"));
+    const league = await createCricketAuctionLeague(request, { tournamentId: t.id, settings: { purse: 5000 } });
+    const teamIdx = new Map<string, number>();
+    for (let i = 1; i <= league.teamSize; i++) teamIdx.set((await ensureTeamPerson(league.slug, i)).teamId, i);
+    return { league, teamIdx };
+  }
+
+  /** Start a franchise auction and have the first nominator put `code` on the block. */
+  async function openFranchiseLot(request: APIRequestContext, league: CricketLeagueRef, teamIdx: Map<string, number>, code: string, timers: Record<string, number>) {
+    const f = await admin(request, league.slug, { action: "create", type: "franchise", ...timers });
+    expect(f.status, JSON.stringify(f.body)).toBe(200);
+    await admin(request, league.slug, { action: "start", sessionId: f.body.sessionId });
+    const s = await waitFor(request, league.slug, (x) => !!x.current?.nominationDeadline);
+    const nominator = s.current!.nominatorTeamId!;
+    await apiSignInTeam(request, league.slug, teamIdx.get(nominator)!);
+    const target = s.franchises.find((x) => x.code === code)!;
+    expect((await request.post("/api/cricket/auction/nominate", { data: { league: league.slug, cricketTeamId: target.id } })).status()).toBe(200);
+    return { nominator, others: [...teamIdx.keys()].filter((id) => id !== nominator) };
+  }
+
+  test("user: outbid — the room says so, and a hidden tab's title flashes", async ({ page, request }) => {
+    test.setTimeout(180_000);
+    const { league, teamIdx } = await freshLeague(request);
+    const { others } = await openFranchiseLot(request, league, teamIdx, "MI", { bidTimerSeconds: 90, nominationTimeoutSeconds: 120 });
+    const [me, rival] = others;
+    await uiSignInTeam(page, league.slug, teamIdx.get(me)!);
+    await page.goto(`/${league.slug}/cricket/auction`);
+    await page.getByRole("button", { name: /^Bid ₹/ }).first().click();
+    await expect(page.getByText("You're the highest bidder")).toBeVisible({ timeout: 15_000 });
+
+    // The manager switches away; another team outbids them.
+    await page.evaluate(() => {
+      Object.defineProperty(document, "hidden", { configurable: true, get: () => true });
+      Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" });
+      document.hasFocus = () => false;
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    const lot = (await state(request, league.slug)).current!.lot!;
+    await apiSignInTeam(request, league.slug, teamIdx.get(rival)!);
+    expect((await request.post("/api/cricket/auction/bid", { data: { league: league.slug, lotId: lot.id, amount: lot.nextMinBid } })).status()).toBe(200);
+    await expect(page.getByText(/You've been outbid/)).toBeVisible({ timeout: 15_000 });
+    await expect(page).toHaveTitle(/Outbid on Mumbai Indians/, { timeout: 5_000 });
+  });
+
+  test("user: between lots the room shows what sold, to whom and for how much", async ({ page, request }) => {
+    test.setTimeout(180_000);
+    const { league, teamIdx } = await freshLeague(request);
+    const { others } = await openFranchiseLot(request, league, teamIdx, "CSK", { bidTimerSeconds: 6, nominationTimeoutSeconds: 120, intermissionSeconds: 30 });
+    const [buyer, watcher] = others;
+    await uiSignInTeam(page, league.slug, teamIdx.get(watcher)!);
+    await page.goto(`/${league.slug}/cricket/auction`);
+    const lot = (await state(request, league.slug)).current!.lot!;
+    await apiSignInTeam(request, league.slug, teamIdx.get(buyer)!);
+    expect((await request.post("/api/cricket/auction/bid", { data: { league: league.slug, lotId: lot.id, amount: lot.nextMinBid } })).status()).toBe(200);
+
+    const sold = page.getByRole("status").filter({ hasText: "SOLD" });
+    await expect(sold).toBeVisible({ timeout: 40_000 });
+    await expect(sold).toContainText("Chennai Super Kings");
+    await expect(sold).toContainText(`Team ${teamIdx.get(buyer)}`); // the buyer's own name, not the franchise's
+    await expect(sold).toContainText(formatLakhs(lot.nextMinBid));
+  });
+
+  test("user: your turn — handed over by the admin; pick a franchise and nominate it", async ({ page, request }) => {
+    test.setTimeout(180_000);
+    const { league, teamIdx } = await freshLeague(request);
+    const f = await admin(request, league.slug, { action: "create", type: "franchise", bidTimerSeconds: 60, nominationTimeoutSeconds: 120 });
+    await admin(request, league.slug, { action: "start", sessionId: f.body.sessionId });
+    const s = await waitFor(request, league.slug, (x) => !!x.current?.nominationDeadline);
+    const me = [...teamIdx.keys()].find((id) => id !== s.current!.nominatorTeamId)!;
+    expect((await admin(request, league.slug, { action: "pause", sessionId: f.body.sessionId })).status).toBe(200);
+    expect((await admin(request, league.slug, { action: "set-nominator", sessionId: f.body.sessionId, teamId: me })).status).toBe(200);
+    expect((await admin(request, league.slug, { action: "resume", sessionId: f.body.sessionId })).status).toBe(200);
+
+    await uiSignInTeam(page, league.slug, teamIdx.get(me)!);
+    await page.goto(`/${league.slug}/cricket/auction`);
+    await expect(page.getByText("Your turn to nominate")).toBeVisible({ timeout: 20_000 });
+    await page.getByRole("button", { name: "Pick a franchise" }).click();
+    await page.getByRole("button", { name: /Chennai Super Kings/ }).click();
+    // Picked: the turn card now nominates it directly.
+    await page.getByRole("button", { name: "Nominate Chennai Super Kings" }).click();
+    await expect(page.getByRole("heading", { name: "Chennai Super Kings" })).toBeVisible({ timeout: 15_000 });
+  });
+
+  test("user: once the auction is over the room shows the final results", async ({ page, request }) => {
+    const { league } = await freshLeague(request);
+    expect((await admin(request, league.slug, { action: "simulate" })).status).toBe(200);
+    await uiSignInTeam(page, league.slug, 1);
+    await page.goto(`/${league.slug}/cricket/auction`);
+    const results = page.getByRole("region", { name: "Final results" });
+    await expect(results).toBeVisible({ timeout: 20_000 });
+    await expect(results.getByRole("heading", { level: 3 })).toHaveCount(4);
+    await expect(results).toContainText("left");
+    await expect(page.getByRole("heading", { name: "Auction log" })).toBeVisible();
+    await expect(page.getByText(/^SOLD: /).first()).toBeVisible({ timeout: 10_000 });
+  });
+
+  test("admin: the host room runs it — start, pause, hand the turn on, resume", async ({ page, request }) => {
+    test.setTimeout(180_000);
+    const { league } = await freshLeague(request);
+    expect((await admin(request, league.slug, { action: "create", type: "franchise", bidTimerSeconds: 60, nominationTimeoutSeconds: 120 })).status).toBe(200);
+    await uiSignInSuperadmin(page);
+    await page.goto(`/admin/${league.slug}/cricket?tab=auction`);
+    await page.getByRole("link", { name: "Open host room →" }).first().click();
+    await expect(page).toHaveURL(new RegExp(`/admin/${league.slug}/cricket/auction$`));
+    page.on("dialog", (d) => void d.accept());
+
+    await page.getByRole("button", { name: "Start", exact: true }).click();
+    const before = await waitFor(request, league.slug, (x) => !!x.current?.nominationDeadline);
+    await expect(page.getByText("active", { exact: true })).toBeVisible({ timeout: 20_000 });
+    await page.getByRole("button", { name: "Pause", exact: true }).click();
+    await expect(page.getByText("paused", { exact: true })).toBeVisible({ timeout: 15_000 });
+
+    // Hand the turn on one, as an admin would after a no-show.
+    await page.getByRole("button", { name: "Forward one →" }).click();
+    const ring = before.current!.ring;
+    const next = ring[(ring.indexOf(before.current!.nominatorTeamId!) + 1) % ring.length];
+    const s = await waitFor(request, league.slug, (x) => x.current?.nominatorTeamId === next, 15_000);
+    expect(s.current!.status).toBe("paused");
+    await page.getByRole("button", { name: "Resume" }).click();
+    await waitFor(request, league.slug, (x) => x.current?.status === "active" && x.current.nominatorTeamId === next, 20_000);
   });
 });

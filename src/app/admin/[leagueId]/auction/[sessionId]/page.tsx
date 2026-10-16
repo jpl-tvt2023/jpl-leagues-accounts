@@ -12,6 +12,11 @@ import { effectiveMaxSquadSize } from "@/lib/sports/fpl/formats/auction/squad-ru
 import type { ClubTier } from "@/lib/db/schema";
 import { POSITION_LABELS, POSITION_COLORS, POSITION_ORDER } from "@/lib/sports/fpl/positions";
 import { getPlTeamFullName } from "@/lib/sports/fpl/data/pl-team-full-names";
+import { FinalResults } from "@/components/auction/FinalResults";
+import { SoldMoment, type SoldMomentView } from "@/components/auction/SoldMoment";
+import { FPL_ROOM_THEME } from "@/components/auction/theme";
+import { belongsToPause } from "@/lib/auction/sold-moment";
+import { buildFplFinalResults, latestSale } from "@/lib/sports/fpl/formats/auction/room-extras";
 
 const CLUB_AUCTION_TYPE = "club-auction";
 /** Rows rendered at once in the available-players panel. ~700 unfiltered players re-rendering on
@@ -280,6 +285,8 @@ export default function AdminAuctionRoomPage() {
   const [elements, setElements] = useState<BootstrapElement[]>([]);
   const [plTeams, setPlTeams] = useState<Map<number, BootstrapTeam>>(new Map());
   const [feed, setFeed] = useState<FeedItem[]>([]);
+  // The session's bids: the feed's source, and of the SOLD moment and the final results.
+  const [historyBids, setHistoryBids] = useState<BidHistoryBid[]>([]);
   const [currentBid, setCurrentBid] = useState<CurrentBid | null>(null);
   const [nominationDeadline, setNominationDeadline] = useState<string | null>(null);
   const [intermissionUntil, setIntermissionUntil] = useState<string | null>(null);
@@ -391,6 +398,7 @@ export default function AdminAuctionRoomPage() {
     if (!res.ok) return;
     const d = await res.json();
     const bids: BidHistoryBid[] = d.bids ?? [];
+    setHistoryBids(bids);
     setFeed(buildFeed(bids, d.penalties ?? [], teamsRef.current, playerTag));
     setPassedElementIds(passedIdsFrom(bids));
   }, [sessionId, playerTag]);
@@ -464,6 +472,7 @@ export default function AdminAuctionRoomPage() {
       if (histRes.ok) {
         const d = await histRes.json();
         const bids: BidHistoryBid[] = d.bids ?? [];
+        setHistoryBids(bids);
         setFeed(buildFeed(bids, d.penalties ?? [], teamMap, playerTag));
         setPassedElementIds(passedIdsFrom(bids));
       }
@@ -971,11 +980,18 @@ export default function AdminAuctionRoomPage() {
           <div className="grid lg:grid-cols-5 gap-4 mb-6">
             <div className="lg:col-span-3 rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur">
               {session.status === "completed" ? (
-                <div className="text-center py-8">
-                  <div className="text-3xl mb-2">🏁</div>
-                  <div className="text-white font-semibold">Session completed</div>
-                  <div className="text-sm text-gray-400 mt-1">Final results below.</div>
-                </div>
+                <FinalResults
+                  theme={FPL_ROOM_THEME}
+                  formatMoney={formatCurrency}
+                  teams={buildFplFinalResults({
+                    order: session.snakeOrder,
+                    summaries: teamSummaries,
+                    bids: historyBids,
+                    clubAuction: isClubAuction,
+                    nameOf: (id) => teamLabel(teams.get(id), id),
+                    myTeamId: null,
+                  })}
+                />
               ) : currentBid ? (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
@@ -1006,10 +1022,23 @@ export default function AdminAuctionRoomPage() {
                   </div>
                 </div>
               ) : intermissionUntil && new Date(intermissionUntil).getTime() > Date.now() ? (
-                <div className="flex flex-col items-center justify-center py-6 gap-2">
-                  <div className="text-[10px] uppercase tracking-widest text-yellow-300/80">Lot sold — next up</div>
-                  <AuctionTimerRing seconds={Math.max(0, Math.ceil((new Date(intermissionUntil).getTime() - Date.now()) / 1000))} max={5} size={88} stroke={8} label="next" />
-                </div>
+                <SoldMoment
+                  theme={FPL_ROOM_THEME}
+                  outcome={((): SoldMomentView | null => {
+                    const sale = latestSale(historyBids);
+                    if (!sale || !belongsToPause(sale.at, new Date(intermissionUntil).getTime(), session.intermissionSeconds)) return null;
+                    return {
+                      type: "sold",
+                      lotNumber: sale.lotNumber,
+                      itemName: sale.playerName,
+                      winnerName: teamLabel(teams.get(sale.winnerId), sale.winnerId),
+                      winnerIsMe: false,
+                      price: formatCurrency(sale.price),
+                    };
+                  })()}
+                  secondsLeft={Math.max(0, Math.ceil((new Date(intermissionUntil).getTime() - Date.now()) / 1000))}
+                  maxSeconds={session.intermissionSeconds || 5}
+                />
               ) : (
                 <div className="text-center py-8">
                   <div className="text-sm text-gray-400">Waiting for nomination</div>

@@ -1,13 +1,16 @@
 /**
  * GET  /api/admin/[leagueId]/cricket/auction — the room snapshot plus admin extras (turn events,
- *      squads still short of the minimum).
+ *      squads still short of the minimum) and the league's slug and name.
+ *      ?extras=1 — only { league, sessionId, events, short }: no snapshot, no clock tick (the host
+ *      room polls this; its live state comes from the room's stream).
  * POST /api/admin/[leagueId]/cricket/auction — { action, … }:
- *        create { type, scheduledAt?, bidTimerSeconds?, nominationTimeoutSeconds? }
+ *        create { type, scheduledAt?, bidTimerSeconds?, nominationTimeoutSeconds?, intermissionSeconds? }
  *        schedule { sessionId, scheduledAt } · delete { sessionId } · start / pause / resume { sessionId }
  *        complete { sessionId, force? } · cancel-lot { sessionId } · undo-sale { lotId }
  *        transfer-sale { lotId, toTeamId, price? } (price defaults to the sale price)
- *        grant-turn { sessionId, teamId } · nominate { sessionId, playerId | cricketTeamId }
- *        reset · simulate (superadmin only)
+ *        grant-turn { sessionId, teamId, position?: "front" | "back" } · dequeue-makeup { sessionId, index? | teamId? }
+ *        set-nominator { sessionId, direction?: "back" | "forward" | teamId? } (paused, no open lot)
+ *        nominate { sessionId, playerId | cricketTeamId } · reset · simulate (superadmin only)
  *
  * League admins and the superadmin may run a cricket league's auction.
  */
@@ -15,19 +18,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthorizedLeagueId } from "@/lib/league-auth";
 import { isSuperAdmin } from "@/lib/privilege";
-import { buildAuctionSnapshot } from "@/lib/sports/cricket/auction/snapshot";
+import { asc, eq } from "drizzle-orm";
+import { db, cricketAuctionSessions } from "@/lib/db";
+import { buildAuctionSnapshot, pickCurrent } from "@/lib/sports/cricket/auction/snapshot";
 import { nominateLot, tick } from "@/lib/sports/cricket/auction/engine";
 import {
   cancelOpenLot,
   completeSession,
   createSession,
   deletePendingSession,
+  dequeueMakeupTurn,
   grantMakeupTurn,
   pauseSession,
   recentTurnEvents,
   resetAuction,
   resumeSession,
   scheduleSession,
+  setNominator,
   shortSquads,
   simulateAuction,
   startSession,
@@ -41,7 +48,14 @@ export async function GET(request: NextRequest) {
   const leagueId = await getAuthorizedLeagueId(request);
   if (!leagueId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   try {
-    await requireCricketLeague(leagueId);
+    const info = await requireCricketLeague(leagueId);
+    const league = { slug: info.league.slug, name: info.league.name };
+    if (request.nextUrl.searchParams.get("extras") === "1") {
+      const sessions = await db.select().from(cricketAuctionSessions).where(eq(cricketAuctionSessions.leagueId, info.league.id)).orderBy(asc(cricketAuctionSessions.createdAt));
+      const current = pickCurrent(sessions);
+      const [events, short] = await Promise.all([current ? recentTurnEvents(current.id) : Promise.resolve([]), shortSquads(leagueId)]);
+      return NextResponse.json({ league, sessionId: current?.id ?? null, events, short }, { headers: { "Cache-Control": "no-store" } });
+    }
     let snap = await buildAuctionSnapshot(leagueId);
     if (snap?.current?.status === "active") {
       // Best-effort, as in the room's state read: a colliding write mustn't blank the monitor.
@@ -53,7 +67,7 @@ export async function GET(request: NextRequest) {
       }
     }
     const [events, short] = await Promise.all([snap?.current ? recentTurnEvents(snap.current.sessionId) : Promise.resolve([]), shortSquads(leagueId)]);
-    return NextResponse.json({ ...snap, events, short }, { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json({ ...snap, league, events, short }, { headers: { "Cache-Control": "no-store" } });
   } catch (err) {
     return errorResponse(err, "cricket admin auction GET");
   }
@@ -73,10 +87,14 @@ export async function POST(request: NextRequest) {
     switch (b.action) {
       case "create":
         if (b.type !== "franchise" && b.type !== "player") return NextResponse.json({ error: "type must be franchise or player" }, { status: 400 });
+        if (b.intermissionSeconds !== undefined && !(Number.isInteger(b.intermissionSeconds) && (b.intermissionSeconds as number) >= 0 && (b.intermissionSeconds as number) <= 60)) {
+          return NextResponse.json({ error: "intermissionSeconds must be a whole number from 0 to 60" }, { status: 400 });
+        }
         result = await createSession(leagueId, b.type, {
           scheduledAt: when(b.scheduledAt),
           bidTimerSeconds: typeof b.bidTimerSeconds === "number" ? b.bidTimerSeconds : undefined,
           nominationTimeoutSeconds: typeof b.nominationTimeoutSeconds === "number" ? b.nominationTimeoutSeconds : undefined,
+          intermissionSeconds: typeof b.intermissionSeconds === "number" ? b.intermissionSeconds : undefined,
         });
         break;
       case "schedule":
@@ -108,7 +126,15 @@ export async function POST(request: NextRequest) {
         result = await transferSale(leagueId, str(b.lotId), str(b.toTeamId), typeof b.price === "number" ? b.price : undefined);
         break;
       case "grant-turn":
-        result = await grantMakeupTurn(leagueId, sessionId, str(b.teamId));
+        if (b.position !== undefined && b.position !== "front" && b.position !== "back") return NextResponse.json({ error: 'position must be "front" or "back"' }, { status: 400 });
+        result = await grantMakeupTurn(leagueId, sessionId, str(b.teamId), b.position === "front" ? "front" : "back");
+        break;
+      case "dequeue-makeup":
+        result = await dequeueMakeupTurn(leagueId, sessionId, { index: typeof b.index === "number" ? b.index : undefined, teamId: str(b.teamId) || undefined });
+        break;
+      case "set-nominator":
+        if (b.direction !== undefined && b.direction !== "back" && b.direction !== "forward") return NextResponse.json({ error: 'direction must be "back" or "forward"' }, { status: 400 });
+        result = await setNominator(leagueId, sessionId, { direction: b.direction as "back" | "forward" | undefined, teamId: str(b.teamId) || undefined });
         break;
       case "nominate": {
         const target = typeof b.playerId === "number" ? { playerId: b.playerId } : typeof b.cricketTeamId === "number" ? { cricketTeamId: b.cricketTeamId } : null;

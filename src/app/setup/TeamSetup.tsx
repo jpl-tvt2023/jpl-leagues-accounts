@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { LoadingScreen } from "@/components/LoadingScreen";
+import { useOptionalLeague } from "@/lib/league-context";
+import { isCricketFormat } from "@/lib/sports/registry";
 import { AppNav } from "@/components/AppNav";
 import { PartnerInvitePanel, fetchTeamInfo, type TeamInfo } from "@/components/PartnerInvitePanel";
 import { FplTeamPicker, defaultFplPick, type FplTeamOption } from "@/components/FplTeamPicker";
@@ -61,6 +63,8 @@ const INPUT = "w-full rounded-lg border border-white/20 bg-black/40 px-4 py-3 te
  */
 export function TeamSetup({ leagueSlug }: { leagueSlug: string }) {
   const router = useRouter();
+  const leagueCtx = useOptionalLeague();
+  const isCricket = !!leagueCtx && isCricketFormat(leagueCtx.league.format);
   const withLeague = (url: string) => `${url}${url.includes("?") ? "&" : "?"}league=${encodeURIComponent(leagueSlug)}`;
   const dashboardPath = `/${leagueSlug}/dashboard`;
 
@@ -241,7 +245,7 @@ export function TeamSetup({ leagueSlug }: { leagueSlug: string }) {
   };
 
   if (isLoading || !info) {
-    return <LoadingScreen variant="standings" fullScreen />;
+    return isCricket ? <LoadingScreen variant="cricket" bgClass="bg-transparent" /> : <LoadingScreen variant="standings" fullScreen />;
   }
 
   // Which unlinked slot is yours: only asked when there's a real choice.
@@ -250,7 +254,8 @@ export function TeamSetup({ leagueSlug }: { leagueSlug: string }) {
   const isLastInputStep = isNameOnly || step === "me";
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-900 via-purple-900 to-slate-900">
+    // Inside a cricket league the layout's green shows through; elsewhere setup keeps the purple.
+    <div className={`min-h-screen ${isCricket ? "" : "bg-gradient-to-b from-slate-900 via-purple-900 to-slate-900"}`}>
       <AppNav context={{ surface: "public", page: "flow" }} activeKey="" brandHref="/" brandLabel="JPL India" title="Team setup" />
       <div className="mx-auto max-w-md w-full px-4 py-6 sm:py-8 sm:px-6">
         {/* Header */}

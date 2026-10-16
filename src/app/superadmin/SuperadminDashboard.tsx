@@ -1272,7 +1272,7 @@ This overwrites winners that have already been announced. The previous winners a
   const NAV_KEY: Record<Dashboard, string> = { general: "superadmin", football: "superadmin-football", cricket: "superadmin-cricket" };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-900 via-purple-900 to-slate-900">
+    <div className={`min-h-screen ${dashboard === "cricket" ? "bg-gradient-to-b from-slate-900 via-green-900/40 to-slate-900" : "bg-gradient-to-b from-slate-900 via-purple-900 to-slate-900"}`}>
 
       {/* ── Edit League Modal ── */}
       {editingLeague && (

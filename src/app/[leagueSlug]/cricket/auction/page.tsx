@@ -1,368 +1,340 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLeague } from "@/lib/league-context";
 import { formatLakhs } from "@/lib/format/currency";
-import { formatIst } from "@/lib/sports/cricket/sheets/ist";
-import { bidStep } from "@/lib/sports/cricket/auction/rules";
-import { AuctionTimerRing } from "@/components/AuctionTimerRing";
+import { AlertToggle } from "@/components/auction/AlertToggle";
+import { FinalResults, type ResultTeam } from "@/components/auction/FinalResults";
+import { LiveFeed } from "@/components/auction/LiveFeed";
+import { RoomHeader } from "@/components/auction/RoomHeader";
+import { ScheduledCountdown } from "@/components/auction/ScheduledCountdown";
+import { SoldMoment } from "@/components/auction/SoldMoment";
+import { CRICKET_ROOM_THEME as theme } from "@/components/auction/theme";
+import { useAuctionAlerts } from "@/components/auction/useAuctionAlerts";
+import { Tabs } from "@/components/ui/Tabs";
+import { CricketOrderTable } from "@/components/cricket/auction/CricketOrderTable";
+import { LotPanel } from "@/components/cricket/auction/LotPanel";
+import { NominatePicker, type NomineePick } from "@/components/cricket/auction/NominatePicker";
+import { PlayerChips } from "@/components/cricket/auction/PlayerChips";
+import { WaitingCard } from "@/components/cricket/auction/WaitingCard";
+import { WishlistTab } from "@/components/cricket/auction/WishlistTab";
+import { cricketSoldMoment } from "@/components/cricket/auction/outcome-view";
+import { useAuctionFeed, useTicker, type RoomState } from "@/components/cricket/auction/useAuctionFeed";
+import { useCricketFeed } from "@/components/cricket/auction/useCricketFeed";
+import { useCricketWishlist } from "@/components/cricket/auction/useCricketWishlist";
+import { useCricketLeague } from "@/components/cricket/useCricketLeague";
+import { buildCricketFeed } from "@/lib/sports/cricket/auction/feed-view";
+import { cricketFinalResults } from "@/lib/sports/cricket/auction/results-view";
+import type { LeagueView } from "@/lib/sports/cricket/league";
 import { CricketShell, Card } from "../_components/CricketShell";
-import { useCricketLeague } from "../_components/useCricketLeague";
-import { indexView, ROLE_STYLE } from "../_components/view-helpers";
-import { useAuctionFeed, useTicker, type RoomState } from "./useAuctionFeed";
-import { WishlistPanel } from "./WishlistPanel";
 
 const TYPE_LABEL = { franchise: "Franchise auction", player: "Player auction" } as const;
-const STATUS_LABEL = { pending: "Not started", active: "Live", paused: "Paused", completed: "Finished" } as const;
 
-function secondsLeft(iso: string | null, now: number): number {
-  return iso ? Math.max(0, Math.ceil((new Date(iso).getTime() - now) / 1000)) : 0;
+const secondsUntil = (iso: string | null, at: number) => (iso ? Math.max(0, Math.ceil((new Date(iso).getTime() - at) / 1000)) : 0);
+
+/** The league view's results for a session type, as FinalResults cards (chips for players). */
+function resultCards(view: LeagueView, type: "franchise" | "player", myTeamId: string | null): ResultTeam[] {
+  return cricketFinalResults(view, type).map((t) => ({
+    ...t,
+    isMe: t.id === myTeamId,
+    items: t.items.map((i) => ({ ...i, chip: <PlayerChips role={i.role} teamCode={i.teamCode} overseas={i.overseas} /> })),
+  }));
 }
 
+/**
+ * The cricket auction room, laid out like the FPL room: the header (status, live, whose turn, your
+ * purse, alerts), your purse strip, then the lot — or the SOLD moment between lots, or the turn
+ * card — beside the nomination order and squads; then your Wishlist / Nominate tabs beside the live
+ * feed. Before it starts: a countdown; once it's over: the final results.
+ */
 export default function CricketAuctionRoomPage() {
   const { league } = useLeague();
-  const { state, error, connected, refresh, now } = useAuctionFeed(league.slug);
-  const { data: view, reload: reloadView } = useCricketLeague(league.slug);
+  const slug = league.slug;
+  const { state, error, connected, refresh, now } = useAuctionFeed(slug);
+  const { data: view, reload: reloadView } = useCricketLeague(slug);
   useTicker();
-  const t = now();
 
-  // The league view names teams after their franchise and knows every player; refresh it whenever
-  // something sells so names and squads stay current.
-  const lastSale = state?.sales[0]?.lotId;
-  useEffect(() => {
-    if (lastSale) reloadView();
-  }, [lastSale, reloadView]);
-
-  const idx = useMemo(() => (view ? indexView(view) : null), [view]);
-  const teamName = (id: string | null | undefined) => (id ? idx?.team.get(id)?.name ?? state?.teams.find((x) => x.id === id)?.name ?? "—" : "—");
   const cur = state?.current ?? null;
-  const me = state?.teams.find((x) => x.id === state.myTeamId) ?? null;
+  const myTeamId = state?.myTeamId ?? null;
+  const me = state?.teams.find((t) => t.id === myTeamId) ?? null;
+
+  // The league view knows every player and squad; refresh it when something sells or the session changes.
+  const saleKey = state ? `${state.sales[0]?.lotId ?? ""}:${cur?.soldCount ?? 0}:${cur?.sessionId ?? ""}:${cur?.status ?? ""}` : null;
+  useEffect(() => {
+    if (saleKey) reloadView();
+  }, [saleKey, reloadView]);
+
+  const wishlist = useCricketWishlist(slug, !!myTeamId);
+  const penalties = state?.teams.reduce((s, t) => s + t.penaltySlots, 0) ?? 0;
+  const feedPayload = useCricketFeed(slug, cur ? `${cur.sessionId}:${cur.soldCount}:${state?.sales[0]?.lotId ?? ""}:${penalties}:${cur.status}` : null);
+
+  // Countdowns freeze while paused (the deadlines move on when it resumes).
+  const clock = cur?.status === "paused" && cur.pausedAt ? new Date(cur.pausedAt).getTime() : now();
+  const nameOf = (id: string | null | undefined) => (id ? (state?.teams.find((t) => t.id === id)?.displayName ?? "—") : "—");
+
+  const lot = cur?.lot ?? null;
+  const running = cur?.status === "active" || cur?.status === "paused";
+  const pauseLeft = cur && !lot ? secondsUntil(cur.intermissionUntil, clock) : 0;
+  const nominationLeft = cur && !lot ? secondsUntil(cur.nominationDeadline, clock) : 0;
+  const myTurn = !!me && cur?.status === "active" && !lot && !cur.intermissionUntil && cur.nominatorTeamId === me.id && !!cur.nominationDeadline;
+  const alerts = useAuctionAlerts({ myTurn, lotKey: lot?.id ?? null, leaderIsMe: !!me && lot?.currentHighBidderId === me.id, lotName: lot?.name ?? null }, { enabled: !!myTeamId });
+
+  // Nomination: pick any time, nominate on your turn.
+  const [picked, setPicked] = useState<NomineePick>(null);
+  const [nominating, setNominating] = useState(false);
+  const [nominateError, setNominateError] = useState<string | null>(null);
+  const [tab, setTab] = useState<"wishlist" | "nominate">("nominate");
+  const tabsRef = useRef<HTMLDivElement>(null);
+  const stillAvailable =
+    !picked || (picked.kind === "player" ? !!view?.players.find((p) => p.id === picked.id && !p.ownerTeamId) : !!state?.franchises.find((f) => f.id === picked.id && !f.ownerTeamId));
+  const pick = stillAvailable && picked?.kind === (cur?.type === "franchise" ? "franchise" : "player") ? picked : null;
+
+  const nominate = async () => {
+    if (!pick) return;
+    setNominating(true);
+    setNominateError(null);
+    try {
+      const res = await fetch("/api/cricket/auction/nominate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ league: slug, ...(pick.kind === "player" ? { playerId: pick.id } : { cricketTeamId: pick.id }) }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) setNominateError(body.error ?? "Couldn't nominate");
+      else setPicked(null);
+    } catch {
+      setNominateError("Couldn't reach the server");
+    } finally {
+      setNominating(false);
+      refresh();
+    }
+  };
+
+  const blockedReason = !me
+    ? null
+    : cur?.status !== "active"
+      ? "The auction isn't running."
+      : lot
+        ? "A lot is open — nominate when it's your turn."
+        : cur.intermissionUntil
+          ? "The next turn starts in a moment."
+          : !myTurn
+            ? `It's ${nameOf(cur.nominatorTeamId)}'s turn.`
+            : null;
+
+  const soldMoment = useMemo(
+    () =>
+      cricketSoldMoment(cur?.lastOutcome ?? null, {
+        nameOf: (id) => (id ? (state?.teams.find((t) => t.id === id)?.displayName ?? "—") : "—"),
+        ownNameOf: (id) => (id ? (state?.teams.find((t) => t.id === id)?.name ?? "—") : "—"),
+        myTeamId,
+        money: formatLakhs,
+        player: (id) => view?.players.find((p) => p.id === id),
+        realTeamCode: (id) => view?.realTeams.find((t) => t.id === id)?.code,
+      }),
+    [cur?.lastOutcome, state?.teams, myTeamId, view],
+  );
+  const ownNameOf = (id: string | null | undefined) => (id ? (state?.teams.find((t) => t.id === id)?.name ?? "—") : "—");
+  const feed = buildCricketFeed(feedPayload, lot, { nameOf, ownNameOf, money: formatLakhs });
+  const franchiseDone = state?.sessions.some((s) => s.type === "franchise" && s.status === "completed") ?? false;
+  const done =
+    !!state && !!cur && cur.status === "active" && !lot && !cur.intermissionUntil && !cur.nominationDeadline &&
+    (cur.type === "franchise" ? state.teams.every((t) => t.franchiseId !== null) : state.teams.every((t) => t.squadSize >= t.cap));
+  const showTabs = !!me && !!view && cur?.status !== "completed";
 
   return (
-    <CricketShell
-      currentPage="auction"
-      title="Auction"
-      subtitle={cur && <>{TYPE_LABEL[cur.type]} · {STATUS_LABEL[cur.status]}{!connected && cur.status === "active" && " · reconnecting…"}</>}
-      loading={!state}
-      error={error}
-      wide
-    >
-      {state && (
-        <div className="grid gap-4 lg:grid-cols-[1fr_20rem]">
-          <div className="space-y-4">
-            {me && <MyBar state={state} refresh={refresh} slug={league.slug} />}
-            {!cur && (
-              <Card>
-                <p className="text-sm text-gray-300">The auction hasn&apos;t been set up yet. Your league admin schedules it.</p>
-              </Card>
-            )}
-            {cur?.status === "pending" && (
-              <Card>
-                <p className="text-sm text-gray-300">
-                  {TYPE_LABEL[cur.type]} {state.sessions.find((s) => s.id === cur.sessionId)?.scheduledAt ? `starts ${formatIst(new Date(state.sessions.find((s) => s.id === cur.sessionId)!.scheduledAt!))} IST` : "hasn't been scheduled yet"}.
-                  Build your wishlist below in the meantime.
-                </p>
-              </Card>
-            )}
-            {cur?.status === "completed" && (
-              <Card>
-                <p className="text-sm text-gray-300">The {TYPE_LABEL[cur.type].toLowerCase()} is finished.</p>
-              </Card>
-            )}
-            {cur && (cur.status === "active" || cur.status === "paused") && (
-              <>
-                {cur.status === "paused" && (
-                  <Card className="border-amber-500/40 bg-amber-500/10">
-                    <p className="text-sm text-amber-200">Paused by the admin. Timers resume where they stopped.</p>
-                  </Card>
-                )}
-                {cur.lot ? (
-                  <LotCard state={state} now={t} teamName={teamName} slug={league.slug} refresh={refresh} />
-                ) : cur.intermissionUntil ? (
-                  <Card className="text-center">
-                    <p className="text-sm text-gray-400">Next nomination in</p>
-                    <p className="text-3xl font-bold text-white">{secondsLeft(cur.intermissionUntil, t)}s</p>
-                  </Card>
-                ) : (
-                  <Card>
-                    <div className="flex items-center justify-between gap-4">
-                      <p className="text-sm text-gray-300">
-                        {cur.nominatorTeamId === state.myTeamId ? (
-                          <span className="font-semibold text-green-300">Your turn to nominate</span>
-                        ) : (
-                          <>
-                            Waiting for <span className="font-semibold text-white">{teamName(cur.nominatorTeamId)}</span> to nominate
-                          </>
-                        )}
-                      </p>
-                      {cur.nominationDeadline && <AuctionTimerRing seconds={secondsLeft(cur.nominationDeadline, t)} max={60} size={64} stroke={6} />}
-                    </div>
-                    {cur.nominatorTeamId === state.myTeamId && cur.status === "active" && view && (
-                      <NominatePanel state={state} view={view} slug={league.slug} refresh={refresh} />
-                    )}
-                  </Card>
-                )}
-              </>
-            )}
-            {cur?.type !== "franchise" && state.myTeamId && view && <WishlistPanel slug={league.slug} view={view} />}
-          </div>
+    <CricketShell currentPage="auction" title={cur ? undefined : "Auction"} loading={!state} error={error} maxWidth="7xl" hideBottomNav>
+      {state && !cur && (
+        <Card>
+          <p className="text-sm text-gray-300">The auction hasn&apos;t been set up yet. Your league admin schedules it.</p>
+        </Card>
+      )}
+      {state && cur && (
+        <>
+          <RoomHeader
+            theme={theme}
+            status={cur.status}
+            title={TYPE_LABEL[cur.type]}
+            titleAs="h1"
+            subtitle={cur.soldCount > 0 ? `${cur.soldCount} sold` : undefined}
+            live={running ? connected : null}
+            nominator={running ? (cur.nominatorTeamId ? { name: nameOf(cur.nominatorTeamId), isMe: cur.nominatorTeamId === myTeamId } : null) : undefined}
+            purse={me ? { label: "Your purse", value: formatLakhs(me.purse) } : null}
+            right={myTeamId ? <AlertToggle muted={alerts.muted} onToggle={alerts.toggleMuted} /> : undefined}
+          />
 
-          <div className="space-y-4">
-            <Card className="p-0 sm:p-0">
-              <h2 className="px-4 pt-4 text-sm font-semibold text-white">Teams</h2>
-              <ul className="mt-2 divide-y divide-white/5 text-sm">
-                {state.teams.map((team) => {
-                  const isNominator = cur?.nominatorTeamId === team.id;
-                  const fr = team.franchiseId ? state.franchises.find((f) => f.id === team.franchiseId) : null;
-                  return (
-                    <li key={team.id} className={`flex items-center justify-between gap-2 px-4 py-2 ${isNominator ? "bg-green-500/10" : ""} ${team.id === state.myTeamId ? "font-semibold" : ""}`}>
-                      <span className="truncate text-gray-200">
-                        {isNominator && "▶ "}
-                        {teamName(team.id)}
-                        {fr && <span className="ml-1 text-xs text-gray-500">{fr.code}</span>}
-                      </span>
-                      <span className="whitespace-nowrap text-xs text-gray-400">
-                        {formatLakhs(team.purse)} · {team.squadSize}/{team.cap}
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
-            </Card>
-            {cur?.type === "franchise" && (
-              <Card className="p-0 sm:p-0">
-                <h2 className="px-4 pt-4 text-sm font-semibold text-white">Franchises</h2>
-                <ul className="mt-2 divide-y divide-white/5 text-sm">
-                  {state.franchises.map((f) => (
-                    <li key={f.id} className="flex justify-between px-4 py-2">
-                      <span className="text-gray-200">
-                        {f.code} <span className="text-xs text-gray-500">{f.name}</span>
-                      </span>
-                      <span className="text-xs text-gray-400">{f.ownerTeamId ? teamName(f.ownerTeamId) : `opens ${formatLakhs(f.openingPrice)}`}</span>
-                    </li>
-                  ))}
-                </ul>
-              </Card>
+          {me && cur.status !== "completed" && <MyStrip state={state} slug={slug} redeemPrice={view?.config.penaltyRedeemPrice ?? null} refresh={refresh} />}
+
+          {cur.status === "paused" && (
+            <div className="mb-4 rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-3 text-center text-sm text-yellow-300">Auction paused by the admin — timers resume where they stopped.</div>
+          )}
+
+          {cur.status === "pending" && (
+            <>
+              <div className="mb-4 rounded-2xl border border-green-500/30 bg-gradient-to-br from-green-500/10 to-slate-900/40 p-6 text-center backdrop-blur">
+                <div className="mb-2 text-[11px] uppercase tracking-widest text-green-300">{TYPE_LABEL[cur.type]} scheduled</div>
+                {cur.scheduledAt ? (
+                  <>
+                    <ScheduledCountdown scheduledAt={cur.scheduledAt} now={now} />
+                    <div className="mt-2 text-xs text-gray-400">Starts {new Date(cur.scheduledAt).toLocaleString([], { dateStyle: "full", timeStyle: "short" })}</div>
+                  </>
+                ) : (
+                  <>
+                    <h2 className="mb-1 text-2xl font-bold text-white">Awaiting start</h2>
+                    <p className="text-sm text-gray-400">Your league admin starts it. Build your wishlist in the meantime.</p>
+                  </>
+                )}
+                <div className="mt-4 flex flex-wrap justify-center gap-x-5 gap-y-1 text-xs text-gray-400">
+                  <span>Bid timer: {cur.bidTimerSeconds}s</span>
+                  <span>Nomination timeout: {cur.nominationTimeoutSeconds}s</span>
+                  <span>Between lots: {cur.intermissionSeconds}s</span>
+                  <span>{state.teams.length} teams</span>
+                </div>
+              </div>
+              {cur.type === "player" && franchiseDone && view && <FinalResults theme={theme} title="Franchise auction results" teams={resultCards(view, "franchise", myTeamId)} formatMoney={formatLakhs} />}
+            </>
+          )}
+
+          {cur.status === "completed" && view && <FinalResults theme={theme} teams={resultCards(view, cur.type, myTeamId)} formatMoney={formatLakhs} />}
+
+          {running && (
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
+              <div className="lg:col-span-3">
+                {lot ? (
+                  <LotPanel
+                    theme={theme}
+                    state={state}
+                    view={view}
+                    clock={clock}
+                    nameOf={nameOf}
+                    slug={slug}
+                    refresh={refresh}
+                    outbid={alerts.lastAlert?.kind === "outbid" && alerts.lastAlert.lot === lot.id}
+                    wishlist={me ? wishlist : undefined}
+                  />
+                ) : cur.intermissionUntil ? (
+                  <SoldMoment theme={theme} outcome={soldMoment} secondsLeft={pauseLeft} maxSeconds={Math.max(1, cur.intermissionSeconds)} />
+                ) : (
+                  <WaitingCard
+                    theme={theme}
+                    what={cur.type === "franchise" ? "franchise" : "player"}
+                    nominatorName={cur.nominatorTeamId ? nameOf(cur.nominatorTeamId) : null}
+                    myTurn={myTurn}
+                    secondsLeft={nominationLeft}
+                    maxSeconds={cur.nominationTimeoutSeconds}
+                    done={done}
+                    picked={pick?.name ?? null}
+                    ctaDisabled={nominating}
+                    onCta={() => {
+                      if (pick) void nominate();
+                      else {
+                        setTab("nominate");
+                        tabsRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+                      }
+                    }}
+                  />
+                )}
+              </div>
+              <div className="lg:col-span-2">
+                <CricketOrderTable theme={theme} state={state} view={view} />
+              </div>
+            </div>
+          )}
+          {cur.status === "pending" && <CricketOrderTable theme={theme} state={state} view={view} />}
+
+          <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-5">
+            {showTabs && (
+              <div ref={tabsRef} className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur lg:col-span-2">
+                <Tabs
+                  ariaLabel="Your auction tools"
+                  value={cur.type === "franchise" ? "nominate" : tab}
+                  onChange={setTab}
+                  accentClass={theme.tabActive}
+                  className="mb-3"
+                  items={cur.type === "franchise" ? [{ id: "nominate" as const, label: "Nominate" }] : [{ id: "wishlist" as const, label: "Wishlist" }, { id: "nominate" as const, label: "Nominate" }]}
+                />
+                {cur.type === "player" && tab === "wishlist" ? (
+                  <WishlistTab view={view!} wishlist={wishlist} />
+                ) : (
+                  <NominatePicker
+                    theme={theme}
+                    state={state}
+                    view={view!}
+                    mode="team"
+                    picked={pick}
+                    onPick={setPicked}
+                    onNominate={nominate}
+                    busy={nominating}
+                    canNominate={myTurn}
+                    blockedReason={blockedReason}
+                    wishlist={cur.type === "player" ? wishlist : undefined}
+                    error={nominateError}
+                  />
+                )}
+              </div>
             )}
-            <Card className="p-0 sm:p-0">
-              <h2 className="px-4 pt-4 text-sm font-semibold text-white">Recent sales</h2>
-              {state.sales.length === 0 ? (
-                <p className="px-4 py-3 text-sm text-gray-400">Nothing sold yet.</p>
-              ) : (
-                <ul className="mt-2 divide-y divide-white/5 text-sm">
-                  {state.sales.map((s) => (
-                    <li key={s.lotId} className="flex justify-between gap-2 px-4 py-2">
-                      <span className="truncate text-gray-200">
-                        {s.name} <span className="text-xs text-gray-500">→ {teamName(s.teamId)}</span>
-                      </span>
-                      <span className="whitespace-nowrap text-gray-300">{formatLakhs(s.price)}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </Card>
+            <LiveFeed
+              title={cur.status === "completed" ? "Auction log" : "Live Feed"}
+              entries={feed}
+              emptyText={cur.status === "pending" ? "Nothing yet — the feed starts with the first nomination" : "No activity yet"}
+              className={showTabs ? "lg:col-span-3" : "lg:col-span-5"}
+              maxHeightClass={showTabs ? "max-h-96" : "max-h-[32rem]"}
+            />
           </div>
-        </div>
+          {myTeamId && <p className="mt-3 text-center text-[11px] text-gray-500">Alerts sound and flash this tab while the room is open; phones pause them when the browser is in the background.</p>}
+        </>
       )}
     </CricketShell>
   );
 }
 
-function MyBar({ state, refresh, slug }: { state: RoomState; refresh: () => void; slug: string }) {
-  const me = state.teams.find((x) => x.id === state.myTeamId)!;
+/** Your purse, squad and how much you may bid; redeem a penalty slot. */
+function MyStrip({ state, slug, redeemPrice, refresh }: { state: RoomState; slug: string; redeemPrice: number | null; refresh: () => void }) {
+  const me = state.teams.find((t) => t.id === state.myTeamId)!;
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const redeem = async () => {
+    if (!confirm(`Redeem a penalty slot${redeemPrice != null ? ` for ${formatLakhs(redeemPrice)}` : ""}? This can't be undone.`)) return;
     setBusy(true);
     setMsg(null);
-    const res = await fetch("/api/cricket/auction/redeem", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ league: slug }) });
-    const body = await res.json().catch(() => ({}));
-    setBusy(false);
-    if (!res.ok) setMsg(body.error ?? "Couldn't redeem");
-    refresh();
+    try {
+      const res = await fetch("/api/cricket/auction/redeem", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ league: slug }) });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) setMsg(body.error ?? "Couldn't redeem");
+    } catch {
+      setMsg("Couldn't reach the server");
+    } finally {
+      setBusy(false);
+      refresh();
+    }
   };
   return (
-    <Card className="flex flex-wrap items-center justify-between gap-3">
-      <div className="text-sm text-gray-300">
-        Purse <span className="font-semibold text-white">{formatLakhs(me.purse)}</span> · Squad{" "}
-        <span className="font-semibold text-white">
-          {me.squadSize}/{me.cap}
-        </span>{" "}
-        · You can bid up to <span className="font-semibold text-white">{formatLakhs(me.maxBid)}</span>
+    <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm backdrop-blur">
+      <div className="flex flex-wrap gap-x-5 gap-y-1 text-gray-300">
+        <span>
+          Purse <span className="font-mono font-semibold text-green-300">{formatLakhs(me.purse)}</span>
+        </span>
+        <span>
+          Squad{" "}
+          <span className="font-semibold text-white">
+            {me.squadSize}/{me.cap}
+          </span>
+        </span>
+        <span>
+          You can bid up to <span className="font-mono font-semibold text-white">{formatLakhs(me.maxBid)}</span>
+        </span>
       </div>
       {me.penaltySlots > 0 && (
         <div className="flex items-center gap-2">
-          <span className="text-xs text-red-300">{me.penaltySlots} penalty slot(s)</span>
+          <span className="text-xs text-red-300">
+            {me.penaltySlots} penalty slot{me.penaltySlots === 1 ? "" : "s"}
+          </span>
           <button type="button" disabled={busy} onClick={redeem} className="rounded-lg bg-red-500/80 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-500 disabled:opacity-50">
-            Redeem one
+            Redeem one{redeemPrice != null && ` (${formatLakhs(redeemPrice)})`}
           </button>
         </div>
       )}
       {msg && <p className="w-full text-xs text-red-300">{msg}</p>}
-    </Card>
-  );
-}
-
-function LotCard({ state, now, teamName, slug, refresh }: { state: RoomState; now: number; teamName: (id: string) => string; slug: string; refresh: () => void }) {
-  const cur = state.current!;
-  const lot = cur.lot!;
-  const me = state.teams.find((x) => x.id === state.myTeamId);
-  const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
-  const [custom, setCustom] = useState("");
-  const left = secondsLeft(lot.expiresAt, now);
-  const amounts = [lot.nextMinBid, lot.nextMinBid + bidStep(lot.nextMinBid), lot.nextMinBid + bidStep(lot.nextMinBid) * 3];
-  const mineHigh = lot.currentHighBidderId === state.myTeamId;
-
-  const bid = async (amount: number) => {
-    setBusy(true);
-    setMsg(null);
-    const res = await fetch("/api/cricket/auction/bid", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ league: slug, lotId: lot.id, amount }) });
-    const body = await res.json().catch(() => ({}));
-    setBusy(false);
-    if (!res.ok) setMsg(body.error ?? "Bid refused");
-    else setCustom("");
-    refresh();
-  };
-
-  return (
-    <Card className="border-green-400/30">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-xs uppercase tracking-wide text-gray-400">
-            Lot {lot.lotNumber} · {lot.kind === "franchise" ? "Franchise" : "Player"} · nominated by {teamName(lot.nominatorTeamId)}
-          </p>
-          <h2 className="mt-1 text-2xl font-bold text-white">{lot.name}</h2>
-          <p className="mt-1 text-sm text-gray-400">Opened at {formatLakhs(lot.openingPrice)}</p>
-          <p className="mt-3 text-3xl font-extrabold text-green-300">{formatLakhs(lot.currentHighBid)}</p>
-          <p className={`text-sm ${mineHigh ? "font-semibold text-green-200" : "text-gray-300"}`}>{mineHigh ? "You're the highest bidder" : `Highest: ${teamName(lot.currentHighBidderId)}`}</p>
-        </div>
-        <AuctionTimerRing seconds={left} max={cur.bidTimerSeconds} />
-      </div>
-      {me && cur.status === "active" && (
-        <div className="mt-4 space-y-2">
-          <div className="flex flex-wrap gap-2">
-            {amounts.map((a) => (
-              <button
-                key={a}
-                type="button"
-                disabled={busy || mineHigh || !me.canBid || a > me.maxBid}
-                onClick={() => bid(a)}
-                className="rounded-lg bg-green-500 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-green-400 disabled:opacity-40"
-              >
-                Bid {formatLakhs(a)}
-              </button>
-            ))}
-            <input
-              type="number"
-              value={custom}
-              step={bidStep(lot.nextMinBid)}
-              min={lot.nextMinBid}
-              onChange={(e) => setCustom(e.target.value)}
-              placeholder="Lakhs"
-              className="w-28 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
-            />
-            <button
-              type="button"
-              disabled={busy || mineHigh || !custom}
-              onClick={() => bid(Number(custom))}
-              className="rounded-lg border border-white/15 px-3 py-2 text-sm text-gray-200 hover:bg-white/10 disabled:opacity-40"
-            >
-              Bid
-            </button>
-          </div>
-          {!me.canBid && !mineHigh && <p className="text-xs text-gray-400">You can&apos;t take this lot (squad rules or purse).</p>}
-          {msg && <p className="text-xs text-red-300">{msg}</p>}
-        </div>
-      )}
-    </Card>
-  );
-}
-
-function NominatePanel({ state, view, slug, refresh }: { state: RoomState; view: NonNullable<ReturnType<typeof useCricketLeague>["data"]>; slug: string; refresh: () => void }) {
-  const cur = state.current!;
-  const me = state.teams.find((x) => x.id === state.myTeamId)!;
-  const [q, setQ] = useState("");
-  const [role, setRole] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
-  const idx = indexView(view);
-
-  const nominate = async (body: Record<string, unknown>) => {
-    setBusy(true);
-    setMsg(null);
-    const res = await fetch("/api/cricket/auction/nominate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ league: slug, ...body }) });
-    const out = await res.json().catch(() => ({}));
-    setBusy(false);
-    if (!res.ok) setMsg(out.error ?? "Couldn't nominate");
-    refresh();
-  };
-
-  if (cur.type === "franchise") {
-    return (
-      <div className="mt-4 space-y-2">
-        <p className="text-xs text-gray-400">Pick a franchise. You open the bidding at its price.</p>
-        <div className="grid gap-2 sm:grid-cols-2">
-          {state.franchises
-            .filter((f) => !f.ownerTeamId)
-            .map((f) => (
-              <button
-                key={f.id}
-                type="button"
-                disabled={busy || f.openingPrice > me.maxBid}
-                onClick={() => nominate({ cricketTeamId: f.id })}
-                className="flex justify-between rounded-lg border border-white/10 px-3 py-2 text-left text-sm hover:bg-white/10 disabled:opacity-40"
-              >
-                <span className="text-white">{f.name}</span>
-                <span className="text-gray-400">{formatLakhs(f.openingPrice)}</span>
-              </button>
-            ))}
-        </div>
-        {msg && <p className="text-xs text-red-300">{msg}</p>}
-      </div>
-    );
-  }
-
-  const needle = q.trim().toLowerCase();
-  const options = view.players
-    .filter((p) => !p.ownerTeamId)
-    .filter((p) => (!needle || p.name.toLowerCase().includes(needle)) && (!role || p.role === role))
-    .sort((a, b) => b.points - a.points || b.basePrice - a.basePrice)
-    .slice(0, 60);
-  return (
-    <div className="mt-4 space-y-2">
-      <div className="flex flex-wrap gap-2">
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search players" className="min-w-[10rem] flex-1 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white" />
-        <select value={role} onChange={(e) => setRole(e.target.value)} className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white" aria-label="Role">
-          <option value="">All roles</option>
-          {["WK", "BAT", "AR", "BOWL"].map((r) => (
-            <option key={r} value={r}>
-              {r}
-            </option>
-          ))}
-        </select>
-      </div>
-      <ul className="max-h-80 divide-y divide-white/5 overflow-auto rounded-lg border border-white/10 text-sm">
-        {options.map((p) => (
-          <li key={p.id}>
-            <button
-              type="button"
-              disabled={busy || p.basePrice > me.maxBid}
-              onClick={() => nominate({ playerId: p.id })}
-              className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left hover:bg-white/10 disabled:opacity-40"
-            >
-              <span className="flex items-center gap-2">
-                <span className={`rounded px-1.5 text-[10px] font-semibold ${ROLE_STYLE[p.role]}`}>{p.role}</span>
-                <span className="text-white">{p.name}</span>
-                <span className="text-xs text-gray-500">{idx.realTeam.get(p.teamId)?.code}</span>
-                {p.overseas && <span className="text-xs text-sky-300">✈</span>}
-              </span>
-              <span className="text-gray-400">{formatLakhs(p.basePrice)}</span>
-            </button>
-          </li>
-        ))}
-      </ul>
-      {msg && <p className="text-xs text-red-300">{msg}</p>}
     </div>
   );
 }

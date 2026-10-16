@@ -20,6 +20,13 @@ export function nextMinBid(current: number): number {
   return current + bidStep(current);
 }
 
+/** The room's quick-bid buttons: the next bid, one step more, and three steps more. */
+export function jumpBids(current: number): [number, number, number] {
+  const next = nextMinBid(current);
+  const step = bidStep(next);
+  return [next, next + step, next + 3 * step];
+}
+
 /** Round up onto the ladder: the smallest amount ≥ `amount` that is a multiple of its own step. */
 export function roundUpToLadder(amount: number): number {
   const step = bidStep(amount);

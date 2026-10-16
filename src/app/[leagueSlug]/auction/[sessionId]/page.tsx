@@ -15,6 +15,14 @@ import { MAX_SQUAD_SIZE, effectiveMaxSquadSize } from "@/lib/sports/fpl/formats/
 import { useWishlist } from "@/hooks/useWishlist";
 import { WishlistList } from "@/components/WishlistList";
 import { getPlTeamFullName } from "@/lib/sports/fpl/data/pl-team-full-names";
+import { AlertToggle } from "@/components/auction/AlertToggle";
+import { FinalResults } from "@/components/auction/FinalResults";
+import { ScheduledCountdown } from "@/components/auction/ScheduledCountdown";
+import { SoldMoment, type SoldMomentView } from "@/components/auction/SoldMoment";
+import { FPL_ROOM_THEME } from "@/components/auction/theme";
+import { useAuctionAlerts } from "@/components/auction/useAuctionAlerts";
+import { belongsToPause } from "@/lib/auction/sold-moment";
+import { buildFplFinalResults, latestSale } from "@/lib/sports/fpl/formats/auction/room-extras";
 
 const CLUB_AUCTION_TYPE = "club-auction";
 
@@ -217,48 +225,6 @@ function getJumpBidOptions(currentHighBid: number): number[] {
   return [minNext, ...jumps.slice(0, 3)];
 }
 
-function CountdownSegment({ value, label }: { value: number; label: string }) {
-  return (
-    <div className="flex flex-col items-center px-4">
-      <div className="text-4xl sm:text-5xl font-mono font-bold text-white tabular-nums">{String(value).padStart(2, "0")}</div>
-      <div className="text-[10px] uppercase tracking-widest text-gray-400 mt-1">{label}</div>
-    </div>
-  );
-}
-
-function ScheduledCountdown({ scheduledAt }: { scheduledAt: string }) {
-  // Lazy initializer keeps Date.now() out of the render path (React purity rule).
-  const [now, setNow] = useState<number>(() => Date.now());
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, []);
-  const target = new Date(scheduledAt).getTime();
-  const diff = target - now;
-  if (diff <= 0) {
-    return (
-      <div className="text-2xl font-bold text-green-300">
-        Starting any moment — waiting for admin to open the room
-      </div>
-    );
-  }
-  const totalSeconds = Math.floor(diff / 1000);
-  const days = Math.floor(totalSeconds / 86400);
-  const hours = Math.floor((totalSeconds % 86400) / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-  return (
-    <div className="flex items-center justify-center gap-2 sm:gap-4 flex-wrap">
-      {days > 0 && <><CountdownSegment value={days} label="Days" /><div className="text-3xl text-gray-600">:</div></>}
-      <CountdownSegment value={hours} label="Hours" />
-      <div className="text-3xl text-gray-600">:</div>
-      <CountdownSegment value={minutes} label="Minutes" />
-      <div className="text-3xl text-gray-600">:</div>
-      <CountdownSegment value={seconds} label="Seconds" />
-    </div>
-  );
-}
-
 function RedeemPenaltyButton({ teamId, onRedeemed }: { teamId: string; onRedeemed: () => void }) {
   const [loading, setLoading] = useState(false);
   const [cost, setCost] = useState<number | null>(null);
@@ -372,6 +338,9 @@ export default function AuctionRoomPage() {
   }>>({});
   const [expandedTeamId, setExpandedTeamId] = useState<string | null>(null);
   const [bidFeed, setBidFeed] = useState<BidFeedItem[]>([]);
+  // The session's bid history (the feed is built from it); also the source of the SOLD moment
+  // during the post-sale pause and of a completed session's final results.
+  const [history, setHistory] = useState<BidHistoryResponse | null>(null);
   const [expandedFeedBidId, setExpandedFeedBidId] = useState<string | null>(null);
   const [timerSec, setTimerSec] = useState<number>(0);
   const [placing, setPlacing] = useState(false);
@@ -582,6 +551,7 @@ export default function AuctionRoomPage() {
       const histRes = await fetch(`/api/auction/bid-history?sessionId=${routeSessionId}`);
       if (histRes.ok) {
         const histJson: BidHistoryResponse = await histRes.json();
+        setHistory(histJson);
         setBidFeed(buildFeedFromHistory(histJson, (id) => displayTeamName(standingsMap.get(id)) ?? "Unknown", playerTag));
       }
     } catch (err) {
@@ -697,7 +667,9 @@ export default function AuctionRoomPage() {
     }
     if (sid && opts?.feed !== false) {
       fetch(`/api/auction/bid-history?sessionId=${sid}`).then((r) => (r.ok ? r.json() : null)).then((d: BidHistoryResponse | null) => {
-        if (d) setBidFeed(buildFeedFromHistory(d, (id) => displayTeamName(teamMapRef.current.get(id)) ?? "Unknown", playerTag));
+        if (!d) return;
+        setHistory(d);
+        setBidFeed(buildFeedFromHistory(d, (id) => displayTeamName(teamMapRef.current.get(id)) ?? "Unknown", playerTag));
       }).catch(() => {});
     }
   }, [refreshSessionState, refreshClubOwnership, refreshWishlist, playerTag]);
@@ -928,6 +900,17 @@ export default function AuctionRoomPage() {
 
   const isMyTurn = currentNominatorId === myTeamId;
   const isHighBidder = currentBid?.currentHighBidderId === myTeamId;
+  const alerts = useAuctionAlerts(
+    {
+      myTurn: !!myTeamId && session?.status === "active" && isMyTurn && !currentBid && intermissionSec === 0 && !!nominationDeadline,
+      lotKey: currentBid?.bidId ?? null,
+      leaderIsMe: !!myTeamId && isHighBidder,
+      lotName: currentBid?.playerName ?? null,
+    },
+    { enabled: !!myTeamId },
+  );
+  // The SOLD moment: the latest sale, when it is the one this pause follows.
+  const lastSale = useMemo(() => latestSale(history?.bids), [history]);
   // Club-auction eligibility: only club-less teams may bid. Sourced from the server's own
   // getClubLessTeamIds check (via myOwnsClubFromServer, refreshed on nearly every SSE event) rather
   // than the /api/standings-backed teamMap, so this can't lag behind what the server would actually
@@ -1320,6 +1303,7 @@ export default function AuctionRoomPage() {
                   <div className="text-xs text-gray-400 uppercase">Your Purse</div>
                   <div className="font-mono font-bold text-green-300">{formatCurrency(myPurse)}</div>
                 </div>
+                {myTeamId && <AlertToggle muted={alerts.muted} onToggle={alerts.toggleMuted} />}
               </div>
             </div>
 
@@ -1419,23 +1403,65 @@ export default function AuctionRoomPage() {
                 <span className="text-purple-200 text-sm font-semibold">🏁 This session has ended — showing final results below.</span>
               </div>
             )}
+            {session.status === "completed" && (
+              <FinalResults
+                theme={FPL_ROOM_THEME}
+                formatMoney={formatCurrency}
+                teams={buildFplFinalResults({
+                  order: session.snakeOrder,
+                  summaries: teamSummaries,
+                  bids: history?.bids ?? [],
+                  clubAuction: session.type === CLUB_AUCTION_TYPE,
+                  nameOf: (id) => displayTeamName(teamMap.get(id)) ?? id,
+                  myTeamId,
+                }).map((t) => ({
+                  ...t,
+                  items: t.items.map((i) => {
+                    const el = i.fplElementId != null ? elementById.get(i.fplElementId) : undefined;
+                    return {
+                      ...i,
+                      chip: (
+                        <>
+                          {el && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded border border-white/20 text-gray-300">{POSITION_LABELS[el.element_type]}</span>}
+                          {el && plTeams.get(el.team) && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/10 text-gray-300">{plTeams.get(el.team)!.short_name}</span>}
+                          {i.boughtHere && session.type === "mini-auction" && <span className="text-[10px] font-bold text-yellow-300">new</span>}
+                        </>
+                      ),
+                    };
+                  }),
+                }))}
+              />
+            )}
 
             {/* Row 1: Bid card + Nomination Order table */}
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
               {session.status !== "pending" && session.status !== "completed" && (
               <div className="lg:col-span-3">
                 {intermissionSec > 0 ? (
-                  <div className="rounded-2xl border border-yellow-500/30 bg-gradient-to-br from-yellow-500/10 to-slate-900/40 p-5 backdrop-blur text-center h-full flex flex-col items-center justify-center gap-3">
-                    <div className="text-[10px] uppercase tracking-widest text-yellow-300/80">Lot sold — next up</div>
-                    <AuctionTimerRing
-                      seconds={intermissionSec}
-                      max={session.intermissionSeconds ?? 5}
-                      size={104}
-                      stroke={9}
-                      label="next nom"
-                    />
-                    <p className="text-sm text-gray-300">Get ready — the next nomination is coming up</p>
-                  </div>
+                  <SoldMoment
+                    theme={FPL_ROOM_THEME}
+                    outcome={((): SoldMomentView | null => {
+                      if (!lastSale || !intermissionUntil || !belongsToPause(lastSale.at, new Date(intermissionUntil).getTime(), session.intermissionSeconds ?? 5)) return null;
+                      const el = lastSale.fplElementId != null && session.type !== CLUB_AUCTION_TYPE ? elementById.get(lastSale.fplElementId) : undefined;
+                      const club = el ? plTeams.get(el.team) : undefined;
+                      return {
+                        type: "sold",
+                        lotNumber: lastSale.lotNumber,
+                        itemName: lastSale.playerName,
+                        identity: el ? (
+                          <>
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded border border-white/20 text-gray-300">{POSITION_LABELS[el.element_type]}</span>
+                            {club && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/10 text-gray-300">{club.short_name}</span>}
+                          </>
+                        ) : undefined,
+                        winnerName: displayTeamName(teamMap.get(lastSale.winnerId)) ?? "—",
+                        winnerIsMe: lastSale.winnerId === myTeamId,
+                        price: formatCurrency(lastSale.price),
+                      };
+                    })()}
+                    secondsLeft={intermissionSec}
+                    maxSeconds={session.intermissionSeconds ?? 5}
+                  />
                 ) : currentBid ? (
                   <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-purple-900/40 to-slate-900/40 p-5 backdrop-blur h-full">
                     {(() => {
@@ -1506,6 +1532,11 @@ export default function AuctionRoomPage() {
                         </div>
                       );
                     })()}
+                    {alerts.lastAlert?.kind === "outbid" && alerts.lastAlert.lot === currentBid.bidId && !isHighBidder && (
+                      <div role="alert" className="mb-3 rounded-lg border border-red-500/40 bg-red-500/10 py-2 text-center text-sm font-semibold text-red-200">
+                        You&apos;ve been outbid — {displayTeamName(teamMap.get(currentBid.currentHighBidderId)) ?? "another team"} leads at {formatCurrency(currentBid.currentHighBid)}
+                      </div>
+                    )}
                     <div className="grid grid-cols-3 gap-3 mb-4 text-center">
                       <div>
                         <div className="text-[10px] uppercase text-gray-400"><HelpTip tip="The current highest bid on this player/club. Your next bid must beat it.">Bid</HelpTip></div>
@@ -2144,7 +2175,7 @@ export default function AuctionRoomPage() {
                   wishlist/unsold panel is hidden (club auctions, and pending/completed sessions). */}
               <div className={`${showWishlistPanel ? "lg:col-span-3" : "lg:col-span-5"} rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur`}>
                 <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2">
-                  {session.status === "completed" ? "Final Results" : "Live Feed"}
+                  {session.status === "completed" ? "Auction log" : "Live Feed"}
                 </h3>
                 <div className="space-y-0.5 max-h-52 overflow-y-auto text-[11px]">
                   {bidFeed.length === 0 ? (

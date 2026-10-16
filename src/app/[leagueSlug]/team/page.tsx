@@ -5,6 +5,7 @@ import Link from "next/link";
 import { LeagueNav } from "@/components/LeagueNav";
 import { LoadingScreen } from "@/components/LoadingScreen";
 import { useLeague } from "@/lib/league-context";
+import { isCricketFormat } from "@/lib/sports/registry";
 import { signOutAccounts } from "@/lib/accounts-client";
 import { PartnerInvitePanel, fetchTeamInfo, type TeamInfo } from "@/components/PartnerInvitePanel";
 import { MyFplTeamSection } from "@/components/MyFplTeamSection";
@@ -68,7 +69,13 @@ export default function TeamPage() {
     window.location.href = "/";
   };
 
-  if (!info && !error) return <LoadingScreen variant="default" label="Loading your team" />;
+  if (!info && !error) {
+    return isCricketFormat(league.format) ? (
+      <LoadingScreen variant="cricket" bgClass="bg-transparent" label="Loading your team" />
+    ) : (
+      <LoadingScreen variant="default" label="Loading your team" />
+    );
+  }
 
   return (
     <>

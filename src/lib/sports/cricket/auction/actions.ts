@@ -28,6 +28,7 @@ import { bumpStateVersion, loadCricketLeague } from "../league";
 import { playersStillNeeded } from "./rules";
 import { checkFranchisePurchase, checkPlayerPurchase, cheapestUnsoldBase, franchiseOpening, loadAuctionData } from "./data";
 import { getOpenLot, getSession, logTurnEvent, parseIdList, type ActionResult } from "./engine";
+import { planSetNominator } from "./turns";
 import { saveSnapshot } from "../backup";
 
 const fail = (status: number, error: string) => ({ ok: false as const, status, error });
@@ -55,7 +56,7 @@ function shuffle<T>(items: T[]): T[] {
 export async function createSession(
   leagueId: string,
   type: "franchise" | "player",
-  opts: { scheduledAt?: Date | null; bidTimerSeconds?: number; nominationTimeoutSeconds?: number },
+  opts: { scheduledAt?: Date | null; bidTimerSeconds?: number; nominationTimeoutSeconds?: number; intermissionSeconds?: number },
 ): Promise<ActionResult<{ sessionId: string }>> {
   const info = await loadCricketLeague(leagueId);
   if (!info) return fail(404, "Not a cricket league");
@@ -71,6 +72,7 @@ export async function createSession(
       scheduledAt: opts.scheduledAt ?? null,
       bidTimerSeconds: opts.bidTimerSeconds ?? info.config.bidTimerSeconds,
       nominationTimeoutSeconds: opts.nominationTimeoutSeconds ?? info.config.nominationTimeoutSeconds,
+      ...(opts.intermissionSeconds !== undefined ? { intermissionSeconds: opts.intermissionSeconds } : {}),
     }),
     bumpStateVersion(info.league.id),
   ]);
@@ -308,19 +310,80 @@ export async function transferSale(leagueId: string, lotId: string, toTeamId: st
   return { ok: true };
 }
 
-/** Owe a team an extra nomination turn (served before the ring continues). */
-export async function grantMakeupTurn(leagueId: string, sessionId: string, teamId: string): Promise<ActionResult> {
+/**
+ * Owe a team an extra nomination turn, served before the ring continues: at the back of the queue
+ * of owed turns (default), or at the front ("next").
+ */
+export async function grantMakeupTurn(leagueId: string, sessionId: string, teamId: string, position: "front" | "back" = "back"): Promise<ActionResult> {
   const s = await sessionInLeague(leagueId, sessionId);
   if (!s || s.status === "completed") return fail(400, "The session isn't running");
   if (!parseIdList(s.ringOrder).includes(teamId)) return fail(400, "That team isn't in this session");
-  const queue = [...parseIdList(s.makeupQueue), teamId];
+  const owed = parseIdList(s.makeupQueue);
+  const queue = position === "front" ? [teamId, ...owed] : [...owed, teamId];
   const res = await db
     .update(cricketAuctionSessions)
     .set({ makeupQueue: JSON.stringify(queue) })
     .where(and(eq(cricketAuctionSessions.id, sessionId), eq(cricketAuctionSessions.makeupQueue, s.makeupQueue)));
   if (res.rowsAffected === 0) return fail(409, "The session changed — try again");
-  await logTurnEvent({ sessionId, leagueId, teamId, event: "makeup-granted", actor: "admin", detail: { queue } });
+  await logTurnEvent({ sessionId, leagueId, teamId, event: "makeup-granted", actor: "admin", detail: { queue, position } });
   return { ok: true };
+}
+
+/** Take back an owed make-up turn: the one at `index` in the queue, or the first owed to `teamId`. */
+export async function dequeueMakeupTurn(leagueId: string, sessionId: string, which: { index?: number; teamId?: string }): Promise<ActionResult> {
+  const s = await sessionInLeague(leagueId, sessionId);
+  if (!s || s.status === "completed") return fail(400, "The session isn't running");
+  const owed = parseIdList(s.makeupQueue);
+  const index = which.index ?? (which.teamId ? owed.indexOf(which.teamId) : -1);
+  if (!Number.isInteger(index) || index < 0 || index >= owed.length) return fail(400, "No such make-up turn");
+  const teamId = owed[index];
+  const queue = owed.filter((_, i) => i !== index);
+  const res = await db
+    .update(cricketAuctionSessions)
+    .set({ makeupQueue: JSON.stringify(queue) })
+    .where(and(eq(cricketAuctionSessions.id, sessionId), eq(cricketAuctionSessions.makeupQueue, s.makeupQueue)));
+  if (res.rowsAffected === 0) return fail(409, "The session changed — try again");
+  await logTurnEvent({ sessionId, leagueId, teamId, event: "makeup-dequeued", actor: "admin", detail: { queue } });
+  return { ok: true };
+}
+
+/**
+ * Set who nominates next — one back, one forward, or a given team — while the session is paused
+ * and no lot is open. Owed make-up turns still come first; the chosen team follows them (see
+ * planSetNominator). Its window opens when the session resumes.
+ */
+export async function setNominator(leagueId: string, sessionId: string, target: { direction?: "back" | "forward"; teamId?: string }): Promise<ActionResult<{ nominatorTeamId: string }>> {
+  const s = await sessionInLeague(leagueId, sessionId);
+  if (!s) return fail(404, "Session not found");
+  if (s.status !== "paused") return fail(409, "Pause the auction before changing whose turn it is");
+  if (await getOpenLot(sessionId)) return fail(409, "Cancel or finish the open lot first");
+  const ring = parseIdList(s.ringOrder);
+  const plan = planSetNominator({ ring, cursor: s.currentNominatorIndex, queueLength: parseIdList(s.makeupQueue).length, ...target });
+  if (!plan.ok) return fail(400, plan.error);
+  const res = await db
+    .update(cricketAuctionSessions)
+    .set({ currentNominatorIndex: plan.index, ringReturnIndex: plan.ringReturnIndex, nominationDeadline: null, intermissionUntil: null })
+    .where(
+      and(
+        eq(cricketAuctionSessions.id, sessionId),
+        eq(cricketAuctionSessions.status, "paused"),
+        eq(cricketAuctionSessions.currentNominatorIndex, s.currentNominatorIndex),
+        eq(cricketAuctionSessions.makeupQueue, s.makeupQueue),
+      ),
+    );
+  if (res.rowsAffected === 0) return fail(409, "The session changed — try again");
+  const nominatorTeamId = ring[plan.index];
+  await logTurnEvent({
+    sessionId,
+    leagueId,
+    teamId: nominatorTeamId,
+    nominatorIndex: plan.index,
+    event: "admin-set-nominator",
+    actor: "admin",
+    detail: { from: s.currentNominatorIndex, to: plan.index, ...target },
+  });
+  await bumpStateVersion(leagueId);
+  return { ok: true, nominatorTeamId };
 }
 
 /** Undo the whole auction: sessions, sales, franchises and penalties go; purses are restored. */

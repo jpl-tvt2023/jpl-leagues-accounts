@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { LeagueNav } from "@/components/LeagueNav";
 import { useLeague } from "@/lib/league-context";
+import { isCricketFormat } from "@/lib/sports/registry";
 
 const MAX_SUBJECT = 200;
 const MIN_MESSAGE = 5;
@@ -84,7 +85,8 @@ export default function FeedbackPage() {
     : "tvt";
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-900 via-purple-900 to-slate-900">
+    // The league layout paints each format's background; FPL pages keep their own purple on top.
+    <div className={`min-h-screen ${isCricketFormat(league.format) ? "" : "bg-gradient-to-b from-slate-900 via-purple-900 to-slate-900"}`}>
       <LeagueNav
         leagueSlug={leagueSlug}
         leagueName={league.name}

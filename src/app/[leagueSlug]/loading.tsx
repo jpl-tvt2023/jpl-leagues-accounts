@@ -1,5 +1,5 @@
-import { LoadingScreen } from "@/components/LoadingScreen";
+import { LeagueLoading } from "@/components/LeagueLoading";
 
 export default function Loading() {
-  return <LoadingScreen variant="default" label="Loading League" />;
+  return <LeagueLoading />;
 }
