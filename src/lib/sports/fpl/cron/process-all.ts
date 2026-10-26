@@ -13,7 +13,7 @@
  */
 
 import { NextRequest } from "next/server";
-import { db, gameweeks, fixtures, leagues, auditLogs, results } from "@/lib/db";
+import { db, gameweeks, fixtures, leagues, auditLogs, results, gameweekChips } from "@/lib/db";
 import { playoffTies } from "@/lib/db/schema";
 import { asc, eq, and, isNull, ne, notInArray, or } from "drizzle-orm";
 import { detectLiveGameweek } from "@/lib/sports/fpl/api";
@@ -366,6 +366,7 @@ export async function processOneLeagueOneGw(
     }
   } else {
     let unscoredCount = 0;
+    let pendingChallengeCount = 0;
     try {
       const rows = await db
         .select({ id: fixtures.id })
@@ -379,11 +380,29 @@ export async function processOneLeagueOneGw(
         ))
         .limit(1);
       unscoredCount = rows.length;
+      if (unscoredCount === 0) {
+        // Every fixture scored is not the same as done: a scoring run killed after its last
+        // fixture leaves valid Challenge Chips unsettled. The scorer resumes those, so they count
+        // as work here too.
+        const chips = await db
+          .select({ id: gameweekChips.id })
+          .from(gameweekChips)
+          .innerJoin(gameweeks, eq(gameweekChips.gameweekId, gameweeks.id))
+          .where(and(
+            eq(gameweeks.leagueId, league.id),
+            eq(gameweeks.number, gw),
+            eq(gameweekChips.chipType, "C"),
+            eq(gameweekChips.isValid, true),
+            eq(gameweekChips.isProcessed, false),
+          ))
+          .limit(1);
+        pendingChallengeCount = chips.length;
+      }
     } catch (e) {
       result.errors.push({ step: "score", message: `Pre-flight failed: ${messageFrom(e)}` });
     }
 
-    if (unscoredCount === 0 && result.errors.length === 0) {
+    if (unscoredCount === 0 && pendingChallengeCount === 0 && result.errors.length === 0) {
       result.scoreSkipped = true;
     } else {
       try {
@@ -393,13 +412,14 @@ export async function processOneLeagueOneGw(
           url,
           { params: Promise.resolve({ gw: String(gw) }) },
         );
-        const b = body as { processed?: number; failed?: number; errors?: unknown[]; error?: string };
+        const b = body as { processed?: number; failed?: number; errors?: unknown[]; error?: string; challengeResults?: unknown[] };
         if (status >= 400) {
           result.errors.push({ step: "score", message: `HTTP ${status}: ${b.error ?? "unknown"}` });
         } else {
           const processed = b.processed ?? 0;
           const failed = b.failed ?? b.errors?.length ?? 0;
-          if (processed > 0) {
+          // A resumed run scores no fixture but settles Challenge Chips — that is real work, not a skip.
+          if (processed > 0 || (b.challengeResults?.length ?? 0) > 0) {
             result.scored = true;
           } else if (failed === 0) {
             result.scoreSkipped = true;
