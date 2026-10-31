@@ -180,9 +180,9 @@ const bottomLabels = (ctx: NavContext, runtime = {}) =>
   buildNavModel(ctx, runtime).bottom.map((i) => i.shortLabel ?? i.label);
 
 test("each league format gets its four most-used pages in the bottom bar", () => {
-  assert.deepEqual(bottomLabels(league({ format: "tvt" })), ["Home", "Standings", "Fixtures", "Playoffs"]);
+  assert.deepEqual(bottomLabels(league({ format: "tvt" })), ["Home", "Standings", "Fixtures", "Match"]);
   assert.deepEqual(bottomLabels(league({ format: "continental-championship" })), [
-    "Home", "Standings", "Fixtures", "JPL Cup",
+    "Home", "Standings", "Fixtures", "Match",
   ]);
   assert.deepEqual(bottomLabels(league({ format: "auction", auctionTier: "complete" })), [
     "Home", "Standings", "Auction", "Squad",

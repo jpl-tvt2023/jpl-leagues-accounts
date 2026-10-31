@@ -81,10 +81,9 @@ export function Scoreboard({
           : "border-white/10 bg-white/5"
       }`}
     >
-      {/* Teams and score. Phones: the two pickers share the first row as full-width controls and
-          the score gets its own row, so neither picker is squeezed beside it. sm and up: one row,
-          score in the middle. */}
-      <div className="grid grid-cols-2 items-start gap-x-2 gap-y-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:items-center sm:gap-6">
+      {/* Teams and score. Phones: the score on its own row, the two pickers side by side under it.
+          sm and up: picker · score · picker, face to face. */}
+      <div className="grid grid-cols-2 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start sm:items-center gap-x-2 gap-y-3 sm:gap-6">
         <SideTitle
           side={a}
           label="First team"
@@ -96,9 +95,8 @@ export function Scoreboard({
           margin={margin}
           group={fixture?.group ?? null}
           align="left"
-          accentClass="border-sky-400/40"
         />
-        <div className="col-span-2 row-start-2 flex flex-col items-center gap-1 sm:col-span-1 sm:row-start-auto">
+        <div className="order-first col-span-2 sm:order-none sm:col-span-1 flex flex-col items-center gap-1">
           <StatusPill status={status} deadline={data.gameweek.deadline} now={now} />
           {status === "upcoming" ? (
             <span className="text-sm font-medium text-gray-500">VS</span>
@@ -121,7 +119,6 @@ export function Scoreboard({
           margin={margin}
           group={fixture?.group ?? null}
           align="right"
-          accentClass="border-rose-400/40"
         />
       </div>
 
@@ -145,7 +142,10 @@ export function Scoreboard({
         >
           ⇄
         </button>
-        {status === "live" && <LiveFreshness updatedAt={data.generatedAt} isRefreshing={isRefreshing} />}
+        {/* When the points come from the last good copy, "Updated" is when that copy was fetched. */}
+        {status === "live" && (
+          <LiveFreshness updatedAt={data.pointsAsOf ?? data.generatedAt} isRefreshing={isRefreshing} />
+        )}
       </div>
 
       {/* Managers: how each one's FPL score becomes their share of the team score. */}
@@ -212,8 +212,10 @@ function StatusPill({ status, deadline, now }: { status: MatchStatus; deadline: 
 }
 
 /**
- * The team picker, styled as the team's name. A native select so it works with a keyboard, a
- * screen reader, and a phone's own picker.
+ * The team picker: a bordered pill with the team's name and a chevron, so it reads as something
+ * to press. The real control is a native select laid invisibly over the whole pill — it works with
+ * a keyboard, a screen reader, and a phone's own picker — while the pill sizes to the selected
+ * name rather than the longest option, as a visible select would.
  */
 function SideTitle({
   side,
@@ -226,7 +228,6 @@ function SideTitle({
   margin,
   group,
   align,
-  accentClass,
 }: {
   side: MatchCenterSide;
   label: string;
@@ -238,8 +239,6 @@ function SideTitle({
   margin: number;
   group: string | null;
   align: "left" | "right";
-  /** Phone-only border colour, matching that team's squad table below. */
-  accentClass: string;
 }) {
   const visible = teams.filter((t) => t.id !== exclude && (!t.isGhost || t.id === side.teamId));
   const groups = [...new Set(visible.map((t) => t.group))];
@@ -252,32 +251,40 @@ function SideTitle({
   const right = align === "right";
 
   return (
-    <div className={`min-w-0 ${right ? "sm:text-right" : ""}`}>
-      {/* Phones: a bordered, full-width control with its caret inside. sm and up: the team's name
-          as a heading-sized picker, caret beside it. */}
-      <div className={`relative flex items-center gap-1 ${right ? "sm:justify-end" : ""}`}>
-        {right && <span aria-hidden className="hidden text-xs text-gray-500 sm:inline">▾</span>}
-        <select
-          aria-label={label}
-          value={side.teamId}
-          disabled={disabled}
-          onChange={(e) => onSelect(e.target.value)}
-          className={`w-full min-w-0 max-w-full cursor-pointer appearance-none truncate rounded-lg border ${accentClass} bg-white/5 py-2 pl-3 pr-7 text-sm font-bold text-white hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-sky-400/50 sm:w-auto sm:rounded-md sm:border-transparent sm:bg-transparent sm:px-1 sm:py-0.5 sm:text-xl ${
-            right ? "sm:text-right sm:[text-align-last:right]" : ""
+    <div className={`min-w-0 ${right ? "text-right" : ""}`}>
+      <div className={`flex ${right ? "justify-end" : ""}`}>
+        <div
+          className={`group relative flex w-full sm:w-auto max-w-full min-w-0 items-center justify-between gap-2 overflow-hidden rounded-xl border border-white/15 bg-white/5 py-1.5 pl-3.5 pr-2.5 text-white transition hover:border-white/30 hover:bg-white/10 focus-within:border-sky-400/60 focus-within:ring-2 focus-within:ring-sky-400/40 ${
+            disabled ? "opacity-60" : ""
           }`}
         >
-          {hasGroups
-            ? groups.map((g) => (
-                <optgroup key={g ?? "none"} label={g ? `Group ${g}` : "Other"} className="bg-slate-900">
-                  {visible.filter((t) => t.group === g).map(option)}
-                </optgroup>
-              ))
-            : visible.map(option)}
-        </select>
-        <span aria-hidden className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 sm:hidden">▾</span>
-        {!right && <span aria-hidden className="hidden text-xs text-gray-500 sm:inline">▾</span>}
+          {/* Same side colours as the squad tables and the swing line below. */}
+          <span aria-hidden className={`absolute inset-y-0 left-0 w-1 ${right ? "bg-rose-400/70" : "bg-sky-400/70"}`} />
+          <span className="min-w-0 truncate text-left text-sm sm:text-xl font-bold">
+            {side.teamName}{side.isGhost ? " (ghost)" : ""}
+          </span>
+          <svg aria-hidden className="h-4 w-4 sm:h-5 sm:w-5 shrink-0 text-gray-400 transition group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+          <select
+            aria-label={label}
+            title="Change team"
+            value={side.teamId}
+            disabled={disabled}
+            onChange={(e) => onSelect(e.target.value)}
+            className="absolute inset-0 h-full w-full cursor-pointer appearance-none text-base text-white opacity-0 disabled:cursor-not-allowed"
+          >
+            {hasGroups
+              ? groups.map((g) => (
+                  <optgroup key={g ?? "none"} label={g ? `Group ${g}` : "Other"} className="bg-slate-900">
+                    {visible.filter((t) => t.group === g).map(option)}
+                  </optgroup>
+                ))
+              : visible.map(option)}
+          </select>
+        </div>
       </div>
-      <div className={`mt-1 flex flex-wrap items-center gap-1 px-1 sm:mt-0.5 ${right ? "sm:justify-end" : ""}`}>
+      <div className={`mt-1 flex flex-wrap items-center gap-1 ${right ? "justify-end" : ""}`}>
         {side.group && <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-gray-300">Group {side.group}</span>}
         {side.tvtChip && (
           <span

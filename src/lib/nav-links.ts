@@ -360,7 +360,7 @@ function buildLeague(ctx: Extract<NavContext, { surface: "league" }>, runtime: N
       ],
       isLoggedIn,
       isLoggedIn ? { kind: "signOut" } : { kind: "signIn", href: "/signin" },
-      ["dashboard", "standings", "fixtures", "jpl-cup-standings"],
+      ["dashboard", "standings", "fixtures", "match-center"],
     );
   }
 
@@ -421,7 +421,7 @@ function buildLeague(ctx: Extract<NavContext, { surface: "league" }>, runtime: N
     ],
     isLoggedIn,
     isLoggedIn ? { kind: "signOut" } : { kind: "signIn", href: "/signin" },
-    ["dashboard", "standings", "fixtures", "playoffs"],
+    ["dashboard", "standings", "fixtures", "match-center"],
   );
 }
 

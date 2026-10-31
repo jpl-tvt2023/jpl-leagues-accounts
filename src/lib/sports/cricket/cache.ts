@@ -3,17 +3,13 @@
  * read the other's entries. Keys carry the tournament's data version and the league's state
  * version, so an upload or a sale makes old entries unreachable instead of needing an explicit
  * invalidation. Works (uncached) without Redis.
+ *
+ * The client is the shared one (lib/redis.ts): while Upstash refuses, reads are misses and writes
+ * are dropped without a round trip each, and the page is built from the database as it is when
+ * Redis is not configured at all.
  */
 
-import { Redis } from "@upstash/redis";
-
-let redis: Redis | null = null;
-function getRedis(): Redis | null {
-  if (!redis && process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
-    redis = new Redis({ url: process.env.UPSTASH_REDIS_REST_URL, token: process.env.UPSTASH_REDIS_REST_TOKEN });
-  }
-  return redis;
-}
+import { cachedGet, cachedSet } from "@/lib/redis";
 
 const TTL_SECONDS = 3600;
 
@@ -22,22 +18,9 @@ export function leagueViewKey(leagueId: string, dataVersion: number, stateVersio
 }
 
 export async function cacheGet<T>(key: string): Promise<T | null> {
-  const r = getRedis();
-  if (!r) return null;
-  try {
-    return (await r.get<T>(key)) ?? null;
-  } catch (err) {
-    console.error("cricket cache get failed:", err);
-    return null;
-  }
+  return cachedGet<T>(key);
 }
 
 export async function cacheSet(key: string, value: unknown): Promise<void> {
-  const r = getRedis();
-  if (!r) return;
-  try {
-    await r.set(key, value, { ex: TTL_SECONDS });
-  } catch (err) {
-    console.error("cricket cache set failed:", err);
-  }
+  await cachedSet(key, value, TTL_SECONDS);
 }

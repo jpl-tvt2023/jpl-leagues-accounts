@@ -114,7 +114,7 @@ test.describe.serial("TVT-8 (admin + user)", () => {
     await expect.poll(() => page.url(), { timeout: 15_000 }).toContain(`/${league.slug}/dashboard`);
 
     const nav = page.locator("nav").first();
-    for (const label of ["Standings", "Fixtures", "FPL League", "Playoffs"]) {
+    for (const label of ["Standings", "Fixtures", "Match Center", "FPL League", "Playoffs"]) {
       await expect(
         nav.getByRole("link", { name: label, exact: true }),
         `dashboard nav is missing ${label}`,

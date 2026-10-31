@@ -39,6 +39,7 @@ import { eq } from "drizzle-orm";
 import { isSuperAdmin } from "@/lib/privilege";
 import { FPL_CLASSIC_FORMAT } from "@/lib/format-palette";
 import { syncRoster, settleGameweeks, refreshGameweek, freezeAwards } from "@/lib/sports/fpl/formats/fpl-classic/sync";
+import { describeDbError } from "@/lib/db/errors";
 
 export const maxDuration = 60;
 
@@ -101,6 +102,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     });
   } catch (error) {
     console.error("[fpl-classic process] failed:", error);
-    return NextResponse.json({ error: "Processing failed", detail: error instanceof Error ? error.message : String(error) }, { status: 500 });
+    return NextResponse.json({ error: "Processing failed", detail: describeDbError(error) }, { status: 500 });
   }
 }

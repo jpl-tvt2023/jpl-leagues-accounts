@@ -59,7 +59,7 @@ test.describe.serial("Mobile nav drawer", () => {
     }
 
     // Same links the desktop bar carries, from the same model.
-    for (const label of ["Standings", "Fixtures", "FPL League", "Playoffs", "Winners", "Rules", "Help"]) {
+    for (const label of ["Standings", "Fixtures", "Match Center", "FPL League", "Playoffs", "Winners", "Rules", "Help"]) {
       await expect(
         panel.getByRole("link", { name: label, exact: true }),
         `drawer is missing ${label}`,
@@ -154,7 +154,7 @@ test.describe.serial("Mobile nav drawer", () => {
     await hamburger(page).click();
     // The dashboard used to hand-copy this list; it now draws from the same model as the
     // league pages, so FPL League has to be here too.
-    for (const label of ["Standings", "Fixtures", "FPL League", "Playoffs"]) {
+    for (const label of ["Standings", "Fixtures", "Match Center", "FPL League", "Playoffs"]) {
       await expect(
         drawer(page).getByRole("link", { name: label, exact: true }),
         `dashboard drawer is missing ${label}`,

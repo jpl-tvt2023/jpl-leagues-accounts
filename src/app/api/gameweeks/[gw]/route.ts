@@ -5,6 +5,8 @@ import { calculateTVTTeamScore, determineMatchResult } from "@/lib/sports/fpl/fo
 import { computeGameweekAwards, type AwardFixtureInput } from "@/lib/sports/fpl/formats/tvt/gameweek-awards";
 import { getTop2FromGroup } from "@/lib/sports/fpl/formats/tvt/chip-validation";
 import { getAllCachedScores, invalidateLeaguePageCache } from "@/lib/sports/fpl/cache";
+import { redisWritable } from "@/lib/redis";
+import { playerHitsFromStoredScores } from "@/lib/sports/fpl/scoring/stored-hits";
 import { eq, and, isNull, inArray, sql } from "drizzle-orm";
 import { generateId } from "@/lib/id";
 import { leagues, challengerSurvivalEntries } from "@/lib/db/schema";
@@ -36,6 +38,19 @@ type GameweekWithRelations = Gameweek & {
   fixtures: FixtureWithRelations[];
   captains: CaptainWithRelations[];
 };
+
+/**
+ * Valid Challenge Chips the Challenge pass has not settled yet. One filter for the pass itself, the
+ * resume check before it, and the GET summary, so the three can never disagree about what is pending.
+ */
+function pendingChallengeChipFilter(gameweekId: string) {
+  return and(
+    eq(gameweekChips.gameweekId, gameweekId),
+    eq(gameweekChips.chipType, "C"),
+    eq(gameweekChips.isValid, true),
+    eq(gameweekChips.isProcessed, false),
+  );
+}
 
 interface PlayerScoreData {
   playerId: string;
@@ -113,6 +128,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       .where(eq(challengerSurvivalEntries.gameweekId, gameweek.id));
     const survivalRanked = survivalEntries.filter(e => e.rank != null).length;
 
+    // Non-zero with every result stored means a scoring run died before its Challenge pass; the
+    // admin panel then offers a plain Process, which resumes it.
+    const pendingChallenges = await db.select({ id: gameweekChips.id }).from(gameweekChips)
+      .where(pendingChallengeChipFilter(gameweek.id));
+
     return NextResponse.json({
       gameweek: {
         number: gameweek.number,
@@ -122,6 +142,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         resultsProcessed: gameweek.fixtures.filter((f: FixtureWithRelations) => f.result).length,
         survivalCount: survivalEntries.length,
         survivalRanked,
+        challengesPending: pendingChallenges.length,
       },
       fixtures: gameweek.fixtures.map((f: FixtureWithRelations) => ({
         id: f.id,
@@ -277,6 +298,37 @@ async function autoAssignDefaultCaptain(
 }
 
 /**
+ * Every manager's transfer hits in one of this league's gameweeks, from the stored results.
+ *
+ * Null — so the caller falls back to Redis — unless the results can answer for the WHOLE
+ * gameweek: every fixture has a result, and every non-ghost side has a usable breakdown. A
+ * partial answer would silently drop a carry-forward deduction for whoever is missing.
+ */
+async function storedGameweekHits(leagueId: string, gwNumber: number): Promise<Map<string, number> | null> {
+  const gw = await db.query.gameweeks.findFirst({
+    where: and(eq(gameweeks.number, gwNumber), eq(gameweeks.leagueId, leagueId)),
+    with: { fixtures: { with: { result: true, homeTeam: true, awayTeam: true } } },
+  });
+  if (!gw || gw.fixtures.length === 0) return null;
+
+  const hits = new Map<string, number>();
+  for (const f of gw.fixtures) {
+    if (!f.result) return null;
+    const sides: [string | null, Team][] = [
+      [f.result.homePlayerScores, f.homeTeam],
+      [f.result.awayPlayerScores, f.awayTeam],
+    ];
+    for (const [raw, team] of sides) {
+      if (team.isGhost) continue; // bye placeholder: no managers to read
+      const sideHits = playerHitsFromStoredScores(raw);
+      if (!sideHits) return null;
+      for (const [fplId, h] of sideHits) hits.set(fplId, h);
+    }
+  }
+  return hits.size > 0 ? hits : null;
+}
+
+/**
  * POST /api/gameweeks/[gw]
  * Process gameweek - fetch FPL scores and calculate results
  * Query params:
@@ -325,6 +377,19 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
     const noGameweeks = await refuseIfNoGameweeks(leagueId);
     if (noGameweeks) return noGameweeks;
+
+    // Scoring fails CLOSED while Redis is configured but refusing. Every format below commits
+    // rows and then invalidates the page caches built from them; an outage would let the first
+    // happen without the second — a half-processed gameweek (TVT invalidates before its
+    // Challenge pass), and pre-outage pages served as current once Redis recovers. Stop here,
+    // before anything is written. Reads elsewhere fail open; writes of results wait.
+    if (!(await redisWritable())) {
+      return NextResponse.json(
+        { error: "Scoring is paused: the cache (Upstash Redis) is not answering. Nothing was written — retry once it recovers." },
+        { status: 503 }
+      );
+    }
+
     const gwWhere = and(eq(gameweeks.number, gameweekNumber), eq(gameweeks.leagueId, leagueId));
 
     const gwList = await db.query.gameweeks.findMany({
@@ -506,7 +571,17 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     // Filter only unprocessed fixtures
     const unprocessedFixtures = gameweek.fixtures.filter(f => !f.result);
 
-    if (unprocessedFixtures.length === 0) {
+    // A run the platform killed after its last fixture has every result and bonus stored, but its
+    // Challenge pass and cache clear never ran. Pending chips are therefore still work: with no
+    // unscored fixture the loop below does nothing and bonus reconciliation is a no-op, so a plain
+    // re-run goes straight to the Challenge pass.
+    const pendingChallengeChips = await db.select({ teamId: gameweekChips.teamId }).from(gameweekChips)
+      .where(pendingChallengeChipFilter(gameweek.id));
+
+    if (unprocessedFixtures.length === 0 && pendingChallengeChips.length === 0) {
+      // Still clear the page cache: a killed run left it serving the pre-scoring payload, and this
+      // is how a plain re-run repairs it.
+      await invalidateLeaguePageCache(leagueId);
       return NextResponse.json(
         { message: "All fixtures already processed", processed: 0 },
         { status: 200 }
@@ -521,14 +596,27 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     // ============================================
     // Any player who took >12 raw FPL transfer hits in GW N-1 has their
     // FULL hit value deducted from their team's match score in GW N.
+    //
+    // GW N-1's hits come from its stored results (sports/fpl/scoring/stored-hits.ts). The
+    // per-manager Redis scores this used to SCAN live for 24 hours after they are written; they
+    // were only still there a week later because league-standings recomputes kept refreshing
+    // them, and those recomputes now read the stored results too. Redis remains the fallback for
+    // a GW N-1 the results cannot answer for (unscored fixtures, or breakdowns predating the field).
     const carryForwardMap = new Map<string, number>(); // fplId → transferHits to carry forward
     if (gameweekNumber > 1) {
-      const prevGwCache = await getAllCachedScores(gameweekNumber - 1, leagueId);
-      const prevGwSuffix = `_gw${gameweekNumber - 1}`;
-      for (const [key, data] of Object.entries(prevGwCache)) {
-        if (key.endsWith(prevGwSuffix) && data.transferHits > 12) {
-          const fplId = key.slice(0, -prevGwSuffix.length);
-          carryForwardMap.set(fplId, data.transferHits);
+      const prevHits = await storedGameweekHits(leagueId, gameweekNumber - 1);
+      if (prevHits) {
+        for (const [fplId, hits] of prevHits) {
+          if (hits > 12) carryForwardMap.set(fplId, hits);
+        }
+      } else {
+        const prevGwCache = await getAllCachedScores(gameweekNumber - 1, leagueId);
+        const prevGwSuffix = `_gw${gameweekNumber - 1}`;
+        for (const [key, data] of Object.entries(prevGwCache)) {
+          if (key.endsWith(prevGwSuffix) && data.transferHits > 12) {
+            const fplId = key.slice(0, -prevGwSuffix.length);
+            carryForwardMap.set(fplId, data.transferHits);
+          }
         }
       }
     }
@@ -542,10 +630,21 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     // The "critical" lane is used deliberately: this decides league points, so it is entitled to
     // fetch during a scoring run. A manager whose history cannot be read is simply absent from
     // the map, and tvtChipWasteReasonFor() then declines to declare waste — see below.
-    const scoringFplIds = unprocessedFixtures.flatMap((f: Fixture & { homeTeam: Team & { players: Player[] }; awayTeam: Team & { players: Player[] } }) => [
-      ...f.homeTeam.players.map((p: Player) => p.fplId),
-      ...f.awayTeam.players.map((p: Player) => p.fplId),
-    ]);
+    //
+    // Pending challengers are included too. On a resumed run there may be no unscored fixture at
+    // all, and without their managers in the map the Challenge pass could never void a wasted chip.
+    const pendingChallengerIds = new Set(pendingChallengeChips.map((c) => c.teamId));
+    const pendingChallengerFplIds = gameweek.fixtures
+      .flatMap((f: FixtureWithRelations) => [f.homeTeam, f.awayTeam])
+      .filter((t) => pendingChallengerIds.has(t.id))
+      .flatMap((t) => t.players.map((p: Player) => p.fplId));
+    const scoringFplIds = [...new Set([
+      ...unprocessedFixtures.flatMap((f: Fixture & { homeTeam: Team & { players: Player[] }; awayTeam: Team & { players: Player[] } }) => [
+        ...f.homeTeam.players.map((p: Player) => p.fplId),
+        ...f.awayTeam.players.map((p: Player) => p.fplId),
+      ]),
+      ...pendingChallengerFplIds,
+    ])];
     const fplChipStatusByFplId = await resolveFplChipStatuses(scoringFplIds, {
       lane: "critical",
       topUp: scoringFplIds.length,
@@ -1074,21 +1173,22 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       }
     }
 
+    // Results and bonuses are final from here. Clear the page cache now rather than only at the
+    // end: the Challenge pass runs last, when most of the 60s budget is gone, and a run killed
+    // inside it would otherwise leave the fixtures page serving the pre-scoring payload.
+    if (gameweek.leagueId) {
+      await invalidateLeaguePageCache(gameweek.leagueId);
+    }
+
     // ============================================
     // CHALLENGE CHIP PROCESSING (After regular fixtures)
     // ============================================
     const challengeResults = [];
     const challengeErrors = [];
-    
-    // Get all Challenge chips for this gameweek that haven't been processed
-    const challengeChips = await db.select().from(gameweekChips).where(
-      and(
-        eq(gameweekChips.gameweekId, gameweek.id),
-        eq(gameweekChips.chipType, "C"),
-        eq(gameweekChips.isValid, true),
-        eq(gameweekChips.isProcessed, false)
-      )
-    );
+
+    // Get all Challenge chips for this gameweek that haven't been processed. Re-read rather than
+    // reusing the pre-check's list: the fixture loop may have voided some of them since.
+    const challengeChips = await db.select().from(gameweekChips).where(pendingChallengeChipFilter(gameweek.id));
 
     for (const chip of challengeChips) {
       try {

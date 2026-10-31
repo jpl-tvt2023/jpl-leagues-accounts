@@ -15,12 +15,16 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import {
   apiSignInSuperadmin,
+  apiSignInTeam,
   createTvtLeague,
+  ensureTeamPerson,
   generateFixtures,
   setupAllTeams,
   ensureGameweeks,
+  expireElementDetail,
   expireGameweek,
   invalidateLeagueCache,
+  keepLastGoodElementDetail,
   setFixtureResult,
   testDb,
   schema,
@@ -122,6 +126,46 @@ test.describe.serial("Match Center, GW stats and bonus highlight (TVT)", () => {
     expect(body.comparison).toBeTruthy();
   });
 
+  test("FPL refusing us: line-ups from the last good points, else a degraded page — never a 500", async ({ page, request }) => {
+    const [fx] = await fixturesFor(request, 1);
+    const url = `/${league.slug}/match-center?gw=1&a=${fx.homeTeam.id}&b=${fx.awayTeam.id}`;
+    // A healthy read first: it is what leaves the last-good copy behind.
+    const fresh = await matchCenter(request, { fixtureId: fx.id });
+    expect(fresh.pointsAsOf).toBeNull();
+
+    try {
+      // 503, not the 403 prod saw: a 403 trips the dev server's breaker for 5 minutes and would
+      // leak into later specs. Both take the same `!res.ok` path out of the live fetch.
+      await keepLastGoodElementDetail(1, async () => {
+        const res = await request.post("/api/test-fpl-stub/control", { data: { failRoutes: ["event/live"] } });
+        expect(res.ok()).toBeTruthy();
+      });
+
+      const stale = await matchCenter(request, { fixtureId: fx.id });
+      expect(stale.degraded).toBeNull();
+      expect(stale.pointsAsOf, "served from the last good copy").toBeTruthy();
+      for (const k of ["a", "b"] as const) {
+        expect(stale[k].sheet, `${stale[k].teamName} should still have a sheet`).toBeTruthy();
+        expect(stale[k].displayTotal).toBe(fresh[k].displayTotal);
+      }
+      await page.goto(url);
+      await expect(page.getByText(/points are as of/)).toBeVisible();
+      await expect(page.getByTestId("mc-side-a")).toBeVisible();
+
+      // Nothing to fall back on: a degraded 200 (matchCenter() asserts ok), not a 500.
+      await expireElementDetail(1, { lastGood: true });
+      const none = await matchCenter(request, { fixtureId: fx.id });
+      expect(none.degraded).toBe("fpl_unavailable");
+      expect(none.pointsAsOf).toBeNull();
+      expect(none.a.sheet).toBeNull();
+      await page.reload();
+      await expect(page.getByText(/Can't load line-ups from FPL/)).toBeVisible();
+      await expect(page.getByText(/scoring run/)).toHaveCount(0);
+    } finally {
+      await request.post("/api/test-fpl-stub/control", { data: { failRoutes: [] } });
+    }
+  });
+
   test("before the deadline nothing strategic is disclosed", async ({ request }) => {
     const [fx] = await fixturesFor(request, 2);
     const res = await request.get(
@@ -144,7 +188,7 @@ test.describe.serial("Match Center, GW stats and bonus highlight (TVT)", () => {
 
     await page.goto(`/${league.slug}/fixtures`);
     await page.getByTestId(`match-center-link-${fx.id}`).click();
-    await expect(page).toHaveURL(new RegExp(`/fixtures/${fx.id}\\?gw=1&a=${fx.homeTeam.id}&b=${fx.awayTeam.id}`));
+    await expect(page).toHaveURL(new RegExp(`/match-center\\?gw=1&a=${fx.homeTeam.id}&b=${fx.awayTeam.id}$`));
 
     // The team names ARE the pickers, so assert the selected value — text matching would hit
     // every <option> in the list.
@@ -177,7 +221,7 @@ test.describe.serial("Match Center, GW stats and bonus highlight (TVT)", () => {
   test("phone: one squad at a time behind team tabs", async ({ page, request }) => {
     const [fx] = await fixturesFor(request, 1);
     await page.setViewportSize({ width: 375, height: 800 });
-    await page.goto(`/${league.slug}/fixtures/${fx.id}`);
+    await page.goto(`/${league.slug}/match-center?gw=1&a=${fx.homeTeam.id}&b=${fx.awayTeam.id}`);
 
     const tabs = page.getByRole("tablist", { name: "Choose team" });
     await expect(tabs).toBeVisible();
@@ -187,6 +231,63 @@ test.describe.serial("Match Center, GW stats and bonus highlight (TVT)", () => {
     await tabs.getByRole("tab").nth(1).click();
     await expect(page.getByTestId("mc-side-b")).toBeVisible();
     await expect(page.getByTestId("mc-side-a")).toBeHidden();
+  });
+
+  test("an old /fixtures/{id} link redirects to the Match Center on that fixture", async ({ page, request }) => {
+    // The second fixture, so landing on the visitor's default would not pass by accident.
+    const [, fx] = await fixturesFor(request, 1);
+    await page.goto(`/${league.slug}/fixtures/${fx.id}`);
+    await expect(page).toHaveURL(new RegExp(`/match-center\\?gw=1&a=${fx.homeTeam.id}&b=${fx.awayTeam.id}$`));
+    await expect(page.getByLabel("First team")).toHaveValue(fx.homeTeam.id);
+    await expect(page.getByLabel("Second team")).toHaveValue(fx.awayTeam.id);
+  });
+
+  test("from the nav, a team opens on its own dashboard fixture", async ({ page, request }) => {
+    const { teamId } = await ensureTeamPerson(league.slug, 3);
+    await apiSignInTeam(page.request, league.slug, 3);
+    // Nothing is scored yet, so the dashboard shows the team's GW1 fixture.
+    const mine = (await fixturesFor(request, 1)).find((f) => f.homeTeam.id === teamId || f.awayTeam.id === teamId)!;
+    const opponent = mine.homeTeam.id === teamId ? mine.awayTeam.id : mine.homeTeam.id;
+
+    await page.goto(`/${league.slug}/standings`);
+    await page.getByRole("link", { name: "Match Center" }).first().click();
+    // The team is on the left whether it is home or away, and the resolved choice is in the URL.
+    await expect(page).toHaveURL(new RegExp(`/match-center\\?gw=1&a=${teamId}&b=${opponent}$`));
+    await expect(page.getByLabel("First team")).toHaveValue(teamId);
+    await expect(page.getByLabel("Second team")).toHaveValue(opponent);
+  });
+
+  test("from the nav, a visitor opens on a fixture of the gameweek in play", async ({ page, request }) => {
+    const fixtures = await fixturesFor(request, 1);
+    await page.goto(`/${league.slug}/match-center`);
+    await expect(page).toHaveURL(/\/match-center\?gw=1&a=[^&]+&b=[^&]+$/);
+    const a = await page.getByLabel("First team").inputValue();
+    const b = await page.getByLabel("Second team").inputValue();
+    expect(fixtures.some((f) => f.homeTeam.id === a && f.awayTeam.id === b), `${a} v ${b} is a GW1 fixture`).toBe(true);
+  });
+
+  test("phone: the pickers share a row under the score, and the bottom bar has Match", async ({ page, request }) => {
+    const [fx] = await fixturesFor(request, 1);
+    await page.setViewportSize({ width: 375, height: 800 });
+    await page.goto(`/${league.slug}/match-center?gw=1&a=${fx.homeTeam.id}&b=${fx.awayTeam.id}`);
+
+    const first = page.getByLabel("First team");
+    const second = page.getByLabel("Second team");
+    await expect(first).toBeVisible();
+    await expect(second).toBeVisible();
+    const [boxA, boxB, score] = await Promise.all([
+      first.boundingBox(),
+      second.boundingBox(),
+      page.getByTestId("mc-score-a").boundingBox(),
+    ]);
+    expect(Math.abs(boxA!.y - boxB!.y), "both pickers on one row").toBeLessThan(2);
+    expect(boxA!.x + boxA!.width, "pickers do not overlap").toBeLessThanOrEqual(boxB!.x);
+    expect(boxB!.x + boxB!.width, "second picker inside the screen").toBeLessThanOrEqual(375);
+    expect(score!.y + score!.height, "score sits above the pickers").toBeLessThanOrEqual(boxA!.y);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBe(0);
+
+    const bottomBar = page.getByRole("navigation", { name: "Primary" });
+    await expect(bottomBar.getByRole("link", { name: "Match" })).toHaveAttribute("aria-current", "page");
   });
 
   test("stats endpoint covers every manager, with transfers", async ({ request }) => {
@@ -341,7 +442,7 @@ test.describe.serial("Match Center, GW stats and bonus highlight (TVT)", () => {
 
     for (const width of [1440, 375]) {
       await page.setViewportSize({ width, height: 900 });
-      await page.goto(`/${league.slug}/fixtures/${fx.id}`);
+      await page.goto(`/${league.slug}/match-center?gw=1&a=${fx.homeTeam.id}&b=${fx.awayTeam.id}`);
       await expect(page.getByTestId("mc-side-a").locator("[data-testid^='mc-row-']").first()).toBeVisible();
       await shot(`match-center-${width}`);
     }

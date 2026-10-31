@@ -36,7 +36,6 @@
  * - Only gameweeks FPL has CONCLUDED enter the plan, so it cannot score unfinished football.
  */
 
-import { Redis } from "@upstash/redis";
 import type { LeaguePlanItem, LeagueResult, LeagueGwResult } from "@/lib/sports/fpl/cron/process-all";
 import {
   emptyLeagueResult,
@@ -45,6 +44,7 @@ import {
 } from "@/lib/sports/fpl/cron/league-result";
 import { isScoringActive, markScoringActive, clearScoringActive } from "@/lib/sports/fpl/cache";
 import { istNow } from "@/lib/sports/fpl/cron/ist-clock";
+import { getRedis as getSharedRedis } from "@/lib/redis";
 
 export { istNow };
 
@@ -97,20 +97,41 @@ export interface DailyRunStore {
   lpop<T>(key: string): Promise<T | null>;
 }
 
-let redis: DailyRunStore | null = null;
+let storeOverride: DailyRunStore | null = null;
+
+/**
+ * The shared client (lib/redis.ts), which is null while Redis is absent OR down. Down therefore
+ * reads exactly like absent here — no claim, no queue, no automation — which is the fail-closed
+ * behaviour this module already chose for "no Redis" and wants for an outage too: a run that
+ * cannot record its own progress could double-process, and waiting for Redis to recover costs
+ * nothing but time.
+ */
 function getRedis(): DailyRunStore | null {
-  if (!redis && process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
-    redis = new Redis({
-      url: process.env.UPSTASH_REDIS_REST_URL,
-      token: process.env.UPSTASH_REDIS_REST_TOKEN,
-    }) as unknown as DailyRunStore;
-  }
-  return redis;
+  return storeOverride ?? (getSharedRedis() as unknown as DailyRunStore | null);
 }
 
 /** Test seam: run the orchestration against a double instead of a live Redis. */
 export function __setDailyTriggerStore(store: DailyRunStore | null): void {
-  redis = store;
+  storeOverride = store;
+  known = null;
+}
+
+/**
+ * What this instance has already learned about today's run, so the common case — a day long
+ * since claimed and finished — costs no Redis at all.
+ *
+ * Both halves used to ask on every request they rode on: a SET NX bound to fail, then two GETs
+ * for a day that had finished hours earlier. Three commands on every /api/fixtures and
+ * /api/standings request, all day, to relearn the same two facts. Neither can be unlearned within
+ * a day — nothing releases a claim or reopens a finished day — so remembering them is exact. The
+ * one way around that is deleting the keys by hand in the Upstash console, which instances that
+ * already saw the day finish will not notice until the next IST date.
+ */
+let known: { date: string; claimed: boolean; done: boolean } | null = null;
+
+function knownFor(date: string): { date: string; claimed: boolean; done: boolean } {
+  if (known?.date !== date) known = { date, claimed: false, done: false };
+  return known;
 }
 
 const claimKey = (date: string) => `daily-run:claim:${date}`;
@@ -122,8 +143,8 @@ const chunkKey = (date: string) => `daily-run:chunk:${date}`;
 /**
  * Claim today's run and build its work queue, if nobody has yet and it is past 09:00 IST.
  *
- * Safe to call on every request: past the first success of the day it is one Redis SET that
- * fails, and before 09:00 it does nothing at all.
+ * Safe to call on every request: once this instance has seen the day claimed it does nothing at
+ * all, and before 09:00 it does nothing either.
  */
 export async function maybeStartDailyRun(now: Date = new Date()): Promise<boolean> {
   const r = getRedis();
@@ -134,7 +155,11 @@ export async function maybeStartDailyRun(now: Date = new Date()): Promise<boolea
   const { date, hour } = istNow(now);
   if (hour < RUN_FROM_HOUR_IST) return false;
 
+  const day = knownFor(date);
+  if (day.claimed) return false;
+
   const claimed = await r.set(claimKey(date), "1", { ex: CLAIM_TTL_SECONDS, nx: true });
+  day.claimed = true; // won or lost, today is claimed now
   if (claimed === null) return false;
 
   try {
@@ -156,6 +181,7 @@ export async function maybeStartDailyRun(now: Date = new Date()): Promise<boolea
     if (items.length === 0) {
       // Nothing due. Mark the day finished so no later request keeps checking an empty queue.
       await r.set(doneKey(date), "1", { ex: CLAIM_TTL_SECONDS });
+      day.done = true;
       return true;
     }
 
@@ -167,6 +193,7 @@ export async function maybeStartDailyRun(now: Date = new Date()): Promise<boolea
     // an operator problem, and hammering computePlan on every request would make it worse.
     console.error("[daily-run] plan failed", e);
     await r.set(doneKey(date), "1", { ex: CLAIM_TTL_SECONDS });
+    day.done = true;
     return false;
   }
 }
@@ -184,8 +211,16 @@ export async function advanceDailyRun(
   if (!r) return "idle";
 
   const { date } = istNow(now);
-  if ((await r.get(claimKey(date))) === null) return "idle";
-  if ((await r.get(doneKey(date))) !== null) return "idle";
+  const day = knownFor(date);
+  if (day.done) return "idle";
+  if (!day.claimed) {
+    if ((await r.get(claimKey(date))) === null) return "idle";
+    day.claimed = true;
+  }
+  if ((await r.get(doneKey(date))) !== null) {
+    day.done = true;
+    return "idle";
+  }
 
   // A manual run from Operations has the floor. Standing down here is what keeps the two from
   // interleaving writes into the same gameweek.
@@ -238,6 +273,7 @@ async function finishDailyRun(r: DailyRunStore, date: string, baseUrl: string): 
   // Mark done first: finishRun is best-effort, and a failure there must not leave the queue
   // being polled for the rest of the day.
   await r.set(doneKey(date), "1", { ex: CLAIM_TTL_SECONDS });
+  knownFor(date).done = true;
   if (!state) return;
 
   const results = Object.values(state.results).map(finalizeLeagueResult);
@@ -260,7 +296,8 @@ function parseQueueItem(raw: string | QueueItem): QueueItem | null {
   }
 }
 
-/** Test seam: forget the memoised client so a spec can point it at a different Redis. */
+/** Test seam: drop any store double so the shared client is used again. */
 export function __resetDailyTriggerRedis(): void {
-  redis = null;
+  storeOverride = null;
+  known = null;
 }

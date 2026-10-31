@@ -9,6 +9,9 @@
  * Also pins the rule that a challenge never becomes a league match: reprocessing must move
  * cbpPoints and nothing else.
  *
+ * And that a run killed after its last fixture, before the Challenge pass, is finished by a plain
+ * re-run (no force) rather than reported as "already processed".
+ *
  * Run with: npm run test:e2e -- tests/league-types/challenge-chip-reprocess.spec.ts
  */
 
@@ -116,6 +119,50 @@ test.describe.serial("Challenge Chip reprocessing", () => {
     expect(chip.isProcessed, `${challengerName}'s challenge should be processed`).toBe(true);
     expect(chip.pointsAwarded).toBeGreaterThanOrEqual(0);
     expect(chip.pointsAwarded).toBeLessThanOrEqual(2);
+  });
+
+  test("a run killed before the Challenge pass is resumed by a plain re-run", async ({ request }) => {
+    await apiSignInSuperadmin(request);
+    const before = await standingFor(request, challengerId);
+    const chipBefore = await chipRow();
+    expect(chipBefore.isProcessed).toBe(true);
+    expect(chipBefore.wastedReason, "precondition: the challenge was scored, not voided").toBeNull();
+
+    // What a run killed after its last fixture leaves behind: every result and bonus stored, but
+    // the Challenge pass never ran, so the chip is unsettled and its points were never added.
+    const db = testDb();
+    await db.update(schema.gameweekChips)
+      .set({ isProcessed: false, pointsAwarded: 0 })
+      .where(eq(schema.gameweekChips.id, chipBefore.id));
+    const [team] = await db.select().from(schema.teams).where(eq(schema.teams.id, challengerId)).limit(1);
+    await db.update(schema.teams)
+      .set({ leaguePoints: team.leaguePoints - chipBefore.pointsAwarded })
+      .where(eq(schema.teams.id, challengerId));
+
+    const stranded = await request.get(`/api/gameweeks/${GW}?leagueId=${leagueId}`).then((r) => r.json());
+    expect(stranded.gameweek.challengesPending).toBe(1);
+    expect(
+      stranded.fixtures.every((f: { result: unknown }) => f.result !== null),
+      "every fixture should already have a result",
+    ).toBe(true);
+
+    // No force: a plain Process must resume the Challenge pass, not report "already processed".
+    const res = await request.post(`/api/gameweeks/${GW}?leagueId=${leagueId}`, { failOnStatusCode: false });
+    expect(res.status(), await res.text()).toBe(200);
+    const body = await res.json();
+    expect(body.processed).toBe(0);
+    expect(body.challengeResults?.length, JSON.stringify(body)).toBe(1);
+
+    const chipAfter = await chipRow();
+    expect(chipAfter.isProcessed).toBe(true);
+    expect(chipAfter.pointsAwarded).toBe(chipBefore.pointsAwarded);
+
+    const after = await standingFor(request, challengerId);
+    expect(after.leaguePoints).toBe(before.leaguePoints);
+    expect(after.cbpPoints).toBe(before.cbpPoints);
+
+    const resumed = await request.get(`/api/gameweeks/${GW}?leagueId=${leagueId}`).then((r) => r.json());
+    expect(resumed.gameweek.challengesPending).toBe(0);
   });
 
   test("reprocessing leaves the challenger's points exactly where they were", async ({ request }) => {

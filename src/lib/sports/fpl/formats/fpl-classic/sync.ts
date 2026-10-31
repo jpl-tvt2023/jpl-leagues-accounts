@@ -24,6 +24,7 @@ import { fetchGameweekDeadlines } from "@/lib/sports/fpl/gw-calendar";
 import { getCachedEntryHistories, setCachedEntryHistory } from "@/lib/sports/fpl/cache";
 import { withFplBudget, FplUnavailableError } from "@/lib/sports/fpl/gateway";
 import { mapWithConcurrency } from "@/lib/concurrency";
+import { describeDbError, withDbRetry } from "@/lib/db/errors";
 import {
   claimClassicRosterLock, releaseClassicRosterLock,
   claimClassicSettleLock, releaseClassicSettleLock,
@@ -67,6 +68,15 @@ const ROW_CHUNK = 50;
 async function loadConfig(leagueId: string) {
   const [config] = await db.select().from(fplClassicConfig).where(eq(fplClassicConfig.leagueId, leagueId)).limit(1);
   return config ?? null;
+}
+
+/**
+ * Store the stop reason the Operations tab shows. When the DB is down this write can fail too, and
+ * letting that throw would bury the real cause under the route's generic 500.
+ */
+async function recordSyncError(leagueId: string, message: string): Promise<void> {
+  await db.update(fplClassicConfig).set({ lastSyncError: message, updatedAt: new Date() }).where(eq(fplClassicConfig.leagueId, leagueId))
+    .catch((writeErr) => console.error("[fpl-classic] could not record the sync error:", writeErr));
 }
 
 /** The slice of an FPL entry history a settled row is built from — satisfied by both a fresh fetch and a cached copy. */
@@ -186,8 +196,9 @@ export async function syncRoster(leagueId: string): Promise<{ ok: boolean; entra
 
     return { ok: true, entrantCount: fresh.entries.length };
   } catch (err) {
-    const message = err instanceof FplUnavailableError ? err.message : err instanceof Error ? err.message : String(err);
-    await db.update(fplClassicConfig).set({ lastSyncError: message, updatedAt: new Date() }).where(eq(fplClassicConfig.leagueId, leagueId));
+    console.error("[fpl-classic] roster sync failed:", err);
+    const message = describeDbError(err);
+    await recordSyncError(leagueId, message);
     return { ok: false, error: message };
   } finally {
     await releaseClassicRosterLock(leagueId);
@@ -316,20 +327,28 @@ export async function settleGameweeks(leagueId: string): Promise<SettleResult> {
     }
     // If a chunk throws, the catch below returns before the cursor moves, so the in-memory sets
     // being ahead of the DB here cannot advance it past rows that were never written.
+    //
+    // The FPL fan-out is already spent by this point, so one DB blip must not throw it all away:
+    // each write below gets one retry. Both are idempotent — the insert skips rows that already
+    // landed, and the cursor update writes the same forward-only value.
     for (let i = 0; i < newRows.length; i += ROW_CHUNK) {
-      await db.insert(fplClassicEntryGws).values(newRows.slice(i, i + ROW_CHUNK)).onConflictDoNothing();
+      const chunk = newRows.slice(i, i + ROW_CHUNK);
+      await withDbRetry("settle: insert entry gws", () => db.insert(fplClassicEntryGws).values(chunk).onConflictDoNothing());
     }
 
     const newCursor = computeCursor(allActive, settledGwsByEntrant, config.settledThroughGw, lastConcludedGw);
-    await db.update(fplClassicConfig).set({ settledThroughGw: newCursor, lastSyncError: null, updatedAt: new Date() }).where(eq(fplClassicConfig.leagueId, leagueId));
+    await withDbRetry("settle: advance cursor", () =>
+      db.update(fplClassicConfig).set({ settledThroughGw: newCursor, lastSyncError: null, updatedAt: new Date() }).where(eq(fplClassicConfig.leagueId, leagueId)),
+    );
 
     const stillPending = allActive.filter((e) => neededGwsFor(e).length > 0 && !batch.includes(e)).length
       + batch.filter((e) => neededGwsFor(e).length > 0).length;
 
     return { ok: true, done: stillPending === 0 && newCursor >= lastConcludedGw, settledThroughGw: newCursor, remainingEntrants: stillPending };
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    await db.update(fplClassicConfig).set({ lastSyncError: message, updatedAt: new Date() }).where(eq(fplClassicConfig.leagueId, leagueId));
+    console.error("[fpl-classic] settle failed:", err);
+    const message = describeDbError(err);
+    await recordSyncError(leagueId, message);
     return { ok: false, done: false, settledThroughGw: config.settledThroughGw, remainingEntrants: -1, error: message };
   } finally {
     await releaseClassicSettleLock(leagueId);
@@ -452,11 +471,14 @@ export async function refreshGameweek(leagueId: string, gw: number, opts?: { off
       if (history && c) fresh.push(toEntryGwRow(leagueId, batch[i].id, c, history, monthKeyByGw));
     }
 
+    // From here on the FPL fan-out is already spent, so each DB call gets one retry rather than
+    // throwing the whole pass away on a blip. Every one is idempotent: reads, an upsert that writes
+    // the same values again, and a forward-only cursor.
     const stored = fresh.length > 0
-      ? await db
+      ? await withDbRetry("refresh: read stored rows", () => db
         .select()
         .from(fplClassicEntryGws)
-        .where(and(eq(fplClassicEntryGws.gw, gw), inArray(fplClassicEntryGws.entrantId, fresh.map((r) => r.entrantId))))
+        .where(and(eq(fplClassicEntryGws.gw, gw), inArray(fplClassicEntryGws.entrantId, fresh.map((r) => r.entrantId)))))
       : [];
     const storedByEntrant = new Map(stored.map((r) => [r.entrantId, r]));
     const changed = fresh.filter((r) => {
@@ -468,7 +490,8 @@ export async function refreshGameweek(leagueId: string, gw: number, opts?: { off
     }).length;
 
     for (let i = 0; i < fresh.length; i += ROW_CHUNK) {
-      await db.insert(fplClassicEntryGws).values(fresh.slice(i, i + ROW_CHUNK)).onConflictDoUpdate({
+      const chunk = fresh.slice(i, i + ROW_CHUNK);
+      await withDbRetry("refresh: upsert entry gws", () => db.insert(fplClassicEntryGws).values(chunk).onConflictDoUpdate({
         target: [fplClassicEntryGws.entrantId, fplClassicEntryGws.gw],
         // monthKey deliberately absent: a settled row keeps the month it was frozen with (see the
         // schema). Only a row this call inserts takes the freshly derived one.
@@ -481,7 +504,7 @@ export async function refreshGameweek(leagueId: string, gw: number, opts?: { off
           benchPoints: sql`excluded.bench_points`,
           chip: sql`excluded.chip`,
         },
-      });
+      }));
     }
 
     const nextOffset = offset + finished;
@@ -491,14 +514,14 @@ export async function refreshGameweek(leagueId: string, gw: number, opts?: { off
     if (done) {
       // Refreshing a pending gameweek may have filled the gap right after the cursor. computeCursor
       // only ever advances it, and only to a gameweek every active entrant has a row for.
-      const allActive = await db
+      const allActive = await withDbRetry("refresh: read active entrants", () => db
         .select({ id: fplClassicEntrants.id, firstSeenGw: fplClassicEntrants.firstSeenGw })
         .from(fplClassicEntrants)
-        .where(and(eq(fplClassicEntrants.leagueId, leagueId), eq(fplClassicEntrants.isActive, true)));
-      const rows = await db
+        .where(and(eq(fplClassicEntrants.leagueId, leagueId), eq(fplClassicEntrants.isActive, true))));
+      const rows = await withDbRetry("refresh: read settled rows", () => db
         .select({ entrantId: fplClassicEntryGws.entrantId, gw: fplClassicEntryGws.gw })
         .from(fplClassicEntryGws)
-        .where(eq(fplClassicEntryGws.leagueId, leagueId));
+        .where(eq(fplClassicEntryGws.leagueId, leagueId)));
       const gwsByEntrant = new Map<string, Set<number>>();
       for (const r of rows) {
         const set = gwsByEntrant.get(r.entrantId) ?? new Set<number>();
@@ -506,13 +529,16 @@ export async function refreshGameweek(leagueId: string, gw: number, opts?: { off
         gwsByEntrant.set(r.entrantId, set);
       }
       settledThroughGw = computeCursor(allActive, gwsByEntrant, config.settledThroughGw, lastConcludedGw);
-      await db.update(fplClassicConfig).set({ settledThroughGw, lastSyncError: null, updatedAt: new Date() }).where(eq(fplClassicConfig.leagueId, leagueId));
+      await withDbRetry("refresh: advance cursor", () =>
+        db.update(fplClassicConfig).set({ settledThroughGw, lastSyncError: null, updatedAt: new Date() }).where(eq(fplClassicConfig.leagueId, leagueId)),
+      );
     }
 
     return { ok: true, done, gw, total: eligible.length, nextOffset, refreshed: fresh.length, changed, failed, settledThroughGw };
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    await db.update(fplClassicConfig).set({ lastSyncError: message, updatedAt: new Date() }).where(eq(fplClassicConfig.leagueId, leagueId));
+    console.error("[fpl-classic] refresh failed:", err);
+    const message = describeDbError(err);
+    await recordSyncError(leagueId, message);
     return { ...empty, ok: false, done: false, settledThroughGw: config.settledThroughGw, error: message };
   } finally {
     await releaseClassicSettleLock(leagueId);
