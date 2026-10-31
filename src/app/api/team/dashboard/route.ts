@@ -27,6 +27,7 @@ import { buildTeamLedger } from "@/lib/sports/fpl/formats/auction/finance";
 import { computeCaptainCap, computeCaptainCheckLimit } from "@/lib/sports/fpl/captains";
 import { resolveSubmissionWindow } from "@/lib/sports/fpl/gameweeks/window";
 import { getFinishedGwNumbers } from "@/lib/sports/fpl/gameweeks/finished-set";
+import { teamFixtureGameweek } from "@/lib/sports/fpl/gameweeks/default-gw";
 import { getDoublePointerEligibility } from "@/lib/sports/fpl/formats/tvt/double-pointer-eligibility";
 
 import { DOUBLE_HEADER_GWS } from "@/lib/sports/fpl/gameweeks/double-headers";
@@ -181,12 +182,10 @@ export async function GET(request: NextRequest) {
       : [];
 
     // Find the latest GW that has a result (current/completed GW) — PL fixtures only for TC
-    const completedGWs = plTeamFixtures
-      .filter(f => f.result)
-      .map(f => f.gameweek.number);
+    // Shared with the Match Center, which opens on this same fixture from the nav.
     const latestCompletedGW = TEST_GW_OVERRIDE !== null
       ? TEST_GW_OVERRIDE - 1
-      : (completedGWs.length > 0 ? Math.max(...completedGWs) : 0);
+      : teamFixtureGameweek(plTeamFixtures.map(f => ({ gw: f.gameweek.number, scored: !!f.result }))) - 1;
     
     // Find the next gameweek after the latest completed GW (for deadline)
     const nextGameweek = allGameweeks.find(gw => gw.number === latestCompletedGW + 1) || null;

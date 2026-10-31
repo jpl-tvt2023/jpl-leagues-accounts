@@ -527,9 +527,9 @@ test.describe.serial("members-mode leagues", () => {
     await apiSignInUser(page.request, { email: email("alice"), username: uname("alice") });
     const aliceTeam = (await myTeamIn(email("alice"), tvt.id))!;
     await page.goto(`/${tvt.slug}/match-center`);
-    await page.waitForURL(new RegExp(`/${tvt.slug}/fixtures/[^/?]+`));
-    const ids = [await page.getByLabel("First team").inputValue(), await page.getByLabel("Second team").inputValue()];
-    expect(ids).toContain(aliceTeam);
+    // The page stays put and pins the comparison it opened on into the URL — your team on the left.
+    await page.waitForURL(new RegExp(`/${tvt.slug}/match-center\\?gw=\\d+&a=${aliceTeam}&b=`));
+    await expect(page.getByLabel("First team")).toHaveValue(aliceTeam);
   });
 
   test("public help and privacy load signed out", async ({ page }) => {

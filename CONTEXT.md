@@ -49,8 +49,8 @@ src/
 │   ├── playoffs/page.tsx               # Global playoffs (supports ?adminLeague=slug)
 │   ├── rules/page.tsx
 │   ├── [leagueSlug]/
-│   │   ├── fixtures/page.tsx           # League public fixtures (fixtures/[fixtureId] = Match Center)
-│   │   ├── match-center/page.tsx       # Nav entry: redirects to your own match (or the GW's first) in the Match Center
+│   │   ├── fixtures/page.tsx           # League public fixtures (fixtures/[fixtureId] redirects to the Match Center)
+│   │   ├── match-center/page.tsx       # Match Center: two teams' merged squads (?gw=&a=&b=; no query = your own match)
 │   │   ├── standings/page.tsx          # League public standings
 │   │   ├── playoffs/page.tsx           # League public playoffs
 │   │   ├── rules/page.tsx
